@@ -7,3 +7,6 @@
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 临时 GitHub 部署令牌（用完删除）
+.github-token
