@@ -176,6 +176,7 @@ export function itemMeta(item) {
 
 export function badgeFor(item) {
   if (!item) return '';
+  if (item.local) return item.localKind === 'file' ? '本机' : '网址';
   if (Array.isArray(item.tags) && item.tags.includes('预告片')) return '预告片';
   if (item.license === 'CC0 1.0') return 'CC0';
   const first = Array.isArray(item.sources) ? item.sources[0] : null;

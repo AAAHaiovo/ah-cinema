@@ -1,8 +1,8 @@
 /* 本机数据层：优先 IndexedDB，失败时退回 localStorage / 内存。 */
 
 const DB_NAME = 'ah-cinema';
-const DB_VERSION = 1;
-const STORES = ['progress', 'favorites', 'settings', 'searches'];
+const DB_VERSION = 2;
+const STORES = ['progress', 'favorites', 'settings', 'searches', 'custom'];
 const LS_PREFIX = 'ah-fallback:';
 
 let dbPromise = null;
@@ -45,6 +45,25 @@ function openDB() {
   }
 
   return dbPromise;
+}
+
+function isQuotaError(error) {
+  return Boolean(
+    error &&
+      (error.name === 'QuotaExceededError' ||
+        error.code === 22 ||
+        /quota/i.test(String(error.message || '')))
+  );
+}
+
+export async function isAvailable() {
+  if (!hasIndexedDB()) return false;
+  try {
+    await openDB();
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
 
 function requestToPromise(request) {
@@ -121,6 +140,7 @@ export async function put(store, value) {
       await txDone(tx);
       return value;
     } catch (error) {
+      if (isQuotaError(error)) throw error;
       /* 退回 localStorage。 */
     }
   }
@@ -144,6 +164,7 @@ export async function bulkPut(store, values) {
       await txDone(tx);
       return;
     } catch (error) {
+      if (isQuotaError(error)) throw error;
       /* 退回 localStorage。 */
     }
   }

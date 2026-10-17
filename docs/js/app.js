@@ -1,12 +1,14 @@
 /* AH 影视入口：启动、主题、路由渲染、全局交互与 PWA。 */
 
-import { loadCatalog, getItem, getEpisode } from './catalog.js';
+import { loadCatalog, getItem, getEpisode, setCustomItems } from './catalog.js';
 import {
   state,
   loadState,
   saveSettings,
   toggleFavorite,
   removeProgress,
+  removeProgressForItem,
+  removeFavorite,
   clearHistory,
   clearSearches,
   addSearch,
@@ -14,6 +16,16 @@ import {
   importData,
   storageEstimate
 } from './store.js';
+
+import {
+  loadLocalItems,
+  addLocalFile,
+  addLocalUrl,
+  removeLocalItem,
+  titleFromUrl,
+  fileSizeLimit,
+  isHlsUrl
+} from './local-library.js';
 
 import {
   parseRoute,
@@ -42,6 +54,7 @@ import {
   renderSearchResults,
   renderHistory,
   renderFavorites,
+  renderLocal,
   renderMe,
   renderSettings,
   renderAbout,
@@ -156,6 +169,13 @@ async function boot() {
   try {
     await Promise.all([loadCatalog(), loadState()]);
 
+    try {
+      setCustomItems(await loadLocalItems());
+    } catch (error) {
+      console.warn('[AH 影视] 我的视频加载失败', error);
+      setCustomItems([]);
+    }
+
     booted = true;
     document.documentElement.dataset.booted = '1';
     applyTheme();
@@ -188,6 +208,7 @@ function setDocumentTitle(resolved) {
     search: '搜索 · ' + base,
     history: '观看历史 · ' + base,
     favorites: '收藏 · ' + base,
+    local: '我的视频 · ' + base,
     me: '我的 · ' + base,
     settings: '设置 · ' + base,
     about: '关于 · ' + base,
@@ -265,6 +286,8 @@ function renderRoute() {
     html = renderHistory();
   } else if (resolved.name === 'favorites') {
     html = renderFavorites(route);
+  } else if (resolved.name === 'local') {
+    html = renderLocal();
   } else if (resolved.name === 'me') {
     html = renderMe();
   } else if (resolved.name === 'settings') {
@@ -514,6 +537,141 @@ async function handleImportFile(input) {
   }
 }
 
+/* ---------- 我的视频 ---------- */
+
+async function refreshLocalItems() {
+  setCustomItems(await loadLocalItems());
+}
+
+function localFileInput() {
+  return document.getElementById('local-file-input');
+}
+
+async function chooseLocalSource() {
+  const choice = await openSheet({
+    title: '添加视频',
+    options: [
+      { value: 'file', label: '从设备选择视频文件' },
+      { value: 'url', label: '粘贴视频直链 / NAS 地址' }
+    ]
+  });
+
+  if (choice === 'file') {
+    const input = localFileInput();
+    if (input) input.click();
+  } else if (choice === 'url') {
+    await addLocalUrlFlow();
+  }
+}
+
+async function addLocalUrlFlow() {
+  const url = await openPrompt({
+    title: '添加视频网址',
+    description: '填写视频文件直链或 NAS 地址（http / https）。App 不会下载或转存；HTTPS 页面上的 http 地址可能被浏览器拦截。',
+    placeholder: 'https://example.com/movie.mp4',
+    inputMode: 'url',
+    confirmText: '下一步',
+    validate: (value) => {
+      if (!/^https?:\/\//i.test(value)) return '请输入以 http:// 或 https:// 开头的地址';
+      try {
+        new URL(value);
+      } catch (error) {
+        return '这个网址格式不对';
+      }
+      return '';
+    }
+  });
+
+  if (url === null) return;
+
+  const title = await openPrompt({
+    title: '给这个视频起个名字',
+    value: titleFromUrl(url),
+    placeholder: '例如：我的旅行视频',
+    inputMode: 'text',
+    confirmText: '添加'
+  });
+
+  if (title === null) return;
+
+  try {
+    const item = await addLocalUrl({ url, title });
+    await refreshLocalItems();
+    toast(isHlsUrl(url) ? '已添加（HLS 仅 Safari / iPhone 原生支持）' : '已添加：' + item.title);
+    location.hash = '#/title/' + encodeURIComponent(item.id);
+  } catch (error) {
+    toast(error && error.message ? error.message : '添加失败');
+  }
+}
+
+async function handleLocalFileInput(input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+
+  const looksVideo = /^video\//i.test(file.type || '') || /\.(mp4|m4v|webm|mov|ogv|ogg|mkv)$/i.test(file.name || '');
+  if (!looksVideo) {
+    toast('请选择一个视频文件');
+    return;
+  }
+
+  if (file.size > fileSizeLimit()) {
+    toast('文件超过 2 GB，建议先压缩，或改用“添加网址”');
+    return;
+  }
+
+  const defaultTitle = String(file.name || '本机视频').replace(/\.[^.]+$/, '') || '本机视频';
+  const title = await openPrompt({
+    title: '添加本机视频',
+    description: '文件只保存在这台设备，不会上传。读取封面可能需要几秒。',
+    value: defaultTitle,
+    inputMode: 'text',
+    confirmText: '添加'
+  });
+
+  if (title === null) return;
+
+  toast('正在读取视频信息…', 8000);
+
+  try {
+    const item = await addLocalFile({ file, title });
+    await refreshLocalItems();
+    toast('已添加：' + item.title);
+    location.hash = '#/title/' + encodeURIComponent(item.id);
+  } catch (error) {
+    toast(error && error.message ? error.message : '添加失败');
+  }
+}
+
+async function removeLocalFlow(id) {
+  const item = getItem(id);
+  if (!item || !item.local) return;
+
+  const confirmed = await openConfirm({
+    title: '移除“' + item.title + '”？',
+    description: item.localKind === 'file'
+      ? '会删除浏览器里保存的副本，原文件不受影响。观看进度和收藏也会一起清理。'
+      : '只会删除这条记录，不会影响原始网址。观看进度和收藏也会一起清理。',
+    confirmText: '移除',
+    danger: true
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await removeLocalItem(id);
+    await removeProgressForItem(id);
+    await removeFavorite(id);
+    await refreshLocalItems();
+  } catch (error) {
+    toast('移除失败，请再试一次');
+    return;
+  }
+
+  toast('已移除');
+  renderRoute();
+}
+
 /* ---------- 全局事件 ---------- */
 
 async function onDocumentClick(event) {
@@ -570,6 +728,15 @@ async function onDocumentClick(event) {
   } else if (action === 'import') {
     const input = document.getElementById('import-file');
     if (input) input.click();
+  } else if (action === 'add-local') {
+    await chooseLocalSource();
+  } else if (action === 'local-add-file') {
+    const input = localFileInput();
+    if (input) input.click();
+  } else if (action === 'local-add-url') {
+    await addLocalUrlFlow();
+  } else if (action === 'remove-local') {
+    await removeLocalFlow(actionElement.getAttribute('data-local-id'));
   } else if (action === 'clear-history') {
     const confirmed = await openConfirm({
       title: '清空观看历史？',
@@ -710,6 +877,8 @@ async function onDocumentChange(event) {
     toast('默认倍速已设为 ' + String(rate) + '×');
   } else if (target.id === 'import-file') {
     await handleImportFile(target);
+  } else if (target.id === 'local-file-input') {
+    await handleLocalFileInput(target);
   }
 }
 

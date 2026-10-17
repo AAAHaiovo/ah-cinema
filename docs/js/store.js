@@ -185,6 +185,18 @@ export async function clearHistory() {
   await db.clear('progress');
 }
 
+export async function removeProgressForItem(itemId) {
+  if (!itemId) return;
+
+  const ids = [];
+  state.progress.forEach((record, id) => {
+    if (record.itemId === itemId) ids.push(id);
+  });
+
+  ids.forEach((id) => state.progress.delete(id));
+  await Promise.all(ids.map((id) => db.remove('progress', id)));
+}
+
 export function isFavorite(itemId) {
   return state.favorites.has(itemId);
 }
@@ -211,6 +223,13 @@ export async function toggleFavorite(itemId) {
   const record = { id: itemId, addedAt: Date.now() };
   state.favorites.set(itemId, record);
   await db.put('favorites', record);
+  return true;
+}
+
+export async function removeFavorite(itemId) {
+  if (!itemId || !state.favorites.has(itemId)) return false;
+  state.favorites.delete(itemId);
+  await db.remove('favorites', itemId);
   return true;
 }
 

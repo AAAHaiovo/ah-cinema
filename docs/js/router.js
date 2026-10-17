@@ -33,6 +33,7 @@ export function resolveRoute(route) {
   if (path === '/search') return { name: 'search' };
   if (path === '/history') return { name: 'history' };
   if (path === '/favorites') return { name: 'favorites' };
+  if (path === '/local') return { name: 'local' };
   if (path === '/me') return { name: 'me' };
   if (path === '/settings') return { name: 'settings' };
   if (path === '/about') return { name: 'about' };
@@ -96,6 +97,6 @@ export function tabForRoute(name) {
   if (name === 'library') return 'library';
   if (name === 'search') return 'search';
   if (name === 'history') return 'history';
-  if (name === 'me' || name === 'favorites' || name === 'settings' || name === 'about') return 'me';
+  if (name === 'me' || name === 'favorites' || name === 'local' || name === 'settings' || name === 'about') return 'me';
   return null;
 }

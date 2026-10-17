@@ -102,6 +102,7 @@ async function main() {
     await send('Runtime.enable');
     await send('Log.enable');
     await send('Network.enable');
+    await send('DOM.enable');
 
     async function evaluate(expression, useAwait = false) {
       const response = await send('Runtime.evaluate', {
@@ -177,6 +178,25 @@ async function main() {
         if (playerToast) playerToast.classList.remove('is-visible');
       })()`);
       await wait(250);
+    }
+
+    async function submitDialog(value) {
+      await waitFor('document.querySelector(".dialog")');
+      await evaluate(`(() => {
+        const dialog = document.querySelector('.dialog');
+        const input = dialog.querySelector('input');
+        if (input) input.value = ${JSON.stringify(String(value))};
+        dialog.requestSubmit();
+      })()`);
+      await wait(220);
+    }
+
+    async function setFileInput(selector, filePath) {
+      const document = await send('DOM.getDocument', { depth: -1 });
+      const found = await send('DOM.querySelector', { nodeId: document.root.nodeId, selector });
+      if (!found.nodeId) throw new Error('找不到文件输入：' + selector);
+      await send('DOM.setFileInputFiles', { files: [filePath], nodeId: found.nodeId });
+      await wait(220);
     }
 
     await setViewport(390, 844, 2, true);
@@ -373,6 +393,45 @@ async function main() {
       const favTitle = await evaluate('document.querySelector(".poster-title").textContent');
       if (!favTitle.includes('辛特尔')) throw new Error('收藏页标题 ' + favTitle);
       return data.title + '；' + data.play + '；' + data.badge + '；收藏页 ' + favTitle;
+    });
+
+    await step('官方平台深链：详情页与无结果搜索', async () => {
+      await navigate('#/title/sintel-trailer');
+      await waitFor('document.querySelector(".detail-page")');
+
+      const detail = JSON.parse(await evaluate(`JSON.stringify({
+        heading: Array.from(document.querySelectorAll('.detail-section h2')).map((el) => el.textContent).includes('在哪看'),
+        links: Array.from(document.querySelectorAll('.watch-section .platform-link')).map((a) => ({ name: a.textContent.trim(), href: a.href, target: a.target }))
+      })`));
+
+      if (!detail.heading) throw new Error('详情页没有“在哪看”');
+      if (detail.links.length !== 5) throw new Error('平台数量 ' + detail.links.length);
+      if (detail.links.some((link) => link.target !== '_blank')) throw new Error('平台链接没有新窗口');
+
+      const hosts = detail.links.map((link) => new URL(link.href).host);
+      ['so.iqiyi.com', 'v.qq.com', 'so.youku.com', 'so.mgtv.com', 'search.bilibili.com'].forEach((host) => {
+        if (!hosts.includes(host)) throw new Error('缺少平台 ' + host + '：' + hosts.join(','));
+      });
+
+      await clearToast();
+      await screenshot('04b-详情-在哪看-手机.png');
+
+      await navigate('#/search?q=' + encodeURIComponent('绝对不存在的影片 98765'));
+      await waitFor('document.querySelector(".platform-search")');
+
+      const search = JSON.parse(await evaluate(`JSON.stringify({
+        title: document.querySelector('.platform-search-title').textContent,
+        links: document.querySelectorAll('.platform-search .platform-link').length,
+        iqiyi: document.querySelector('.platform-search .platform-link').href
+      })`));
+
+      if (search.links !== 5 || !search.title.includes('绝对不存在的影片')) throw new Error(JSON.stringify(search));
+      if (!search.iqiyi.includes(encodeURIComponent('绝对不存在的影片'))) throw new Error('搜索词没有编码：' + search.iqiyi);
+
+      await clearToast();
+      await screenshot('03c-搜索-官方平台-手机.png');
+
+      return '详情 ' + detail.links.map((link) => link.name).join('/') + '；无结果搜索 ' + search.links + ' 个入口';
     });
 
     await step('设置默认倍速 1.25× 与主题控件', async () => {
@@ -775,7 +834,7 @@ async function main() {
       })()`, true));
       if (!data.sw) throw new Error('Service Worker 没有注册');
       if (data.manifest !== 200) throw new Error('manifest 状态 ' + data.manifest);
-      if (!data.caches.includes('ah-cinema-v4')) throw new Error('缓存 ' + JSON.stringify(data.caches));
+      if (!data.caches.includes('ah-cinema-v5')) throw new Error('缓存 ' + JSON.stringify(data.caches));
       if (!data.maskable) throw new Error('manifest 缺少独立 maskable 图标');
       if (data.iconSize[0] !== 512 || data.iconSize[1] !== 512) throw new Error('图标尺寸 ' + data.iconSize);
       if (data.corner[0] !== 201 || data.corner[1] !== 47 || data.corner[2] !== 54) throw new Error('图标底色不是品牌红：' + data.corner);
@@ -858,6 +917,145 @@ async function main() {
       await clearToast();
       await screenshot('11-首页-黑夜-桌面.png');
       return JSON.stringify(layout);
+    });
+
+    await step('我的视频：添加直链、播放与移除', async () => {
+      await setViewport(390, 844, 2, true);
+      await navigate('#/local');
+      await waitFor('document.querySelector(".local-page")');
+      await waitFor('document.querySelector(".local-empty-actions")');
+      await clearToast();
+      await screenshot('10a-我的视频-空-手机.png');
+
+      await click('[data-action="local-add-url"]');
+      await submitDialog('https://media.w3.org/2010/05/sintel/trailer.mp4');
+      await submitDialog('测试直链视频');
+
+      await waitFor('document.querySelector(".detail-page")');
+      const detail = JSON.parse(await evaluate(`JSON.stringify({
+        title: document.querySelector('.detail-title').textContent,
+        badge: document.querySelector('.detail-badge') ? document.querySelector('.detail-badge').textContent : '',
+        info: Array.from(document.querySelectorAll('.info-row')).map((row) => row.querySelector('dt').textContent + '=' + row.querySelector('dd').textContent.trim()),
+        watch: Boolean(document.querySelector('.watch-section'))
+      })`));
+
+      if (detail.title !== '测试直链视频') throw new Error('标题 ' + detail.title);
+      if (detail.badge !== '网址') throw new Error('标记 ' + detail.badge);
+      if (!detail.info.includes('片源=网络地址')) throw new Error('片源信息 ' + JSON.stringify(detail.info));
+      if (!detail.info.some((line) => line.startsWith('来源=media.w3.org'))) throw new Error('来源信息 ' + JSON.stringify(detail.info));
+      if (detail.watch) throw new Error('自有视频不应显示“在哪看”');
+
+      await clearToast();
+      await screenshot('10b-详情-我的视频-手机.png');
+
+      await click('.detail-play');
+      await waitFor('document.querySelector("#player-video")');
+      await waitFor(`(() => {
+        const video = document.querySelector('#player-video');
+        const error = document.querySelector('#player-error');
+        return Boolean(video && (video.readyState >= 1 || (error && !error.hidden)));
+      })()`, 30000);
+
+      const player = JSON.parse(await evaluate(`JSON.stringify({
+        src: document.querySelector('#player-video').currentSrc,
+        error: !document.querySelector('#player-error').hidden,
+        errorText: document.querySelector('#player-error-text').textContent,
+        quality: document.querySelector('#player-quality').textContent
+      })`));
+
+      if (player.error) throw new Error('直链播放错误：' + player.errorText);
+      if (!player.src.includes('media.w3.org/2010/05/sintel/trailer.mp4')) throw new Error('播放地址 ' + player.src);
+      if (player.quality !== '原始') throw new Error('清晰度按钮 ' + player.quality);
+
+      await clearToast();
+      await screenshot('10c-播放器-我的视频-手机.png');
+
+      await navigate('#/local');
+      await waitFor('document.querySelector(".local-row")');
+      const rowText = await evaluate('document.querySelector(".local-row").textContent');
+      if (!rowText.includes('测试直链视频')) throw new Error('列表文本 ' + rowText);
+
+      await click('.local-row [data-action="remove-local"]');
+      await waitFor('document.querySelector(".dialog")');
+      await click('.dialog [data-confirm]');
+      await waitFor('document.querySelector(".local-empty-actions")');
+
+      const left = await evaluate(`import('./js/db.js').then((m) => m.getAll('custom')).then((rows) => rows.length)`, true);
+      if (left !== 0) throw new Error('移除后还剩 ' + left + ' 条');
+
+      return detail.title + '；' + player.src + '；已移除';
+    });
+
+    await step('我的视频：本机文件写入 IndexedDB', async () => {
+      const fixture = path.join(process.env.TEMP || 'C:/Windows/Temp', 'ah-cdp-local-' + process.pid + '.mp4');
+      fs.writeFileSync(fixture, Buffer.from([
+        0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d,
+        0x00, 0x00, 0x02, 0x00, 0x69, 0x73, 0x6f, 0x6d, 0x69, 0x73, 0x6f, 0x32,
+        0x00, 0x00, 0x00, 0x08, 0x6d, 0x64, 0x61, 0x74
+      ]));
+
+      try {
+        await navigate('#/local');
+        await waitFor('document.querySelector("#local-file-input")');
+        await click('[data-action="local-add-file"]');
+        await setFileInput('#local-file-input', fixture);
+        await submitDialog('测试本机文件');
+
+        await waitFor('document.querySelector(".detail-page")', 20000);
+        const detail = JSON.parse(await evaluate(`JSON.stringify({
+          title: document.querySelector('.detail-title').textContent,
+          badge: document.querySelector('.detail-badge') ? document.querySelector('.detail-badge').textContent : '',
+          info: Array.from(document.querySelectorAll('.info-row')).map((row) => row.querySelector('dt').textContent + '=' + row.querySelector('dd').textContent.trim())
+        })`));
+
+        if (detail.title !== '测试本机文件') throw new Error('标题 ' + detail.title);
+        if (detail.badge !== '本机') throw new Error('标记 ' + detail.badge);
+        if (!detail.info.includes('片源=本机文件')) throw new Error('片源信息 ' + JSON.stringify(detail.info));
+
+        const stored = JSON.parse(await evaluate(`import('./js/db.js').then((m) => m.getAll('custom')).then((rows) => {
+          const record = rows.find((row) => row.kind === 'file');
+          return JSON.stringify(record ? {
+            title: record.title,
+            size: record.size,
+            isBlob: record.blob instanceof Blob
+          } : null);
+        })`, true));
+
+        if (!stored || !stored.isBlob || stored.size !== 32) throw new Error('IndexedDB 记录 ' + JSON.stringify(stored));
+
+        await send('Page.reload', { ignoreCache: false });
+        await waitFor('document.documentElement.dataset.booted === "1"', 20000);
+        await navigate('#/local');
+        await waitFor('document.querySelector(".local-row")');
+
+        const afterReload = JSON.parse(await evaluate(`import('./js/catalog.js').then((m) => {
+          const items = m.allItems().filter((item) => item.local && item.localKind === 'file');
+          return JSON.stringify(items.map((item) => ({
+            title: item.title,
+            src: item.sources[0] ? item.sources[0].src.slice(0, 5) : ''
+          })));
+        })`, true));
+
+        if (afterReload.length !== 1 || afterReload[0].title !== '测试本机文件' || afterReload[0].src !== 'blob:') {
+          throw new Error('刷新后没有恢复本机视频：' + JSON.stringify(afterReload));
+        }
+
+        await click('.local-row [data-action="remove-local"]');
+        await waitFor('document.querySelector(".dialog")');
+        await click('.dialog [data-confirm]');
+        await waitFor('document.querySelector(".local-empty-actions")');
+
+        const left = await evaluate(`import('./js/db.js').then((m) => m.getAll('custom')).then((rows) => rows.length)`, true);
+        if (left !== 0) throw new Error('移除后还剩 ' + left + ' 条');
+
+        return detail.title + '；' + stored.size + ' 字节；Blob 已写入并移除';
+      } finally {
+        try {
+          fs.rmSync(fixture, { force: true });
+        } catch (error) {
+          /* 忽略。 */
+        }
+      }
     });
 
     console.log('\n--- 控制台 ---');

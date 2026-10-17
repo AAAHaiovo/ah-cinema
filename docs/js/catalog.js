@@ -1,6 +1,7 @@
 /* 片库加载、分类、搜索与分页。片库是本地 JSON，正式扩充时只换数据文件。 */
 
 export const CATEGORY_LABELS = {
+  local: '我的视频',
   movie: '电影',
   series: '电视剧',
   animation: '动画',
@@ -8,9 +9,10 @@ export const CATEGORY_LABELS = {
   short: '短片'
 };
 
-const CATEGORY_ORDER = ['movie', 'series', 'animation', 'documentary', 'short'];
+const CATEGORY_ORDER = ['local', 'movie', 'series', 'animation', 'documentary', 'short'];
 
 let items = [];
+let customItems = [];
 let meta = {};
 
 function normalize(item) {
@@ -90,8 +92,13 @@ export async function loadCatalog() {
   return items;
 }
 
+/* “我的视频”来自本机，启动时单独合并进来；不写进 catalog.json。 */
+export function setCustomItems(list) {
+  customItems = (Array.isArray(list) ? list : []).map(normalize).filter(Boolean);
+}
+
 export function allItems() {
-  return items.slice();
+  return customItems.concat(items);
 }
 
 export function getMeta() {
@@ -99,7 +106,7 @@ export function getMeta() {
 }
 
 export function getItem(id) {
-  return items.find((item) => item.id === id) || null;
+  return customItems.find((item) => item.id === id) || items.find((item) => item.id === id) || null;
 }
 
 export function getEpisode(item, episodeId) {
@@ -134,12 +141,13 @@ export function embedWatchUrl(embed) {
 }
 
 export function categories() {
-  const total = items.length;
+  const list = allItems();
+  const total = list.length;
   const counts = {
     all: total
   };
 
-  items.forEach((item) => {
+  list.forEach((item) => {
     if (item.category) counts[item.category] = (counts[item.category] || 0) + 1;
     else if (item.kind) counts[item.kind] = (counts[item.kind] || 0) + 1;
   });
@@ -157,10 +165,11 @@ export function categories() {
 export function filterItems(category) {
   if (!category || category === 'all') return allItems();
 
-  const byCategory = items.filter((item) => item.category === category);
+  const list = allItems();
+  const byCategory = list.filter((item) => item.category === category);
   if (byCategory.length) return byCategory;
 
-  return items.filter((item) => item.kind === category);
+  return list.filter((item) => item.kind === category);
 }
 
 export function searchItems(query) {
@@ -169,8 +178,9 @@ export function searchItems(query) {
 
   const terms = normalized.split(/\s+/).filter(Boolean);
   const scored = [];
+  const list = allItems();
 
-  items.forEach((item) => {
+  list.forEach((item) => {
     let score = 0;
     let matchesAll = true;
 
@@ -213,8 +223,9 @@ export function relatedItems(item, limit = 6) {
 
   const itemTags = new Set([...(item.tags || []), ...(item.genres || [])]);
   const scored = [];
+  const list = allItems();
 
-  items.forEach((candidate) => {
+  list.forEach((candidate) => {
     if (candidate.id === item.id) return;
 
     let score = 0;
