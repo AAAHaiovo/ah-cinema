@@ -155,6 +155,26 @@ export async function saveProgress({ itemId, episodeId = null, time, duration, c
   return record;
 }
 
+/* 外部播放器无法回传进度，只记录“打开过”，避免伪造观看位置。 */
+export async function markOpened({ itemId, episodeId = null }) {
+  if (!itemId) return null;
+
+  const record = {
+    id: progressKey(itemId, episodeId),
+    itemId,
+    episodeId: episodeId || null,
+    time: 0,
+    duration: 0,
+    completed: false,
+    external: true,
+    updatedAt: Date.now()
+  };
+
+  state.progress.set(record.id, record);
+  await db.put('progress', record);
+  return record;
+}
+
 export async function removeProgress(id) {
   state.progress.delete(id);
   await db.remove('progress', id);

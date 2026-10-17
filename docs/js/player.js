@@ -1,13 +1,14 @@
 /* 播放页：自定义控制层、清晰度、倍速、断点续播、全屏、字幕与快捷键。 */
 
-import { sourcesFor } from './catalog.js';
-import { state, getProgress, saveProgress } from './store.js';
+import { sourcesFor, embedFor, embedPlayerUrl, embedWatchUrl } from './catalog.js';
+import { state, getProgress, saveProgress, markOpened } from './store.js';
 import {
   escapeHtml,
   icon,
   formatTime,
   formatEpisodeLabel,
   safeAssetUrl,
+  safeExternalUrl,
   openSheet
 } from './ui.js';
 import { href } from './router.js';
@@ -29,7 +30,73 @@ function subtitlesFor(item, episode) {
   return (fromEpisode.length ? fromEpisode : fromItem).filter((subtitle) => subtitle && safeAssetUrl(subtitle.src));
 }
 
+function embedPage(item, episode, embed) {
+  const subtitle = episode
+    ? formatEpisodeLabel(episode)
+    : (item.originalTitle || '');
+  const watchUrl = safeExternalUrl(embedWatchUrl(embed));
+
+  return '<div class="player-page embed-page" id="player-page">' +
+    '<div class="embed-topbar">' +
+      '<button class="pbtn embed-back" type="button" data-paction="back" aria-label="返回">' + icon('chevronLeft') + '</button>' +
+      '<div class="embed-headings">' +
+        '<div class="embed-title">' + escapeHtml(item.title) + '</div>' +
+        '<div class="embed-sub">' + escapeHtml(subtitle ? subtitle + ' · 哔哩哔哩' : '哔哩哔哩') + '</div>' +
+      '</div>' +
+      (watchUrl ? '<a class="embed-open" href="' + escapeHtml(watchUrl) + '" target="_blank" rel="noopener noreferrer">在 B 站打开</a>' : '') +
+    '</div>' +
+    '<div class="embed-stage">' +
+      '<iframe class="embed-frame" src="' + escapeHtml(embedPlayerUrl(embed)) + '" title="' + escapeHtml(item.title + ' · 哔哩哔哩播放器') + '" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>' +
+    '</div>' +
+    '<div class="embed-foot">' +
+      '<span>片源由哔哩哔哩提供 · ' + escapeHtml(item.license || '公共领域') + '</span>' +
+      '<span>清晰度 / 倍速 / 字幕请用画面内控件</span>' +
+    '</div>' +
+    '</div>';
+}
+
+function mountEmbedPlayer(item, episode) {
+  const page = document.getElementById('player-page');
+  if (!page) return () => {};
+
+  const controller = new AbortController();
+  const signal = controller.signal;
+  let cleaned = false;
+
+  function goBack() {
+    if (history.length > 1) {
+      history.back();
+      return;
+    }
+    location.hash = '#/title/' + encodeURIComponent(item.id);
+  }
+
+  page.addEventListener('click', (event) => {
+    const actionButton = event.target.closest('[data-paction]');
+    if (!actionButton) return;
+    event.preventDefault();
+    if (actionButton.getAttribute('data-paction') === 'back') goBack();
+  }, { signal });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') goBack();
+  }, { signal });
+
+  markOpened({ itemId: item.id, episodeId: episode ? episode.id : null }).catch(() => {
+    /* 记录“打开过”失败不打断观看。 */
+  });
+
+  return () => {
+    if (cleaned) return;
+    cleaned = true;
+    controller.abort();
+  };
+}
+
 export function playerPage(item, episode) {
+  const embed = embedFor(item, episode);
+  if (embed) return embedPage(item, episode, embed);
+
   const sources = sourcesFor(item, episode);
   const subtitles = subtitlesFor(item, episode);
   const poster = safeAssetUrl(item.poster);
@@ -104,6 +171,9 @@ export function playerPage(item, episode) {
 }
 
 export function mountPlayer(item, episode) {
+  const embed = embedFor(item, episode);
+  if (embed) return mountEmbedPlayer(item, episode);
+
   const page = document.getElementById('player-page');
   if (!page) return () => {};
 

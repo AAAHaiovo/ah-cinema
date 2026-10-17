@@ -11,6 +11,7 @@ import {
   paginate,
   getEpisode,
   sourcesFor,
+  embedFor,
   categoryLabel
 } from './catalog.js';
 
@@ -55,7 +56,7 @@ import {
 
 import { href } from './router.js';
 
-const APP_VERSION = '0.1.0';
+const APP_VERSION = '0.2.0';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -111,7 +112,7 @@ export function renderHome(route) {
   }
 
   const continueItems = latestProgressList()
-    .filter((record) => !record.completed)
+    .filter((record) => !record.completed && !record.external)
     .map((record) => {
       const item = getItem(record.itemId);
       if (!item) return null;
@@ -261,9 +262,11 @@ export function renderHistory() {
 
   const list = records.map(({ record, item, episode }) => {
     const percent = progressPercent(record);
-    const status = record.completed
-      ? '已看完' + (record.duration > 0 ? ' · ' + formatTime(record.duration) : '')
-      : '看到 ' + formatTime(record.time) + (record.duration > 0 ? ' / ' + formatTime(record.duration) : '');
+    const status = record.external
+      ? '在哔哩哔哩播放器打开'
+      : record.completed
+        ? '已看完' + (record.duration > 0 ? ' · ' + formatTime(record.duration) : '')
+        : '看到 ' + formatTime(record.time) + (record.duration > 0 ? ' / ' + formatTime(record.duration) : '');
     const episodeLabel = formatEpisodeLabel(episode);
 
     return '<div class="history-row">' +
@@ -457,17 +460,19 @@ export function renderAbout() {
     '</section>' +
     '<section class="info-card">' +
       '<h2>AH 标识</h2>' +
-      '<div class="brand-preview"><span class="brand-mark" aria-hidden="true"></span><div class="brand-preview-text">黑白为主，红色只用于强调；小尺寸优先使用黑白版本，保证清楚。</div></div>' +
-      '<p>App 图标使用你提供的墨黑底 + 白色 AH；界面顶栏、启动页和空状态使用同一套标记，播放画面上不加水印。</p>' +
+      '<div class="brand-preview"><span class="brand-mark" aria-hidden="true"></span><div class="brand-preview-text">品牌红 #C92F36 配白色 AH；深色界面下保持同一套标记。</div></div>' +
+      '<p>App 图标使用品牌红底 + 白色 AH；界面顶栏、启动页和空状态使用同一套标记，播放画面上不加水印。</p>' +
     '</section>' +
     '<section class="info-card">' +
       '<h2>片源与授权</h2>' +
       '<ul class="license-list">' + licenseRows.join('') + '</ul>' +
+      '<p>部分公共领域电影通过哔哩哔哩官方嵌入式播放器观看，视频仍托管在哔哩哔哩，本 App 不转存、不下载、不重新分发。</p>' +
       '<p>影片版权归原作者 / 出品方所有。本 App 只做个人观看与播放，不重新分发片源；如需转载或商用，请遵守对应授权条款。</p>' +
     '</section>' +
     '<section class="info-card">' +
       '<h2>边界</h2>' +
       '<p>不接入盗版站、未授权聚合源、破解接口，也不绕过 DRM。主流新片和热剧仍应去官方平台观看；这个 App 负责整理你能合法播放的内容。</p>' +
+      '<p>如果某条哔哩哔哩视频被上传者删除或设为不可播放，播放页会无法加载；可以用右上角的“在 B 站打开”查看原页面。</p>' +
     '</section>' +
     '<p class="about-foot">Made for personal use · AH 影视 · 2026</p>' +
     '</div>';
@@ -521,6 +526,7 @@ export function renderDetail(itemId) {
   const favorite = isFavorite(item.id);
   const meta = itemMeta(item);
   const sources = sourcesFor(item, episode);
+  const embed = embedFor(item, episode);
   const poster = safeAssetUrl(item.poster);
   const synopsis = item.synopsis || '暂无简介。';
   const longSynopsis = synopsis.length > 120;
@@ -528,7 +534,9 @@ export function renderDetail(itemId) {
   const playTarget = latest && !latest.completed
     ? watchHref(item, latest.episodeId)
     : (item.episodes.length ? watchHref(item, item.episodes[0].id) : watchHref(item));
-  const label = playLabel(item, latest, episode);
+  const label = embed
+    ? (latest && !latest.completed ? '再次打开（B 站）' : '播放（B 站）')
+    : playLabel(item, latest, episode);
 
   const backdropStyle = poster
     ? ' style="background-image:url(\'' + escapeHtml(poster) + '\')"'
@@ -547,8 +555,14 @@ export function renderDetail(itemId) {
     ['授权', licenseUrl
       ? '<a class="text-link" href="' + escapeHtml(licenseUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(item.license || '开放授权') + '</a>'
       : escapeHtml(item.license || '—')],
-    ['清晰度', escapeHtml(sources.map((source) => source.quality || source.label).filter(Boolean).join(' / ') || '原画')],
-    ['字幕', item.subtitles && item.subtitles.length ? escapeHtml(item.subtitles.map((subtitle) => subtitle.label || '字幕').join(' / ')) : '暂无字幕']
+    ['清晰度', embed
+      ? 'B 站播放器内可选'
+      : escapeHtml(sources.map((source) => source.quality || source.label).filter(Boolean).join(' / ') || '原画')],
+    ['字幕', embed
+      ? '以 B 站播放器为准'
+      : (item.subtitles && item.subtitles.length ? escapeHtml(item.subtitles.map((subtitle) => subtitle.label || '字幕').join(' / ')) : '暂无字幕')],
+    ...(item.uploader ? [['上传者', escapeHtml(item.uploader)]] : []),
+    ...(embed ? [['播放方式', '哔哩哔哩官方嵌入式播放器']] : [])
   ];
 
   const related = relatedItems(item, 6);
@@ -583,7 +597,8 @@ export function renderDetail(itemId) {
         '<a class="btn btn-primary detail-play" href="' + playTarget + '">' + icon('play') + '<span>' + escapeHtml(label) + '</span></a>' +
         '<button class="btn btn-secondary detail-fav' + (favorite ? ' is-active' : '') + '" type="button" data-action="favorite" data-item-id="' + escapeHtml(item.id) + '" aria-pressed="' + favorite + '">' + icon(favorite ? 'heartFill' : 'heart') + '<span>' + (favorite ? '已收藏' : '收藏') + '</span></button>' +
       '</div>' +
-      (latest && !latest.completed ? '<div class="detail-progress-note">' + icon('clock') + '<span>上次看到 ' + escapeHtml(formatTime(latest.time)) + (episode ? ' · ' + escapeHtml(formatEpisodeLabel(episode)) : '') + '</span></div>' : '') +
+      (latest && !latest.completed && !latest.external ? '<div class="detail-progress-note">' + icon('clock') + '<span>上次看到 ' + escapeHtml(formatTime(latest.time)) + (episode ? ' · ' + escapeHtml(formatEpisodeLabel(episode)) : '') + '</span></div>' : '') +
+      (embed ? '<div class="detail-progress-note detail-embed-note">' + icon('info') + '<span>本片通过哔哩哔哩官方嵌入式播放器播放；清晰度、倍速与字幕请使用播放器内控件。本 App 不转存视频。</span></div>' : '') +
       '<section class="detail-section">' +
         '<h2>简介</h2>' +
         '<p class="synopsis' + (longSynopsis ? ' is-clamped' : '') + '" id="synopsis">' + escapeHtml(synopsis) + '</p>' +

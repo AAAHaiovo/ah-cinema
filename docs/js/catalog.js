@@ -23,6 +23,7 @@ function normalize(item) {
   const tags = Array.isArray(item.tags) ? item.tags : [];
   const genres = Array.isArray(item.genres) ? item.genres : [];
   const aliases = Array.isArray(item.aliases) ? item.aliases : [];
+  const embed = normalizeEmbed(item.embed);
 
   const searchText = [
     item.title,
@@ -33,6 +34,7 @@ function normalize(item) {
     item.kind,
     item.source,
     item.license,
+    item.uploader,
     ...aliases,
     ...tags,
     ...genres
@@ -48,8 +50,21 @@ function normalize(item) {
     tags,
     genres,
     aliases,
+    embed,
     searchText,
     year: Number.isFinite(item.year) ? item.year : null
+  };
+}
+
+function normalizeEmbed(value) {
+  if (!value || typeof value !== 'object') return null;
+  if (value.provider !== 'bilibili') return null;
+  if (!/^BV[0-9A-Za-z]+$/.test(String(value.bvid || ''))) return null;
+
+  return {
+    provider: 'bilibili',
+    bvid: String(value.bvid),
+    page: Math.max(1, Number(value.page) || 1)
   };
 }
 
@@ -99,6 +114,25 @@ export function sourcesFor(item, episode) {
   return item && Array.isArray(item.sources) ? item.sources : [];
 }
 
+export function embedFor(item, episode) {
+  const fromEpisode = episode && normalizeEmbed(episode.embed);
+  if (fromEpisode) return fromEpisode;
+  return item && item.embed ? item.embed : null;
+}
+
+export function embedPlayerUrl(embed) {
+  if (!embed) return '';
+  return 'https://player.bilibili.com/player.html?bvid=' + encodeURIComponent(embed.bvid) +
+    '&page=' + encodeURIComponent(String(embed.page || 1)) +
+    '&autoplay=0&danmaku=0&high_quality=1';
+}
+
+export function embedWatchUrl(embed) {
+  if (!embed) return '';
+  return 'https://www.bilibili.com/video/' + encodeURIComponent(embed.bvid) +
+    (embed.page > 1 ? '/?p=' + encodeURIComponent(String(embed.page)) : '');
+}
+
 export function categories() {
   const total = items.length;
   const counts = {
@@ -106,9 +140,8 @@ export function categories() {
   };
 
   items.forEach((item) => {
-    if (item.kind === 'movie') counts.movie = (counts.movie || 0) + 1;
-    if (item.kind === 'series') counts.series = (counts.series || 0) + 1;
     if (item.category) counts[item.category] = (counts[item.category] || 0) + 1;
+    else if (item.kind) counts[item.kind] = (counts[item.kind] || 0) + 1;
   });
 
   return [
@@ -123,10 +156,11 @@ export function categories() {
 
 export function filterItems(category) {
   if (!category || category === 'all') return allItems();
-  if (category === 'movie' || category === 'series') {
-    return items.filter((item) => item.kind === category);
-  }
-  return items.filter((item) => item.category === category);
+
+  const byCategory = items.filter((item) => item.category === category);
+  if (byCategory.length) return byCategory;
+
+  return items.filter((item) => item.kind === category);
 }
 
 export function searchItems(query) {

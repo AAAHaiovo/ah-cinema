@@ -181,10 +181,10 @@ async function main() {
 
     await setViewport(390, 844, 2, true);
     await send('Page.navigate', { url: BASE + '#/' });
-    await waitFor('document.querySelectorAll(".poster-card").length === 4', 15000);
+    await waitFor('document.querySelectorAll(".poster-card").length === 11', 15000);
     await wait(900);
 
-    await step('首页启动、片库 4 部、标题在封面上方', async () => {
+    await step('首页启动、片库 11 部、标题在封面上方', async () => {
       const data = JSON.parse(await evaluate(`JSON.stringify({
         posters: document.querySelectorAll('.poster-card').length,
         splashHidden: document.querySelector('#splash').classList.contains('is-hidden'),
@@ -195,7 +195,7 @@ async function main() {
         lineClamp: getComputedStyle(document.querySelector('.poster-title')).webkitLineClamp,
         pageText: document.querySelector('.page-sub').textContent
       })`));
-      if (data.posters !== 4) throw new Error('海报数量 ' + data.posters);
+      if (data.posters !== 11) throw new Error('海报数量 ' + data.posters);
       if (!data.splashHidden || data.booted !== '1') throw new Error('启动页或 booted 标记异常');
       if (data.titleWidth > data.cardWidth + 1) throw new Error('标题比海报宽');
       return data.pageText + '；标题 ' + Math.round(data.titleWidth) + '/' + Math.round(data.cardWidth) + 'px，省略=' + data.titleOverflow + '，行数=' + data.lineClamp;
@@ -236,7 +236,7 @@ async function main() {
 
     await step('长标题两行省略且不超出海报', async () => {
       await navigate('#/');
-      await waitFor('document.querySelectorAll(".poster-card").length === 4');
+      await waitFor('document.querySelectorAll(".poster-card").length === 11');
       const raw = await evaluate(`(() => {
         const card = document.querySelector('.poster-card');
         const title = card.querySelector('.poster-title');
@@ -659,6 +659,61 @@ async function main() {
       return '备份 ' + payloadLength + ' 字节；' + toast + '；' + JSON.stringify(state);
     });
 
+    await step('B 站嵌入式播放器与观看记录', async () => {
+      await navigate('#/title/the-general');
+      await waitFor('document.querySelector(".detail-page")');
+      const detail = JSON.parse(await evaluate(`JSON.stringify({
+        title: document.querySelector('.detail-title').textContent,
+        play: document.querySelector('.detail-play').textContent.trim(),
+        info: Array.from(document.querySelectorAll('.info-row')).map((row) => row.querySelector('dt').textContent + '=' + row.querySelector('dd').textContent.trim()),
+        note: document.querySelector('.detail-embed-note') ? document.querySelector('.detail-embed-note').textContent : ''
+      })`));
+      if (detail.title !== '将军号') throw new Error('标题 ' + detail.title);
+      if (!detail.play.includes('B 站')) throw new Error('播放按钮 ' + detail.play);
+      if (!detail.info.some((line) => line.includes('哔哩哔哩官方嵌入式播放器'))) throw new Error('缺少播放方式');
+      if (!detail.info.some((line) => line.startsWith('上传者'))) throw new Error('缺少上传者');
+      if (!detail.note.includes('不转存')) throw new Error('缺少嵌入说明');
+      await clearToast();
+      await wait(250);
+      await screenshot('08a-详情-将军号-手机.png');
+
+      await evaluate('document.querySelector(".detail-play").click()');
+      await waitFor('document.querySelector(".embed-page iframe.embed-frame")');
+      await wait(600);
+
+      const player = JSON.parse(await evaluate(`JSON.stringify({
+        src: document.querySelector('.embed-frame').src,
+        rect: (() => {
+          const r = document.querySelector('.embed-frame').getBoundingClientRect();
+          return [Math.round(r.width), Math.round(r.height)];
+        })(),
+        external: document.querySelector('.embed-open') ? document.querySelector('.embed-open').getAttribute('href') : ''
+      })`));
+      if (!player.src.includes('player.bilibili.com/player.html?bvid=BV1er421H7UC')) throw new Error('播放器地址 ' + player.src);
+      if (player.rect[0] < 300 || player.rect[1] < 300) throw new Error('播放器尺寸 ' + player.rect);
+      if (!player.external.includes('bilibili.com/video/BV1er421H7UC')) throw new Error('B 站链接 ' + player.external);
+      if (failedRequests.some((entry) => entry.includes('ERR_BLOCKED_BY_CSP'))) {
+        throw new Error('CSP 拦截了 B 站播放器：' + failedRequests.filter((entry) => entry.includes('CSP')).join('；'));
+      }
+
+      const opened = JSON.parse(await evaluate(`import('./js/store.js').then((m) => JSON.stringify({
+        record: m.getProgress('the-general', null),
+        history: m.latestProgressList().some((row) => row.itemId === 'the-general' && row.external === true)
+      }))`, true));
+      if (!opened.record || opened.record.external !== true || opened.record.time !== 0) throw new Error('外部观看记录 ' + JSON.stringify(opened));
+      if (!opened.history) throw new Error('历史里没有 B 站记录');
+
+      await clearToast();
+      await wait(300);
+      await screenshot('08b-播放器-B站嵌入-手机.png');
+
+      await click('[data-paction="back"]');
+      await waitFor('document.querySelector(".detail-page")');
+      const backTitle = await evaluate('document.querySelector(".detail-title").textContent');
+      if (backTitle !== '将军号') throw new Error('返回到了 ' + backTitle);
+      return detail.play + '；' + player.rect.join('×') + '；' + player.src;
+    });
+
     await step('关于页与授权列表', async () => {
       await navigate('#/about');
       await waitFor('document.querySelector(".about-page")');
@@ -720,7 +775,7 @@ async function main() {
       })()`, true));
       if (!data.sw) throw new Error('Service Worker 没有注册');
       if (data.manifest !== 200) throw new Error('manifest 状态 ' + data.manifest);
-      if (!data.caches.includes('ah-cinema-v3')) throw new Error('缓存 ' + JSON.stringify(data.caches));
+      if (!data.caches.includes('ah-cinema-v4')) throw new Error('缓存 ' + JSON.stringify(data.caches));
       if (!data.maskable) throw new Error('manifest 缺少独立 maskable 图标');
       if (data.iconSize[0] !== 512 || data.iconSize[1] !== 512) throw new Error('图标尺寸 ' + data.iconSize);
       if (data.corner[0] !== 201 || data.corner[1] !== 47 || data.corner[2] !== 54) throw new Error('图标底色不是品牌红：' + data.corner);
@@ -738,7 +793,7 @@ async function main() {
       await send('Page.reload', { ignoreCache: false });
       await waitFor('document.documentElement.dataset.booted === "1"', 20000);
       await navigate('#/');
-      await waitFor('document.querySelectorAll(".poster-card").length === 4', 20000);
+      await waitFor('document.querySelectorAll(".poster-card").length === 11', 20000);
       const data = JSON.parse(await evaluate(`JSON.stringify({
         posters: document.querySelectorAll('.poster-card').length,
         images: Array.from(document.querySelectorAll('.poster-media img')).map((img) => img.complete && img.naturalWidth > 0),
@@ -752,15 +807,15 @@ async function main() {
         uploadThroughput: 100000000
       });
       await send('Page.reload', { ignoreCache: false });
-      await waitFor('document.querySelectorAll(".poster-card").length === 4', 20000);
-      if (data.posters !== 4 || data.images.length !== 4 || data.images.some((ok) => !ok)) throw new Error(JSON.stringify(data));
+      await waitFor('document.querySelectorAll(".poster-card").length === 11', 20000);
+      if (data.posters !== 11 || data.images.length !== 11 || data.images.some((ok) => !ok)) throw new Error(JSON.stringify(data));
       return JSON.stringify(data);
     });
 
     await step('手机横屏布局', async () => {
       await setViewport(844, 390, 2, true);
       await navigate('#/');
-      await waitFor('document.querySelectorAll(".poster-card").length === 4');
+      await waitFor('document.querySelectorAll(".poster-card").length === 11');
       await wait(400);
       const data = JSON.parse(await evaluate(`JSON.stringify({
         inner: [innerWidth, innerHeight],
@@ -772,7 +827,7 @@ async function main() {
         cardWidth: Math.round(document.querySelector('.poster-card').getBoundingClientRect().width)
       })`));
       if (data.inner[0] !== 844 || data.inner[1] !== 390) throw new Error('横屏视口异常：' + JSON.stringify(data.inner));
-      if (data.posters !== 4 || data.columns < 4) throw new Error('横屏网格异常：' + JSON.stringify(data));
+      if (data.posters !== 11 || data.columns < 4) throw new Error('横屏网格异常：' + JSON.stringify(data));
       if (data.overflow > 1) throw new Error('横屏出现横向溢出：' + data.overflow);
       if (data.tabbar === 'none') throw new Error('横屏底部导航不可见');
       if (data.titleWidth > data.cardWidth + 1) throw new Error('横屏标题超出海报');
@@ -784,7 +839,7 @@ async function main() {
     await step('桌面侧栏与黑夜首页截图', async () => {
       await setViewport(1280, 900, 1, false);
       await navigate('#/');
-      await waitFor('document.querySelectorAll(".poster-card").length === 4');
+      await waitFor('document.querySelectorAll(".poster-card").length === 11');
       const mode = await evaluate('document.documentElement.dataset.theme');
       if (mode !== 'dark') {
         await click('#theme-toggle');
