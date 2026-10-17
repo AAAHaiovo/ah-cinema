@@ -1,8 +1,10 @@
-/* 我的视频：本机文件与直接网址。文件只存本机 IndexedDB，不上传、不转存。 */
+/* 我的视频：粘贴的链接、B 站官方嵌入与本机文件。文件只存本机，不上传、不转存。 */
 
 import * as db from './db.js';
 
 const FILE_MAX_BYTES = 2 * 1024 * 1024 * 1024;
+const MEDIA_PATTERN = /\.(mp4|m4v|webm|ogg|ogv|mov|m3u8)(?:$|[?#])/i;
+const BVID_PATTERN = /(?:^|[^0-9A-Za-z])(BV[0-9A-Za-z]{8,14})(?:$|[^0-9A-Za-z])/i;
 
 const records = new Map();
 const objectUrls = new Map();
@@ -29,6 +31,57 @@ function hostOf(url) {
   }
 }
 
+function bilibiliInfo(value) {
+  let parsed;
+  try {
+    parsed = value instanceof URL ? value : new URL(String(value || ''));
+  } catch (error) {
+    return null;
+  }
+
+  if (!/(^|\.)bilibili\.com$/i.test(parsed.hostname)) return null;
+  const match = parsed.pathname.match(/\/video\/(BV[0-9A-Za-z]{8,14})/i);
+  if (!match) return null;
+
+  return {
+    bvid: match[1],
+    page: Math.max(1, Number(parsed.searchParams.get('p')) || 1)
+  };
+}
+
+export function isHlsUrl(url) {
+  return /\.m3u8(\?|#|$)/i.test(String(url || ''));
+}
+
+export function looksLikeVideoUrl(url) {
+  return MEDIA_PATTERN.test(String(url || ''));
+}
+
+/* 粘贴链接分三类：B 站页面走官方嵌入，媒体直链直接播放，其他页面无法解析。 */
+export function classifyLink(value) {
+  const text = String(value || '').trim();
+  if (!text) return { kind: 'empty' };
+
+  let parsed;
+  try {
+    parsed = new URL(text);
+  } catch (error) {
+    const bare = text.match(BVID_PATTERN);
+    if (bare) return { kind: 'embed', bvid: bare[1], page: 1 };
+    return { kind: 'invalid' };
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { kind: 'invalid' };
+  }
+
+  const bili = bilibiliInfo(parsed);
+  if (bili) return { kind: 'embed', ...bili, url: parsed.href };
+
+  if (looksLikeVideoUrl(parsed.href)) return { kind: 'media', url: parsed.href };
+  return { kind: 'page', url: parsed.href };
+}
+
 function sourceFor(record) {
   if (record.kind === 'file') {
     if (!record.blob) return [];
@@ -40,16 +93,19 @@ function sourceFor(record) {
     return [{ src: url, quality: '本机', label: '本机文件' }];
   }
 
-  if (!record.url) return [];
+  if (record.kind !== 'url' || !record.url) return [];
   return [{ src: record.url, quality: '原始', label: '网络地址' }];
 }
 
 function toItem(record) {
   const isFile = record.kind === 'file';
-  const host = isFile ? '' : hostOf(record.url);
+  const isEmbed = record.kind === 'embed';
+  const host = isEmbed ? 'bilibili.com' : isFile ? '' : hostOf(record.url);
   const synopsis = isFile
     ? '你自己添加的本机视频「' + (record.name || record.title) + '」。文件只保存在这台设备。'
-    : '你自己添加的网络视频，来源 ' + (host || '网络地址') + '。';
+    : isEmbed
+      ? '你粘贴的哔哩哔哩视频，通过 B 站官方嵌入式播放器观看。视频仍托管在哔哩哔哩，本 App 不下载、不转存。'
+      : '你粘贴的网络视频链接，来源 ' + (host || '网络地址') + '。App 只直接播放这个地址，不下载、不转存。';
 
   return {
     id: record.id,
@@ -62,27 +118,24 @@ function toItem(record) {
     localKind: record.kind,
     synopsis,
     poster: record.poster || '',
-    source: isFile ? '本机文件' : '网络地址',
-    sourceUrl: '',
-    license: '自有 / 授权内容',
+    source: isFile ? '本机文件' : isEmbed ? '哔哩哔哩 · 官方嵌入' : '网络地址',
+    sourceUrl: isEmbed ? 'https://www.bilibili.com/video/' + record.bvid + (record.page > 1 ? '/?p=' + record.page : '') : '',
+    license: isEmbed ? '以平台为准' : '自有 / 授权内容',
     licenseUrl: '',
+    embed: isEmbed ? { provider: 'bilibili', bvid: record.bvid, page: Number(record.page) || 1 } : null,
     sources: sourceFor(record),
     subtitles: [],
     episodes: [],
     tags: ['我的视频'],
     genres: [],
-    aliases: [record.name, host].filter(Boolean),
+    aliases: [record.name, host, record.bvid].filter(Boolean),
     runtimeSeconds: Number(record.duration) > 0 ? Number(record.duration) : 0,
     fileName: isFile ? (record.name || '') : '',
     fileSize: isFile ? (Number(record.size) || 0) : 0,
     host,
-    isHls: !isFile && isHlsUrl(record.url),
+    isHls: record.kind === 'url' && isHlsUrl(record.url),
     createdAt: Number(record.createdAt) || 0
   };
-}
-
-export function isHlsUrl(url) {
-  return /\.m3u8(\?|#|$)/i.test(String(url || ''));
 }
 
 export function fileSizeLimit() {
@@ -116,7 +169,7 @@ export async function loadLocalItems() {
 
   (Array.isArray(rows) ? rows : []).forEach((row) => {
     if (!row || typeof row.id !== 'string') return;
-    if (row.kind !== 'file' && row.kind !== 'url') return;
+    if (!['file', 'url', 'embed'].includes(row.kind)) return;
     if (typeof row.title !== 'string' || !row.title.trim()) return;
     next.set(row.id, row);
   });
@@ -188,22 +241,45 @@ export async function addLocalFile({ file, title }) {
 }
 
 export async function addLocalUrl({ url, title }) {
-  let parsed;
-  try {
-    parsed = new URL(String(url || ''));
-  } catch (error) {
-    throw new Error('这个网址格式不对');
+  const classified = classifyLink(url);
+  if (classified.kind === 'embed') {
+    return addLocalEmbed({ bvid: classified.bvid, page: classified.page, title });
+  }
+  if (classified.kind !== 'media' && classified.kind !== 'page') {
+    throw new Error('只支持以 http:// 或 https:// 开头的视频地址');
   }
 
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error('只支持以 http:// 或 https:// 开头的网址');
-  }
+  const existing = Array.from(records.values()).find((record) => record.kind === 'url' && record.url === classified.url);
+  if (existing) return toItem(existing);
 
   const record = {
     id: makeId('url'),
     kind: 'url',
-    title: cleanTitle(title, titleFromUrl(parsed.href)),
-    url: parsed.href,
+    title: cleanTitle(title, titleFromUrl(classified.url)),
+    url: classified.url,
+    createdAt: Date.now()
+  };
+
+  await db.put('custom', record);
+  records.set(record.id, record);
+  return toItem(record);
+}
+
+export async function addLocalEmbed({ bvid, page = 1, title }) {
+  const code = String(bvid || '').trim();
+  if (!/^BV[0-9A-Za-z]{8,14}$/i.test(code)) {
+    throw new Error('没有识别出哔哩哔哩的 BV 号');
+  }
+
+  const existing = Array.from(records.values()).find((record) => record.kind === 'embed' && record.bvid === code);
+  if (existing) return toItem(existing);
+
+  const record = {
+    id: makeId('embed'),
+    kind: 'embed',
+    title: cleanTitle(title, 'B站视频 ' + code),
+    bvid: code,
+    page: Math.max(1, Number(page) || 1),
     createdAt: Date.now()
   };
 

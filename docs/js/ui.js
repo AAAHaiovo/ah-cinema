@@ -176,7 +176,11 @@ export function itemMeta(item) {
 
 export function badgeFor(item) {
   if (!item) return '';
-  if (item.local) return item.localKind === 'file' ? '本机' : '网址';
+  if (item.local) {
+    if (item.localKind === 'file') return '本机';
+    if (item.localKind === 'embed') return 'B站';
+    return '网址';
+  }
   if (Array.isArray(item.tags) && item.tags.includes('预告片')) return '预告片';
   if (item.license === 'CC0 1.0') return 'CC0';
   const first = Array.isArray(item.sources) ? item.sources[0] : null;
@@ -229,7 +233,7 @@ export function posterMedia(item, options = {}) {
 }
 
 export function posterCard(item, options = {}) {
-  const meta = [item.year, categoryLabel(item.category)].filter(Boolean).join(' · ');
+  const meta = [item.year, item.local ? '' : categoryLabel(item.category)].filter(Boolean).join(' · ');
   return '<a class="poster-card" href="' + titleHref(item) + '" aria-label="' + escapeHtml(item.title) + '">' +
     posterMedia(item, options) +
     '<div class="poster-title" title="' + escapeHtml(item.title) + '">' + escapeHtml(item.title) + '</div>' +
@@ -281,7 +285,7 @@ export function pagination({ page, totalPages, totalItems, basePath, params = {}
 
   return '<nav class="pagination" aria-label="分页">' +
     prev +
-    '<span class="page-status">第 ' + page + ' / ' + totalPages + ' 页 · 共 ' + totalItems + ' 部</span>' +
+    '<span class="page-status">第 ' + page + ' / ' + totalPages + ' 页 · 共 ' + totalItems + ' 项</span>' +
     next +
     '<button class="page-btn page-jump" type="button" data-action="jump-page" data-total-pages="' + totalPages + '" data-base="' + base + '" data-query="' + escapeHtml(query) + '" data-current="' + page + '">跳页</button>' +
     '</nav>';

@@ -1,18 +1,14 @@
 /* 页面视图：首页 / 片库 / 搜索 / 历史 / 收藏 / 我的 / 设置 / 详情 / 关于。 */
 
 import {
-  allItems,
   getItem,
   getMeta,
-  categories,
-  filterItems,
   searchItems,
   relatedItems,
   paginate,
   getEpisode,
   sourcesFor,
-  embedFor,
-  categoryLabel
+  embedFor
 } from './catalog.js';
 
 import {
@@ -56,10 +52,8 @@ import {
 } from './ui.js';
 
 import { localItems, localCount } from './local-library.js';
-import { officialLinks, officialLinksForItem } from './watch-links.js';
-import { href } from './router.js';
 
-const APP_VERSION = '0.3.0';
+const APP_VERSION = '0.4.0';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -84,56 +78,26 @@ function thumbMedia(item) {
   return posterPlaceholder(item) + (src ? '<img src="' + escapeHtml(src) + '" alt="" loading="lazy" decoding="async">' : '');
 }
 
-function platformLinks(links) {
-  return '<div class="platform-links">' +
-    links.map((link) =>
-      '<a class="platform-link" href="' + escapeHtml(safeExternalUrl(link.url)) + '" target="_blank" rel="noopener noreferrer">' +
-        '<span>' + escapeHtml(link.name) + '</span>' + icon('external') +
-      '</a>'
-    ).join('') +
-    '</div>';
-}
-
-function platformSearchBlock(query) {
-  const links = officialLinks(query);
-  if (!links.length) return '';
-
-  return '<div class="platform-search">' +
-    '<div class="platform-search-title">' + icon('external') + '<span>在官方平台搜索“' + escapeHtml(query) + '”</span></div>' +
-    platformLinks(links) +
-    '<p class="platform-search-note">只打开各平台的官方搜索结果页；片源、会员与播放由平台提供，本 App 不抓取、不转存。</p>' +
-    '</div>';
-}
-
-function licenseLine(item) {
-  const source = item.source || '开放片源';
-  const license = item.license || '开放授权';
-  const licenseUrl = safeExternalUrl(item.licenseUrl);
-  const sourceUrl = safeExternalUrl(item.sourceUrl);
-
-  return '<li><strong>' + escapeHtml(item.title) + '</strong> · ' +
-    (sourceUrl ? '<a class="text-link" href="' + escapeHtml(sourceUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(source) + '</a>' : escapeHtml(source)) +
-    ' · ' +
-    (licenseUrl ? '<a class="text-link" href="' + escapeHtml(licenseUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(license) + '</a>' : escapeHtml(license)) +
-    '</li>';
+function pasteBox() {
+  return '<form class="link-paste" id="link-form" autocomplete="off">' +
+    '<div class="link-paste-head">' +
+      '<span class="link-paste-icon">' + icon('external') + '</span>' +
+      '<div><div class="link-paste-title">粘贴链接，直接播放</div>' +
+      '<div class="link-paste-sub">视频文件直链，或哔哩哔哩视频页</div></div>' +
+    '</div>' +
+    '<div class="link-paste-row">' +
+      '<input id="link-input" type="text" inputmode="url" enterkeyhint="go" name="link" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://…/movie.mp4" aria-label="视频链接">' +
+      '<button class="btn btn-primary" type="submit">播放</button>' +
+    '</div>' +
+    '<p class="link-paste-note">只直接播放视频文件地址（MP4 / WebM / HLS）和 B 站官方嵌入；网页、网盘和会员页面无法解析，也不会去抓取。</p>' +
+    '</form>';
 }
 
 export function renderHome(route) {
-  const items = allItems();
+  const items = localItems();
   const meta = getMeta();
   const page = route.params.get('page');
   const paged = paginate(items, page, state.settings.pageSize);
-
-  if (!items.length) {
-    return '<div class="page">' +
-      pageHeading('首页', 'AH 影视') +
-      emptyState({
-        title: '片库还是空的',
-        text: '检查一下网络，或者稍后刷新页面。',
-        action: '<button class="btn btn-primary" type="button" data-action="retry-boot">重新加载</button>'
-      }) +
-      '</div>';
-  }
 
   const continueItems = latestProgressList()
     .filter((record) => !record.completed && !record.external)
@@ -155,76 +119,35 @@ export function renderHome(route) {
       '</section>'
     : '';
 
-  const notice = meta.notice || '示例片库只包含公共领域 / 开放授权影片。';
-  const mineCount = localCount();
-  const mineEntry = mineCount
-    ? '<a class="mine-entry" href="#/local">' +
-        '<span class="mine-entry-icon">' + icon('film') + '</span>' +
-        '<span class="mine-entry-main">' +
-          '<span class="mine-entry-title">我的视频</span>' +
-          '<span class="mine-entry-sub">本机文件与网络地址 · ' + mineCount + ' 部</span>' +
-        '</span>' +
-        icon('chevronRight', 'chevron') +
-      '</a>'
-    : '';
+  const listSection = items.length
+    ? '<section class="section">' +
+        '<div class="section-head"><h2 class="section-title">我的链接</h2>' +
+          '<a class="section-link" href="#/local">管理 · ' + items.length + ' 个</a></div>' +
+        gridFor(paged.items) +
+        pagination({
+          page: paged.page,
+          totalPages: paged.totalPages,
+          totalItems: paged.totalItems,
+          basePath: '/',
+          params: {}
+        }) +
+      '</section>'
+    : emptyState({
+        title: '还没有添加视频',
+        text: '把视频文件直链或 B 站视频页链接粘贴到上面的输入框，也可以从设备选择本机视频。',
+        action: '<div class="local-empty-actions">' +
+          '<button class="btn btn-primary" type="button" data-action="local-add-file">选择本机视频</button>' +
+          '<a class="btn btn-secondary" href="#/local">我的视频</a>' +
+          '</div>'
+      });
 
   return '<div class="page home-page">' +
-    pageHeading('首页', (mineCount ? '片库 + 我的视频' : '合法开放影片') + ' · 共 ' + items.length + ' 部',
+    pageHeading('首页', items.length ? '我的链接 · 共 ' + items.length + ' 个' : '粘贴链接开始观看',
       '<a class="icon-btn" href="#/search" aria-label="搜索">' + icon('search') + '</a>') +
+    pasteBox() +
     continueSection +
-    mineEntry +
-    '<section class="section">' +
-      '<div class="section-head"><h2 class="section-title">全部影片</h2><span class="section-note">共 ' + items.length + ' 部</span></div>' +
-      gridFor(paged.items) +
-      pagination({
-        page: paged.page,
-        totalPages: paged.totalPages,
-        totalItems: paged.totalItems,
-        basePath: '/',
-        params: {}
-      }) +
-    '</section>' +
-    '<p class="foot-note">' + escapeHtml(notice) + '<br>片库会继续扩充；当前版本优先把播放与浏览体验做稳。</p>' +
-    '</div>';
-}
-
-export function renderLibrary(route) {
-  const all = allItems();
-  const cats = categories();
-  const requested = route.params.get('category') || 'all';
-  const active = cats.some((cat) => cat.key === requested) ? requested : 'all';
-  const list = filterItems(active);
-  const paged = paginate(list, route.params.get('page'), state.settings.pageSize);
-  const activeLabel = cats.find((cat) => cat.key === active)?.label || '全部';
-
-  const chips = '<div class="chip-row" role="tablist" aria-label="片库分类">' +
-    cats.map((cat) => {
-      const visit = cat.key === 'all' ? href('/library') : href('/library', { category: cat.key });
-      const selected = cat.key === active;
-      return '<a class="chip' + (selected ? ' is-active' : '') + '" href="' + visit + '" role="tab" aria-selected="' + selected + '">' +
-        escapeHtml(cat.label) + '<span class="chip-count">' + cat.count + '</span>' +
-        '</a>';
-    }).join('') +
-    '</div>';
-
-  const empty = emptyState({
-    title: '这个分类还没有影片',
-    text: '先看看全部片库，或者换一个分类。',
-    action: '<a class="btn btn-secondary" href="#/library">查看全部</a>'
-  });
-
-  const baseParams = active === 'all' ? {} : { category: active };
-
-  return '<div class="page">' +
-    pageHeading('片库', '共 ' + list.length + ' 部 · ' + activeLabel + ' · 第 ' + paged.page + ' / ' + paged.totalPages + ' 页') +
-    chips +
-    (list.length ? gridFor(paged.items) + pagination({
-      page: paged.page,
-      totalPages: paged.totalPages,
-      totalItems: paged.totalItems,
-      basePath: '/library',
-      params: baseParams
-    }) : empty) +
+    listSection +
+    '<p class="foot-note">' + escapeHtml(meta.notice || '本 App 只播放你自己提供的内容，不提供、不抓取任何片源。') + '</p>' +
     '</div>';
 }
 
@@ -242,32 +165,32 @@ export function renderSearchResults(query) {
         '</section>'
       : '';
 
-    const hints = ['大雄兔', 'Sintel', '花', '动画'];
+    const hints = localItems().slice(0, 6).map((item) => item.title);
 
     return recentSection +
       '<div class="search-hints">' +
-      '<strong>试试搜索</strong>' +
-      '<div class="recent-list">' +
-      hints.map((hint) => '<button class="recent-chip" type="button" data-search-query="' + escapeHtml(hint) + '">' + escapeHtml(hint) + '</button>').join('') +
-      '</div>' +
+      '<strong>' + (hints.length ? '试试搜索' : '搜索我的链接') + '</strong>' +
+      (hints.length
+        ? '<div class="recent-list">' +
+          hints.map((hint) => '<button class="recent-chip" type="button" data-search-query="' + escapeHtml(hint) + '">' + escapeHtml(hint) + '</button>').join('') +
+          '</div>'
+        : '<p class="section-hint">先在首页粘贴一个链接，添加过的视频就可以在这里按名字搜索。</p>') +
       '</div>';
   }
 
   const results = searchItems(value);
 
   if (!results.length) {
-    return '<div class="search-summary">没有找到匹配的影片</div>' +
+    return '<div class="search-summary">没有找到匹配的内容</div>' +
       emptyState({
-        title: '片库里没有找到',
-        text: '没有匹配“' + value + '”的影片。可以试试片名、原名或标签，也可以去官方平台搜索。',
+        title: '没有找到',
+        text: '没有匹配“' + value + '”的链接。可以试试视频名字、网址或 B 站 BV 号。',
         action: '<button class="btn btn-secondary" type="button" data-action="clear-search">清空搜索</button>'
-      }) +
-      platformSearchBlock(value);
+      });
   }
 
   return '<div class="search-summary">找到 ' + results.length + ' 个结果</div>' +
-    gridFor(results) +
-    platformSearchBlock(value);
+    gridFor(results);
 }
 
 export function renderSearch(route) {
@@ -276,10 +199,10 @@ export function renderSearch(route) {
   const query = state.ui.searchQuery || '';
 
   return '<div class="page search-page">' +
-    pageHeading('搜索', '按片名、原名或标签查找') +
+    pageHeading('搜索', '按名字、网址或 BV 号查找') +
     '<form class="search-box" id="search-form" role="search" autocomplete="off">' +
       icon('search') +
-      '<input id="search-input" type="search" name="q" inputmode="search" enterkeyhint="search" placeholder="搜索片名、原名或标签" aria-label="搜索影片" value="' + escapeHtml(query) + '">' +
+      '<input id="search-input" type="search" name="q" inputmode="search" enterkeyhint="search" placeholder="搜索我添加的视频" aria-label="搜索我的视频" value="' + escapeHtml(query) + '">' +
       '<button class="search-clear" type="button" data-action="clear-search" aria-label="清空搜索"' + (query ? '' : ' hidden') + '>' + icon('close') + '</button>' +
     '</form>' +
     '<div id="search-results">' + renderSearchResults(query) + '</div>' +
@@ -328,8 +251,8 @@ export function renderHistory() {
     pageHeading('历史', records.length ? records.length + ' 部看过' : '播放进度会自动记录在这里', clearButton) +
     (records.length ? '<div class="history-list">' + list + '</div>' : emptyState({
       title: '还没有观看记录',
-      text: '打开一部影片，看到一半退出，下次就能从这里接着看。',
-      action: '<a class="btn btn-primary" href="#/">去首页看看</a>'
+      text: '打开一个链接，看到一半退出，下次就能从这里接着看。',
+      action: '<a class="btn btn-primary" href="#/">去首页粘贴链接</a>'
     })) +
     '</div>';
 }
@@ -341,7 +264,7 @@ export function renderFavorites(route) {
   const paged = paginate(items, route.params.get('page'), state.settings.pageSize);
 
   return '<div class="page">' +
-    pageHeading('收藏', items.length ? '共 ' + items.length + ' 部' : '把想看的影片留在这里') +
+    pageHeading('收藏', items.length ? '共 ' + items.length + ' 个' : '把想看的视频留在这里') +
     (items.length
       ? gridFor(paged.items) + pagination({
           page: paged.page,
@@ -352,8 +275,8 @@ export function renderFavorites(route) {
         })
       : emptyState({
           title: '还没有收藏',
-          text: '在影片详情页点一下心形，影片就会出现在这里。',
-          action: '<a class="btn btn-primary" href="#/library">去片库逛逛</a>'
+          text: '在视频详情页点一下心形，视频就会出现在这里。',
+          action: '<a class="btn btn-primary" href="#/">去首页看看</a>'
         })) +
     '</div>';
 }
@@ -364,7 +287,9 @@ export function renderLocal() {
   const rows = items.map((item) => {
     const kind = item.localKind === 'file'
       ? '本机文件' + (item.fileSize > 0 ? ' · ' + formatBytes(item.fileSize) : '')
-      : '网络地址' + (item.host ? ' · ' + item.host : '') + (item.isHls ? ' · HLS' : '');
+      : item.localKind === 'embed'
+        ? 'B 站官方嵌入' + (item.embed ? ' · ' + item.embed.bvid : '')
+        : '网络地址' + (item.host ? ' · ' + item.host : '') + (item.isHls ? ' · HLS' : '');
 
     return '<div class="history-row local-row">' +
       '<a class="history-link" href="' + watchHref(item) + '">' +
@@ -379,31 +304,31 @@ export function renderLocal() {
   }).join('');
 
   const empty = emptyState({
-    title: '还没有自己的视频',
-    text: '从设备选择视频文件，或粘贴视频直链 / NAS 地址。文件只保存在这台设备，不会上传。',
+    title: '还没有添加内容',
+    text: '粘贴一个视频直链或 B 站视频页链接，也可以从设备选择本机视频。内容只保存在这台设备。',
     action: '<div class="local-empty-actions">' +
-      '<button class="btn btn-primary" type="button" data-action="local-add-file">选择本机视频</button>' +
-      '<button class="btn btn-secondary" type="button" data-action="local-add-url">添加网址</button>' +
+      '<button class="btn btn-primary" type="button" data-action="local-add-url">粘贴链接</button>' +
+      '<button class="btn btn-secondary" type="button" data-action="local-add-file">选择本机视频</button>' +
       '</div>'
   });
 
   return '<div class="page local-page">' +
-    pageHeading('我的视频', '本机文件与网络地址 · 共 ' + items.length + ' 部',
+    pageHeading('我的视频', '链接与本机文件 · 共 ' + items.length + ' 个',
       '<button class="btn btn-primary btn-small" type="button" data-action="add-local">添加</button>') +
     (items.length
       ? '<div class="local-actions">' +
-          '<button class="btn btn-primary btn-small" type="button" data-action="local-add-file">' + icon('upload') + '<span>选择本机视频</span></button>' +
-          '<button class="btn btn-secondary btn-small" type="button" data-action="local-add-url">' + icon('external') + '<span>添加网址</span></button>' +
+          '<button class="btn btn-primary btn-small" type="button" data-action="local-add-url">' + icon('external') + '<span>粘贴链接</span></button>' +
+          '<button class="btn btn-secondary btn-small" type="button" data-action="local-add-file">' + icon('upload') + '<span>选择本机视频</span></button>' +
         '</div>' +
         '<div class="history-list local-list">' + rows + '</div>'
       : empty) +
     '<input type="file" id="local-file-input" accept="video/*,.mp4,.m4v,.webm,.mov,.ogv,.mkv" hidden>' +
     '<div class="tip-card">' +
       '<div class="tip-title">使用说明</div>' +
-      '<p>本机文件保存在浏览器里，不上传；浏览器能直接播放的主要是 MP4（H.264 + AAC）。MKV / AVI / WMV 等格式可能需要先转成 MP4。</p>' +
-      '<p>网络地址请填写视频文件的直链（例如 https://…/movie.mp4）。HLS（.m3u8）只有 Safari / iPhone 原生支持。</p>' +
-      '<p>在 HTTPS 页面里，http:// 地址可能被浏览器当作混合内容拦截；局域网 NAS 建议改用 https。</p>' +
-      '<p>“我的视频”不会写进 JSON 备份，换设备或清理浏览器数据前请保留原文件。</p>' +
+      '<p>视频直链请填完整地址，例如 https://…/movie.mp4。HLS（.m3u8）只有 Safari / iPhone 原生支持；MP4（H.264 + AAC）兼容性最好。</p>' +
+      '<p>B 站链接支持普通投稿视频页（含 BV 号），通过 B 站官方嵌入式播放器打开；番剧、会员内容可能无法嵌入。</p>' +
+      '<p>网页链接、网盘分享页和平台会员页面不能直接播放，App 也不会去解析或抓取。</p>' +
+      '<p>在 HTTPS 页面里，http:// 地址可能被浏览器当作混合内容拦截；局域网 NAS 建议改用 https。本机文件保存在浏览器里，不上传，也不写进 JSON 备份。</p>' +
     '</div>' +
     '</div>';
 }
@@ -421,18 +346,18 @@ export function renderMe() {
     pageHeading('我的') +
     '<div class="profile-card">' +
       '<img class="profile-icon" src="./icons/icon-192.png" alt="AH 影视图标">' +
-      '<div class="profile-main"><div class="profile-name">AH 影视</div><div class="profile-sub">个人合法影视库 · v' + APP_VERSION + '</div></div>' +
+      '<div class="profile-main"><div class="profile-name">AH 影视</div><div class="profile-sub">粘贴链接播放 · v' + APP_VERSION + '</div></div>' +
       '<a class="icon-btn" href="#/settings" aria-label="设置">' + icon('gear') + '</a>' +
     '</div>' +
     '<div class="stat-grid">' +
       '<a class="stat" href="#/favorites"><b>' + favoriteCount() + '</b><span>收藏</span></a>' +
       '<a class="stat" href="#/history"><b>' + historyCount() + '</b><span>历史</span></a>' +
-      '<a class="stat" href="#/library"><b>' + allItems().length + '</b><span>片库</span></a>' +
+      '<a class="stat" href="#/local"><b>' + localCount() + '</b><span>我的视频</span></a>' +
     '</div>' +
     '<div class="menu-group">' +
+      '<a class="menu-row" href="#/local">' + icon('film') + '<span class="menu-label">我的视频</span><span class="menu-value">' + localCount() + '</span>' + icon('chevronRight', 'chevron') + '</a>' +
       '<a class="menu-row" href="#/favorites">' + icon('heart') + '<span class="menu-label">我的收藏</span><span class="menu-value">' + favoriteCount() + '</span>' + icon('chevronRight', 'chevron') + '</a>' +
       '<a class="menu-row" href="#/history">' + icon('clock') + '<span class="menu-label">观看历史</span><span class="menu-value">' + historyCount() + '</span>' + icon('chevronRight', 'chevron') + '</a>' +
-      '<a class="menu-row" href="#/local">' + icon('film') + '<span class="menu-label">我的视频</span><span class="menu-value">' + localCount() + '</span>' + icon('chevronRight', 'chevron') + '</a>' +
       '<a class="menu-row" href="#/settings">' + icon('gear') + '<span class="menu-label">设置</span>' + icon('chevronRight', 'chevron') + '</a>' +
       '<a class="menu-row" href="#/about">' + icon('info') + '<span class="menu-label">关于 AH 影视</span>' + icon('chevronRight', 'chevron') + '</a>' +
     '</div>' +
@@ -441,7 +366,7 @@ export function renderMe() {
       '<p>' + escapeHtml(installText) + '</p>' +
       (!installed ? '<button class="btn btn-secondary btn-small" type="button" data-action="install" id="install-button" hidden>立即安装</button>' : '') +
     '</div>' +
-    '<p class="legal-note">只播放公共领域、开放授权或你拥有明确使用权的影片。不提供盗版片源，不绕过 DRM。片源与授权信息可以在每部影片的详情页查看。</p>' +
+    '<p class="legal-note">App 本身不提供任何片源：只播放你粘贴的视频直链、B 站官方嵌入和本机文件。不抓取网页、不解析会员内容、不绕过 DRM。请只添加你有权观看的内容。</p>' +
     '</div>';
 }
 
@@ -503,7 +428,7 @@ export function renderSettings() {
         '<span class="settings-icon">' + icon('upload') + '</span><span class="settings-label">导入备份</span><span class="settings-value">JSON</span>' +
       '</button>' +
       '<a class="settings-row" href="#/local">' +
-        '<span class="settings-icon">' + icon('film') + '</span><span class="settings-label">我的视频</span><span class="settings-value">' + localCount() + ' 部</span>' + icon('chevronRight', 'chevron') +
+        '<span class="settings-icon">' + icon('film') + '</span><span class="settings-label">我的视频</span><span class="settings-value">' + localCount() + ' 个</span>' + icon('chevronRight', 'chevron') +
       '</a>' +
       '<input type="file" id="import-file" accept="application/json,.json" hidden>' +
       '<div class="settings-row">' +
@@ -522,35 +447,31 @@ export function renderSettings() {
         '<span class="settings-icon">' + icon('info') + '</span><span class="settings-label">关于 AH 影视</span><span class="settings-value">v' + APP_VERSION + '</span>' + icon('chevronRight', 'chevron') +
       '</a>' +
     '</section>' +
-    '<p class="settings-foot">观看进度、收藏与设置保存在这台设备的浏览器里（优先使用 IndexedDB）。“我的视频”里的本机文件也只保存在这台设备，不会写进 JSON 备份；清理浏览器数据前请保留原文件。</p>' +
+    '<p class="settings-foot">观看进度、收藏、设置和添加的链接保存在这台设备的浏览器里（优先使用 IndexedDB）。本机文件也只保存在这台设备，不会写进 JSON 备份；清理浏览器数据前请保留原文件。</p>' +
     '</div>';
 }
 
 export function renderAbout() {
   const meta = getMeta();
-  const items = allItems();
-
-  const seen = new Set();
-  const licenseRows = [];
-
-  items.forEach((item) => {
-    if (item.local) return;
-    const key = (item.source || '') + '|' + (item.license || '');
-    if (seen.has(key)) return;
-    seen.add(key);
-    licenseRows.push(licenseLine(item));
-  });
 
   return '<div class="page about-page">' +
     '<div class="about-hero">' +
       '<img class="about-icon" src="./icons/icon-192.png" alt="AH 影视图标">' +
       '<h1>AH 影视</h1>' +
-      '<p>个人合法影视库 · v' + APP_VERSION + '</p>' +
+      '<p>粘贴链接播放 · v' + APP_VERSION + '</p>' +
     '</div>' +
     '<section class="info-card">' +
       '<h2>关于这个 App</h2>' +
-      '<p>AH 影视是一个静态 PWA：Windows 浏览器和 iPhone 主屏幕都能打开，不需要后端，不需要登录。浏览、搜索、收藏、观看历史和播放进度都保存在本机。</p>' +
-      '<p>' + escapeHtml(meta.notice || '当前片库只包含公共领域 / 开放授权影片。') + '</p>' +
+      '<p>AH 影视是一个静态 PWA：Windows 浏览器和 iPhone 主屏幕都能打开，不需要后端，不需要登录。App 不再内置任何影片，只播放你自己粘贴的链接和添加的本机文件。</p>' +
+      '<p>' + escapeHtml(meta.notice || '本 App 不提供、不抓取任何片源。') + '</p>' +
+      '<p>观看历史、收藏、播放进度和设置都保存在这台设备的浏览器里。</p>' +
+    '</section>' +
+    '<section class="info-card">' +
+      '<h2>能播放什么</h2>' +
+      '<p><strong>视频文件直链</strong>：以 .mp4、.webm、.m3u8 等结尾的地址，直接在 App 内播放。HLS（.m3u8）只有 Safari / iPhone 原生支持。</p>' +
+      '<p><strong>哔哩哔哩视频页</strong>：含 BV 号的普通投稿视频，通过 B 站官方嵌入式播放器打开；番剧、会员与地区限制内容可能无法嵌入。</p>' +
+      '<p><strong>本机文件</strong>：从设备选择视频文件，存入浏览器 IndexedDB，只在这台设备可用，不上传。</p>' +
+      '<p><strong>不能播放</strong>：网页、网盘分享页、平台会员页面等。App 不做网页解析、不抓取播放地址、不绕过会员或 DRM。</p>' +
     '</section>' +
     '<section class="info-card">' +
       '<h2>AH 标识</h2>' +
@@ -558,20 +479,9 @@ export function renderAbout() {
       '<p>App 图标使用品牌红底 + 白色 AH；界面顶栏、启动页和空状态使用同一套标记，播放画面上不加水印。</p>' +
     '</section>' +
     '<section class="info-card">' +
-      '<h2>官方平台与我的视频</h2>' +
-      '<p>详情页的“在哪看”和搜索页的官方搜索入口，只会打开爱奇艺、腾讯视频、优酷、芒果 TV、哔哩哔哩自己的搜索结果页。App 不抓取、不代理、不转存这些平台的内容，会员与播放规则由平台决定。</p>' +
-      '<p>“我的视频”支持从设备选择视频文件，或粘贴视频直链 / NAS 地址。本机文件保存在这台设备的 IndexedDB 里，不上传、不外发；清理浏览器数据会删除它们，所以请保留原文件。网络地址只会被直接播放，不会被下载。</p>' +
-    '</section>' +
-    '<section class="info-card">' +
-      '<h2>片源与授权</h2>' +
-      '<ul class="license-list">' + licenseRows.join('') + '</ul>' +
-      '<p>部分公共领域电影通过哔哩哔哩官方嵌入式播放器观看，视频仍托管在哔哩哔哩，本 App 不转存、不下载、不重新分发。</p>' +
-      '<p>影片版权归原作者 / 出品方所有。本 App 只做个人观看与播放，不重新分发片源；如需转载或商用，请遵守对应授权条款。</p>' +
-    '</section>' +
-    '<section class="info-card">' +
       '<h2>边界</h2>' +
-      '<p>不接入盗版站、未授权聚合源、破解接口，也不绕过 DRM。主流新片和热剧仍应去官方平台观看；这个 App 负责整理你能合法播放的内容。</p>' +
-      '<p>如果某条哔哩哔哩视频被上传者删除或设为不可播放，播放页会无法加载；可以用右上角的“在 B 站打开”查看原页面。</p>' +
+      '<p>App 本身不提供任何影视资源，也不接入盗版站、未授权聚合源、破解接口。你粘贴的链接由你自己负责，请确保你有权观看；不要用这个 App 传播或重新分发内容。</p>' +
+      '<p>如果某个链接失效、需要登录、限制跨域或被平台删除，播放器会报错，这是对方服务器的限制，App 无法绕过。</p>' +
     '</section>' +
     '<p class="about-foot">Made for personal use · AH 影视 · 2026</p>' +
     '</div>';
@@ -626,7 +536,6 @@ export function renderDetail(itemId) {
   const meta = itemMeta(item);
   const sources = sourcesFor(item, episode);
   const embed = embedFor(item, episode);
-  const official = officialLinksForItem(item);
   const poster = safeAssetUrl(item.poster);
   const synopsis = item.synopsis || '暂无简介。';
   const longSynopsis = synopsis.length > 120;
@@ -653,7 +562,9 @@ export function renderDetail(itemId) {
   const localSourceText = item.local
     ? (item.localKind === 'file'
         ? (item.fileName || '本机文件') + (item.fileSize > 0 ? ' · ' + formatBytes(item.fileSize) : '')
-        : (item.host || '网络地址') + (item.isHls ? ' · HLS（Safari / iPhone）' : ''))
+        : item.localKind === 'embed'
+          ? 'bilibili.com · ' + (item.embed ? item.embed.bvid : '')
+          : (item.host || '网络地址') + (item.isHls ? ' · HLS（Safari / iPhone）' : ''))
     : '';
 
   const infoRows = [
@@ -715,14 +626,11 @@ export function renderDetail(itemId) {
       '</div>' +
       (latest && !latest.completed && !latest.external ? '<div class="detail-progress-note">' + icon('clock') + '<span>上次看到 ' + escapeHtml(formatTime(latest.time)) + (episode ? ' · ' + escapeHtml(formatEpisodeLabel(episode)) : '') + '</span></div>' : '') +
       (embed ? '<div class="detail-progress-note detail-embed-note">' + icon('info') + '<span>本片通过哔哩哔哩官方嵌入式播放器播放；清晰度、倍速与字幕请使用播放器内控件。本 App 不转存视频。</span></div>' : '') +
-      (item.local ? '<div class="detail-progress-note detail-embed-note">' + icon('info') + '<span>' + (item.localKind === 'file' ? '这个视频只保存在这台设备，不会上传。清理浏览器数据前请保留原文件。' : 'App 会直接播放这个网络地址，不下载、不转存。') + '</span></div>' : '') +
-      (official.length
-        ? '<section class="detail-section watch-section">' +
-            '<h2>在哪看</h2>' +
-            '<p class="section-hint">打开各官方平台的搜索结果。片源、会员与播放由平台提供，本 App 不抓取。</p>' +
-            platformLinks(official) +
-          '</section>'
-        : '') +
+      (item.local ? '<div class="detail-progress-note detail-embed-note">' + icon('info') + '<span>' + (item.localKind === 'file'
+        ? '这个视频只保存在这台设备，不会上传。清理浏览器数据前请保留原文件。'
+        : item.localKind === 'embed'
+          ? '通过 B 站官方嵌入式播放器打开；视频仍托管在哔哩哔哩，本 App 不下载、不转存。'
+          : 'App 会直接播放这个网络地址，不下载、不转存。') + '</span></div>' : '') +
       '<section class="detail-section">' +
         '<h2>简介</h2>' +
         '<p class="synopsis' + (longSynopsis ? ' is-clamped' : '') + '" id="synopsis">' + escapeHtml(synopsis) + '</p>' +
@@ -736,7 +644,7 @@ export function renderDetail(itemId) {
         '</dl>' +
       '</section>' +
       relatedSection +
-      '<p class="foot-note">' + escapeHtml(item.title) + ' · ' + escapeHtml(item.license || '开放授权') + '。仅用于个人观看，请遵守原始授权条款。</p>' +
+      '<p class="foot-note">' + escapeHtml(item.title) + ' · ' + escapeHtml(item.license || '个人使用') + '。仅用于个人观看，请确保你有权访问这个来源。</p>' +
     '</div>' +
     '</div>';
 }

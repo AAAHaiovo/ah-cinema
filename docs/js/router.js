@@ -29,7 +29,7 @@ export function resolveRoute(route) {
   const segments = route.segments;
 
   if (path === '/') return { name: 'home' };
-  if (path === '/library') return { name: 'library' };
+  if (path === '/library') return { name: 'home' };
   if (path === '/search') return { name: 'search' };
   if (path === '/history') return { name: 'history' };
   if (path === '/favorites') return { name: 'favorites' };
@@ -94,9 +94,9 @@ export function isTabbedRoute(name) {
 
 export function tabForRoute(name) {
   if (name === 'home') return 'home';
-  if (name === 'library') return 'library';
+  if (name === 'local') return 'local';
   if (name === 'search') return 'search';
   if (name === 'history') return 'history';
-  if (name === 'me' || name === 'favorites' || name === 'local' || name === 'settings' || name === 'about') return 'me';
+  if (name === 'me' || name === 'favorites' || name === 'settings' || name === 'about') return 'me';
   return null;
 }

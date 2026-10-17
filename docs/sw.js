@@ -1,6 +1,6 @@
 /* AH 影视 Service Worker：缓存应用壳；视频与大文件直接走网络。 */
 
-const CACHE_NAME = 'ah-cinema-v5';
+const CACHE_NAME = 'ah-cinema-v6';
 
 const SHELL = [
   './',
@@ -13,7 +13,6 @@ const SHELL = [
   './js/db.js',
   './js/catalog.js',
   './js/local-library.js',
-  './js/watch-links.js',
   './js/store.js',
   './js/router.js',
   './js/ui.js',
@@ -22,16 +21,6 @@ const SHELL = [
   './js/app.js',
   './data/catalog.json',
   './assets/ah-mark.png',
-  './assets/posters/big-buck-bunny.png',
-  './assets/posters/sintel.png',
-  './assets/posters/flower.svg',
-  './assets/posters/general.webp',
-  './assets/posters/nosferatu.webp',
-  './assets/posters/caligari.webp',
-  './assets/posters/potemkin.webp',
-  './assets/posters/springtown.jpg',
-  './assets/posters/crow-sparrow.webp',
-  './assets/posters/camera.webp',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',

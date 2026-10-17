@@ -21,6 +21,8 @@ import {
   loadLocalItems,
   addLocalFile,
   addLocalUrl,
+  addLocalEmbed,
+  classifyLink,
   removeLocalItem,
   titleFromUrl,
   fileSizeLimit,
@@ -40,6 +42,7 @@ import {
   toast,
   openPrompt,
   openConfirm,
+  openSheet,
   closeOverlay,
   debounce,
   formatBytes,
@@ -49,7 +52,6 @@ import {
 
 import {
   renderHome,
-  renderLibrary,
   renderSearch,
   renderSearchResults,
   renderHistory,
@@ -204,7 +206,6 @@ function setDocumentTitle(resolved) {
   const base = 'AH 影视';
   const simpleTitles = {
     home: base,
-    library: '片库 · ' + base,
     search: '搜索 · ' + base,
     history: '观看历史 · ' + base,
     favorites: '收藏 · ' + base,
@@ -278,8 +279,6 @@ function renderRoute() {
 
   if (resolved.name === 'home') {
     html = renderHome(route);
-  } else if (resolved.name === 'library') {
-    html = renderLibrary(route);
   } else if (resolved.name === 'search') {
     html = renderSearch(route);
   } else if (resolved.name === 'history') {
@@ -551,8 +550,8 @@ async function chooseLocalSource() {
   const choice = await openSheet({
     title: '添加视频',
     options: [
-      { value: 'file', label: '从设备选择视频文件' },
-      { value: 'url', label: '粘贴视频直链 / NAS 地址' }
+      { value: 'url', label: '粘贴视频链接（直链 / B站）' },
+      { value: 'file', label: '从设备选择视频文件' }
     ]
   });
 
@@ -564,10 +563,54 @@ async function chooseLocalSource() {
   }
 }
 
+function linkTypeError(classified) {
+  if (classified.kind === 'empty') return '先粘贴一个链接';
+  return '只支持 http:// 或 https:// 开头的视频地址';
+}
+
+/* 首页“粘贴链接”入口：识别 B 站页面与视频直链，添加后直接进入播放器。 */
+async function playPastedLink(raw) {
+  const value = String(raw || '').trim();
+  const classified = classifyLink(value);
+
+  if (classified.kind === 'empty' || classified.kind === 'invalid') {
+    toast(linkTypeError(classified));
+    return;
+  }
+
+  if (classified.kind === 'page') {
+    const proceed = await openConfirm({
+      title: '这个链接不是视频文件',
+      description: 'App 只能直接播放视频文件直链（.mp4 / .webm / .m3u8 等）和哔哩哔哩视频页。网页、网盘或平台会员页面无法解析。仍要尝试播放吗？',
+      confirmText: '仍要尝试'
+    });
+    if (!proceed) return;
+  }
+
+  try {
+    const item = classified.kind === 'embed'
+      ? await addLocalEmbed({ bvid: classified.bvid, page: classified.page })
+      : await addLocalUrl({ url: classified.url });
+
+    await refreshLocalItems();
+
+    const input = document.getElementById('link-input');
+    if (input) input.value = '';
+
+    if (classified.kind === 'embed') toast('正在打开 B 站官方播放器');
+    else if (isHlsUrl(classified.url)) toast('HLS 只有 Safari / iPhone 原生支持');
+    else toast('正在打开：' + item.title);
+
+    location.hash = '#/watch/' + encodeURIComponent(item.id);
+  } catch (error) {
+    toast(error && error.message ? error.message : '无法打开这个链接');
+  }
+}
+
 async function addLocalUrlFlow() {
   const url = await openPrompt({
-    title: '添加视频网址',
-    description: '填写视频文件直链或 NAS 地址（http / https）。App 不会下载或转存；HTTPS 页面上的 http 地址可能被浏览器拦截。',
+    title: '粘贴视频链接',
+    description: '支持视频文件直链（.mp4 / .webm / .m3u8）和哔哩哔哩视频页链接。网页、会员页面无法解析；App 不会下载或转存。',
     placeholder: 'https://example.com/movie.mp4',
     inputMode: 'url',
     confirmText: '下一步',
@@ -584,9 +627,28 @@ async function addLocalUrlFlow() {
 
   if (url === null) return;
 
+  const classified = classifyLink(url);
+  if (classified.kind === 'invalid' || classified.kind === 'empty') {
+    toast(linkTypeError(classified));
+    return;
+  }
+
+  if (classified.kind === 'page') {
+    const proceed = await openConfirm({
+      title: '这个链接不是视频文件',
+      description: '它可能会播放失败。App 不能解析网页或平台会员页面；仍要添加并尝试吗？',
+      confirmText: '仍要添加'
+    });
+    if (!proceed) return;
+  }
+
+  const defaultTitle = classified.kind === 'embed'
+    ? 'B站视频 ' + classified.bvid
+    : titleFromUrl(classified.url);
+
   const title = await openPrompt({
     title: '给这个视频起个名字',
-    value: titleFromUrl(url),
+    value: defaultTitle,
     placeholder: '例如：我的旅行视频',
     inputMode: 'text',
     confirmText: '添加'
@@ -595,9 +657,16 @@ async function addLocalUrlFlow() {
   if (title === null) return;
 
   try {
-    const item = await addLocalUrl({ url, title });
+    const item = classified.kind === 'embed'
+      ? await addLocalEmbed({ bvid: classified.bvid, page: classified.page, title })
+      : await addLocalUrl({ url: classified.url, title });
+
     await refreshLocalItems();
-    toast(isHlsUrl(url) ? '已添加（HLS 仅 Safari / iPhone 原生支持）' : '已添加：' + item.title);
+    toast(classified.kind === 'embed'
+      ? '已添加 B 站链接'
+      : isHlsUrl(classified.url)
+        ? '已添加（HLS 仅 Safari / iPhone 原生支持）'
+        : '已添加：' + item.title);
     location.hash = '#/title/' + encodeURIComponent(item.id);
   } catch (error) {
     toast(error && error.message ? error.message : '添加失败');
@@ -892,6 +961,15 @@ function onDocumentInput(event) {
 }
 
 function onDocumentSubmit(event) {
+  if (event.target.id === 'link-form') {
+    event.preventDefault();
+    const input = document.getElementById('link-input');
+    const value = input ? input.value : '';
+    if (input) input.blur();
+    playPastedLink(value);
+    return;
+  }
+
   if (event.target.id !== 'search-form') return;
   event.preventDefault();
 

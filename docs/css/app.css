@@ -2206,7 +2206,7 @@ body.no-tabbar .toast {
   }
 }
 
-/* ---------- 官方平台深链 ---------- */
+/* ---------- 粘贴链接 ---------- */
 
 .section-hint {
   margin: -2px 0 10px;
@@ -2215,93 +2215,23 @@ body.no-tabbar .toast {
   line-height: 1.6;
 }
 
-.platform-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.platform-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 38px;
-  padding: 0 13px;
-  border: 1px solid var(--ah-line);
-  border-radius: var(--ah-radius-pill);
-  background: var(--ah-surface);
-  color: var(--ah-text);
-  font-size: 13px;
-  font-weight: 600;
-  -webkit-tap-highlight-color: transparent;
-  transition: border-color var(--ah-duration) var(--ah-ease), color var(--ah-duration) var(--ah-ease);
-}
-
-.platform-link .icon {
-  width: 14px;
-  height: 14px;
-  color: var(--ah-text-3);
-}
-
-.platform-link:hover,
-.platform-link:focus-visible {
-  border-color: var(--ah-accent);
-  color: var(--ah-accent);
-}
-
-.platform-link:hover .icon,
-.platform-link:focus-visible .icon {
-  color: var(--ah-accent);
-}
-
-.platform-search {
-  margin: 22px 0 8px;
-  padding: 14px;
-  border: 1px solid var(--ah-line);
-  border-radius: var(--ah-radius-card);
-  background: var(--ah-surface);
-}
-
-.platform-search-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 10px;
-  font-size: 13px;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
-.platform-search-title .icon {
-  flex: 0 0 auto;
-  width: 15px;
-  height: 15px;
-  color: var(--ah-accent);
-}
-
-.platform-search-note {
-  margin-top: 10px;
-  color: var(--ah-text-3);
-  font-size: 11px;
-  line-height: 1.55;
-}
-
-/* ---------- 我的视频入口 / 页面 ---------- */
-
-.mine-entry {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.link-paste {
   margin: 0 0 24px;
-  padding: 13px 14px;
+  padding: 16px;
   border: 1px solid var(--ah-line);
   border-radius: var(--ah-radius-card);
   background: var(--ah-surface);
   box-shadow: var(--ah-shadow-soft);
-  color: var(--ah-text);
 }
 
-.mine-entry-icon {
+.link-paste-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.link-paste-icon {
   display: grid;
   flex: 0 0 auto;
   width: 40px;
@@ -2312,33 +2242,61 @@ body.no-tabbar .toast {
   color: var(--ah-accent);
 }
 
-.mine-entry-icon .icon {
+.link-paste-icon .icon {
   width: 20px;
   height: 20px;
 }
 
-.mine-entry-main {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.mine-entry-title {
+.link-paste-title {
   font-size: 15px;
   font-weight: 700;
 }
 
-.mine-entry-sub {
+.link-paste-sub {
   color: var(--ah-text-2);
   font-size: 12px;
 }
 
-.mine-entry .chevron {
-  flex: 0 0 auto;
+.link-paste-row {
+  display: flex;
+  gap: 8px;
+}
+
+.link-paste-row input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  outline: 0;
+  background: var(--ah-surface-2);
+  color: var(--ah-text);
+  font-size: 16px;
+}
+
+.link-paste-row input::placeholder {
   color: var(--ah-text-3);
 }
+
+.link-paste-row input:focus {
+  border-color: var(--ah-accent);
+  box-shadow: 0 0 0 3px var(--ah-accent-soft);
+}
+
+.link-paste-row .btn {
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+
+.link-paste-note {
+  margin-top: 10px;
+  color: var(--ah-text-3);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+/* ---------- 我的视频页面 ---------- */
 
 .local-actions {
   display: flex;
