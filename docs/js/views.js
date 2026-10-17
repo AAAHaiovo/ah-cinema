@@ -52,8 +52,9 @@ import {
 } from './ui.js';
 
 import { localItems, localCount } from './local-library.js';
+import { cachedSources } from './sources.js';
 
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '0.5.0';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -183,8 +184,8 @@ export function renderSearchResults(query) {
   if (!results.length) {
     return '<div class="search-summary">没有找到匹配的内容</div>' +
       emptyState({
-        title: '没有找到',
-        text: '没有匹配“' + value + '”的链接。可以试试视频名字、网址或 B 站 BV 号。',
+        title: '本地没有找到',
+        text: '没有匹配“' + value + '”的本地链接。如果已配置网络源，下方的网络搜索会单独显示结果。',
         action: '<button class="btn btn-secondary" type="button" data-action="clear-search">清空搜索</button>'
       });
   }
@@ -193,19 +194,139 @@ export function renderSearchResults(query) {
     gridFor(results);
 }
 
+export function emptyRemoteState(query = '') {
+  return {
+    query: String(query || ''),
+    status: 'idle',
+    configured: true,
+    sourceCount: 0,
+    groups: [],
+    results: [],
+    statuses: [],
+    error: '',
+    total: 0,
+    fetchingKey: '',
+    failedKey: ''
+  };
+}
+
+function remoteStatusChip(status) {
+  const name = status.sourceName || '源';
+  let text = name;
+  let tone = 'idle';
+
+  if (status.state === 'pending') text = name + ' · 搜索中…';
+  else if (status.state === 'ok') {
+    text = name + ' · ' + (status.count || 0) + ' 条';
+    tone = 'ok';
+  } else if (status.state === 'cooling') text = name + ' · 冷却中';
+  else if (status.state === 'skipped') text = name + ' · 未参与';
+  else {
+    text = name + ' · ' + (status.error || '失败');
+    tone = 'error';
+  }
+
+  return '<span class="remote-chip is-' + tone + '">' + escapeHtml(text) + '</span>';
+}
+
+function remoteCard(group, remote) {
+  const busy = remote.fetchingKey === group.key;
+  const failed = remote.failedKey === group.key;
+  const names = Array.from(new Set(group.sources.map((ref) => ref.sourceName).filter(Boolean)));
+  const note = names.slice(0, 3).join(' · ') + (names.length > 3 ? ' 等 ' + names.length + ' 个' : '');
+  const meta = [group.year, group.typeName, group.area].filter(Boolean).join(' · ');
+  const poster = /^https:\/\//i.test(group.pic || '') ? group.pic : '';
+
+  return '<button type="button" class="remote-card' + (busy ? ' is-busy' : '') + '" data-action="remote-open" data-group-key="' + escapeHtml(group.key) + '"' + (busy ? ' aria-busy="true"' : '') + '>' +
+    '<div class="poster-media">' +
+      posterPlaceholder({ title: group.title }) +
+      (poster ? '<img src="' + escapeHtml(poster) + '" alt="" loading="lazy" decoding="async">' : '') +
+      '<span class="poster-badge">' + group.sources.length + ' 个来源</span>' +
+    '</div>' +
+    '<div class="poster-title">' + escapeHtml(group.title) + '</div>' +
+    (meta ? '<div class="poster-meta">' + escapeHtml(meta) + '</div>' : '') +
+    (note ? '<div class="remote-card-note">' + escapeHtml(note) + '</div>' : '') +
+    (busy ? '<div class="remote-card-note is-loading">正在获取详情…</div>' : '') +
+    (failed ? '<div class="remote-card-note is-error">获取失败，点击重试</div>' : '') +
+    '</button>';
+}
+
+export function renderRemoteSection(remote) {
+  const state = remote || emptyRemoteState();
+  const query = String(state.query || '').trim();
+  if (!query) return '';
+
+  if (state.status === 'unconfigured') {
+    return '<div class="remote-notice">' +
+      '<strong>多源搜索还没有连接服务</strong>' +
+      '<p>GitHub Pages 版需要先填写 Vercel 服务地址和访问口令。浏览器直接请求源站会被跨域限制，所以需要一个代理服务。</p>' +
+      '<a class="btn btn-secondary btn-small" href="#/sources">去源管理配置</a>' +
+      '</div>';
+  }
+
+  if (state.status === 'no-sources') {
+    return '<div class="remote-notice">' +
+      '<strong>还没有可用的源</strong>' +
+      '<p>源管理默认是空的。只添加你自己已授权、仅用于个人合法观看的 Apple CMS 接口。</p>' +
+      '<a class="btn btn-secondary btn-small" href="#/sources">去添加源</a>' +
+      '</div>';
+  }
+
+  if (state.status === 'cooling') {
+    return '<div class="remote-notice">' +
+      '<strong>所有启用的源都在冷却中</strong>' +
+      '<p>连续搜索失败后，源会暂停 10 分钟，避免反复等待超时。可以稍后再试，或到源管理测试源。</p>' +
+      '<div class="form-actions"><button class="btn btn-secondary btn-small" type="button" data-action="remote-retry">重试</button>' +
+      '<a class="btn btn-secondary btn-small" href="#/sources">源管理</a></div>' +
+      '</div>';
+  }
+
+  if (state.status === 'idle') {
+    return '<div class="remote-notice remote-hint">' +
+      '<p>按回车键，或点击最近搜索，同时搜索已启用的网络源（最多 8 个）。</p>' +
+      '</div>';
+  }
+
+  if (state.status === 'error') {
+    return '<div class="remote-notice remote-error">' +
+      '<strong>网络搜索失败</strong>' +
+      '<p>' + escapeHtml(state.error || '请稍后重试。') + '</p>' +
+      '<div class="form-actions"><button class="btn btn-secondary btn-small" type="button" data-action="remote-retry">重试</button>' +
+      '<a class="btn btn-secondary btn-small" href="#/sources">检查源与服务</a></div>' +
+      '</div>';
+  }
+
+  const statuses = Array.isArray(state.statuses) ? state.statuses : [];
+  const chips = statuses.length
+    ? '<div class="remote-status">' + statuses.map(remoteStatusChip).join('') + '</div>'
+    : '';
+
+  if (state.status === 'loading') {
+    return chips + '<div class="remote-loading"><span class="loading-spinner" aria-hidden="true"></span>正在搜索网络源…</div>';
+  }
+
+  if (!state.groups.length) {
+    return chips + '<div class="remote-empty">' + escapeHtml(query) + ' 没有找到网络结果。</div>';
+  }
+
+  return chips +
+    '<div class="remote-grid">' + state.groups.map((group) => remoteCard(group, state)).join('') + '</div>';
+}
+
 export function renderSearch(route) {
   const fromRoute = route.params.get('q');
   state.ui.searchQuery = fromRoute === null ? '' : fromRoute;
   const query = state.ui.searchQuery || '';
 
   return '<div class="page search-page">' +
-    pageHeading('搜索', '按名字、网址或 BV 号查找') +
+    pageHeading('搜索', '本地链接 · 网络源') +
     '<form class="search-box" id="search-form" role="search" autocomplete="off">' +
       icon('search') +
-      '<input id="search-input" type="search" name="q" inputmode="search" enterkeyhint="search" placeholder="搜索我添加的视频" aria-label="搜索我的视频" value="' + escapeHtml(query) + '">' +
+      '<input id="search-input" type="search" name="q" inputmode="search" enterkeyhint="search" placeholder="输入片名，回车搜索网络源" aria-label="搜索" value="' + escapeHtml(query) + '">' +
       '<button class="search-clear" type="button" data-action="clear-search" aria-label="清空搜索"' + (query ? '' : ' hidden') + '>' + icon('close') + '</button>' +
     '</form>' +
     '<div id="search-results">' + renderSearchResults(query) + '</div>' +
+    '<div id="remote-section" class="remote-section">' + renderRemoteSection(emptyRemoteState(query)) + '</div>' +
     '</div>';
 }
 
@@ -325,7 +446,7 @@ export function renderLocal() {
     '<input type="file" id="local-file-input" accept="video/*,.mp4,.m4v,.webm,.mov,.ogv,.mkv" hidden>' +
     '<div class="tip-card">' +
       '<div class="tip-title">使用说明</div>' +
-      '<p>视频直链请填完整地址，例如 https://…/movie.mp4。HLS（.m3u8）只有 Safari / iPhone 原生支持；MP4（H.264 + AAC）兼容性最好。</p>' +
+      '<p>视频直链请填完整地址，例如 https://…/movie.mp4。HLS（.m3u8）在 Safari / iPhone 上原生播放，桌面 Chrome / Edge 会自动加载 hls.js；MP4（H.264 + AAC）兼容性最好。</p>' +
       '<p>B 站链接支持普通投稿视频页（含 BV 号），通过 B 站官方嵌入式播放器打开；番剧、会员内容可能无法嵌入。</p>' +
       '<p>网页链接、网盘分享页和平台会员页面不能直接播放，App 也不会去解析或抓取。</p>' +
       '<p>在 HTTPS 页面里，http:// 地址可能被浏览器当作混合内容拦截；局域网 NAS 建议改用 https。本机文件保存在浏览器里，不上传，也不写进 JSON 备份。</p>' +
@@ -356,6 +477,7 @@ export function renderMe() {
     '</div>' +
     '<div class="menu-group">' +
       '<a class="menu-row" href="#/local">' + icon('film') + '<span class="menu-label">我的视频</span><span class="menu-value">' + localCount() + '</span>' + icon('chevronRight', 'chevron') + '</a>' +
+      '<a class="menu-row" href="#/sources">' + icon('server') + '<span class="menu-label">源管理</span><span class="menu-value">' + cachedSources().length + ' 个源</span>' + icon('chevronRight', 'chevron') + '</a>' +
       '<a class="menu-row" href="#/favorites">' + icon('heart') + '<span class="menu-label">我的收藏</span><span class="menu-value">' + favoriteCount() + '</span>' + icon('chevronRight', 'chevron') + '</a>' +
       '<a class="menu-row" href="#/history">' + icon('clock') + '<span class="menu-label">观看历史</span><span class="menu-value">' + historyCount() + '</span>' + icon('chevronRight', 'chevron') + '</a>' +
       '<a class="menu-row" href="#/settings">' + icon('gear') + '<span class="menu-label">设置</span>' + icon('chevronRight', 'chevron') + '</a>' +
@@ -419,6 +541,12 @@ export function renderSettings() {
         '<button type="button" class="switch ' + (settings.autoplayNext ? 'is-on' : '') + '" data-action="toggle-autoplay" role="switch" aria-checked="' + Boolean(settings.autoplayNext) + '" aria-label="自动连播下一集"><span></span></button>' +
       '</div>' +
     '</section>' +
+    '<div class="settings-caption">在线内容</div>' +
+    '<section class="settings-group">' +
+      '<a class="settings-row" href="#/sources">' +
+        '<span class="settings-icon">' + icon('server') + '</span><span class="settings-label">源管理与订阅</span><span class="settings-value">' + cachedSources().length + ' 个源</span>' + icon('chevronRight', 'chevron') +
+      '</a>' +
+    '</section>' +
     '<div class="settings-caption">数据</div>' +
     '<section class="settings-group">' +
       '<button class="settings-row" type="button" data-action="export">' +
@@ -462,13 +590,14 @@ export function renderAbout() {
     '</div>' +
     '<section class="info-card">' +
       '<h2>关于这个 App</h2>' +
-      '<p>AH 影视是一个静态 PWA：Windows 浏览器和 iPhone 主屏幕都能打开，不需要后端，不需要登录。App 不再内置任何影片，只播放你自己粘贴的链接和添加的本机文件。</p>' +
+      '<p>AH 影视是一个静态 PWA：Windows 浏览器和 iPhone 主屏幕都能打开，不需要登录。App 不内置任何影片，只播放你自己粘贴的链接、添加的本机文件，以及你自己配置的已授权点播源。</p>' +
+      '<p>多源搜索需要可选的代理服务（推荐同源部署在 Vercel）：浏览器直接请求源站会被跨域和混合内容限制。代理只请求你填写的 Apple CMS JSON，不抓取网页。</p>' +
       '<p>' + escapeHtml(meta.notice || '本 App 不提供、不抓取任何片源。') + '</p>' +
       '<p>观看历史、收藏、播放进度和设置都保存在这台设备的浏览器里。</p>' +
     '</section>' +
     '<section class="info-card">' +
       '<h2>能播放什么</h2>' +
-      '<p><strong>视频文件直链</strong>：以 .mp4、.webm、.m3u8 等结尾的地址，直接在 App 内播放。HLS（.m3u8）只有 Safari / iPhone 原生支持。</p>' +
+      '<p><strong>视频文件直链</strong>：以 .mp4、.webm、.m3u8 等结尾的地址，直接在 App 内播放。HLS（.m3u8）在 Safari / iPhone 上原生播放，桌面 Chrome / Edge 会自动加载 hls.js。</p>' +
       '<p><strong>哔哩哔哩视频页</strong>：含 BV 号的普通投稿视频，通过 B 站官方嵌入式播放器打开；番剧、会员与地区限制内容可能无法嵌入。</p>' +
       '<p><strong>本机文件</strong>：从设备选择视频文件，存入浏览器 IndexedDB，只在这台设备可用，不上传。</p>' +
       '<p><strong>不能播放</strong>：网页、网盘分享页、平台会员页面等。App 不做网页解析、不抓取播放地址、不绕过会员或 DRM。</p>' +
@@ -480,7 +609,8 @@ export function renderAbout() {
     '</section>' +
     '<section class="info-card">' +
       '<h2>边界</h2>' +
-      '<p>App 本身不提供任何影视资源，也不接入盗版站、未授权聚合源、破解接口。你粘贴的链接由你自己负责，请确保你有权观看；不要用这个 App 传播或重新分发内容。</p>' +
+      '<p>App 本身不提供任何影视资源，也不内置、不推荐、不代找盗版站、未授权聚合源或破解接口。你粘贴的链接和添加的点播源都由你自己负责，请确保你有权观看；不要用这个 App 传播或重新分发内容。</p>' +
+      '<p>源管理默认是空的，添加任何源都必须主动确认授权。App 只请求 Apple CMS 的 JSON 数据，不抓取网页、不解析会员内容、不绕过 DRM，也不下载或转存视频。</p>' +
       '<p>如果某个链接失效、需要登录、限制跨域或被平台删除，播放器会报错，这是对方服务器的限制，App 无法绕过。</p>' +
     '</section>' +
     '<p class="about-foot">Made for personal use · AH 影视 · 2026</p>' +
@@ -559,12 +689,19 @@ export function renderDetail(itemId) {
 
   const episodeSection = renderEpisodes(item, latest);
 
+  const remoteNote = item.remote
+    ? '<div class="detail-progress-note detail-embed-note detail-remote-note">' + icon('info') +
+        '<span>内容来自你添加的源：' + escapeHtml((item.remoteSource && item.remoteSource.name) || item.source || '未知源') + '。App 不存储视频文件。</span>' +
+        '<button class="text-btn" type="button" data-action="refresh-remote" data-item-id="' + escapeHtml(item.id) + '">刷新片源</button>' +
+      '</div>'
+    : '';
+
   const localSourceText = item.local
     ? (item.localKind === 'file'
         ? (item.fileName || '本机文件') + (item.fileSize > 0 ? ' · ' + formatBytes(item.fileSize) : '')
         : item.localKind === 'embed'
           ? 'bilibili.com · ' + (item.embed ? item.embed.bvid : '')
-          : (item.host || '网络地址') + (item.isHls ? ' · HLS（Safari / iPhone）' : ''))
+          : (item.host || '网络地址') + (item.isHls ? ' · HLS（Safari 原生 / Chrome 用 hls.js）' : ''))
     : '';
 
   const infoRows = [
@@ -625,6 +762,7 @@ export function renderDetail(itemId) {
         '<button class="btn btn-secondary detail-fav' + (favorite ? ' is-active' : '') + '" type="button" data-action="favorite" data-item-id="' + escapeHtml(item.id) + '" aria-pressed="' + favorite + '">' + icon(favorite ? 'heartFill' : 'heart') + '<span>' + (favorite ? '已收藏' : '收藏') + '</span></button>' +
       '</div>' +
       (latest && !latest.completed && !latest.external ? '<div class="detail-progress-note">' + icon('clock') + '<span>上次看到 ' + escapeHtml(formatTime(latest.time)) + (episode ? ' · ' + escapeHtml(formatEpisodeLabel(episode)) : '') + '</span></div>' : '') +
+      remoteNote +
       (embed ? '<div class="detail-progress-note detail-embed-note">' + icon('info') + '<span>本片通过哔哩哔哩官方嵌入式播放器播放；清晰度、倍速与字幕请使用播放器内控件。本 App 不转存视频。</span></div>' : '') +
       (item.local ? '<div class="detail-progress-note detail-embed-note">' + icon('info') + '<span>' + (item.localKind === 'file'
         ? '这个视频只保存在这台设备，不会上传。清理浏览器数据前请保留原文件。'

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "outputDirectory": "docs",
+  "functions": {
+    "api/search.js": { "maxDuration": 30 },
+    "api/detail.js": { "maxDuration": 30 },
+    "api/source-test.js": { "maxDuration": 30 },
+    "api/subscription.js": { "maxDuration": 30 },
+    "api/proxy.js": { "maxDuration": 60 }
+  }
+}

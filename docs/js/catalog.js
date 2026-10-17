@@ -13,6 +13,7 @@ const CATEGORY_ORDER = ['local', 'movie', 'series', 'animation', 'documentary', 
 
 let items = [];
 let customItems = [];
+let remoteCachedItems = [];
 let meta = {};
 
 function normalize(item) {
@@ -97,6 +98,28 @@ export function setCustomItems(list) {
   customItems = (Array.isArray(list) ? list : []).map(normalize).filter(Boolean);
 }
 
+/*
+ * 远程详情缓存：只在详情页/播放页可见，不进入首页与本地搜索结果。
+ */
+export function setRemoteItems(list) {
+  remoteCachedItems = (Array.isArray(list) ? list : []).map(normalize).filter(Boolean);
+}
+
+export function upsertRemoteItem(item) {
+  const normalized = normalize(item);
+  if (!normalized) return null;
+  remoteCachedItems = [normalized, ...remoteCachedItems.filter((entry) => entry.id !== normalized.id)].slice(0, 50);
+  return normalized;
+}
+
+export function removeRemoteItem(id) {
+  remoteCachedItems = remoteCachedItems.filter((entry) => entry.id !== id);
+}
+
+export function remoteItems() {
+  return remoteCachedItems.slice();
+}
+
 export function allItems() {
   return customItems.concat(items);
 }
@@ -106,7 +129,12 @@ export function getMeta() {
 }
 
 export function getItem(id) {
-  return customItems.find((item) => item.id === id) || items.find((item) => item.id === id) || null;
+  return (
+    customItems.find((item) => item.id === id) ||
+    remoteCachedItems.find((item) => item.id === id) ||
+    items.find((item) => item.id === id) ||
+    null
+  );
 }
 
 export function getEpisode(item, episodeId) {
@@ -267,4 +295,9 @@ export function paginate(list, page, pageSize) {
 
 export function categoryLabel(key) {
   return CATEGORY_LABELS[key] || key || '';
+}
+
+/* 供远程详情复用同一套字段规范化。 */
+export function normalizeItem(item) {
+  return normalize(item);
 }

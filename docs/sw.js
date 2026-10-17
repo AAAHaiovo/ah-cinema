@@ -1,6 +1,6 @@
 /* AH 影视 Service Worker：缓存应用壳；视频与大文件直接走网络。 */
 
-const CACHE_NAME = 'ah-cinema-v6';
+const CACHE_NAME = 'ah-cinema-v7';
 
 const SHELL = [
   './',
@@ -17,8 +17,14 @@ const SHELL = [
   './js/router.js',
   './js/ui.js',
   './js/views.js',
+  './js/remote-api.js',
+  './js/sources.js',
+  './js/remote-library.js',
+  './js/sources-view.js',
+  './js/sources-controller.js',
   './js/player.js',
   './js/app.js',
+  './vendor/hls.min.js',
   './data/catalog.json',
   './assets/ah-mark.png',
   './icons/icon-192.png',
@@ -88,6 +94,7 @@ self.addEventListener('fetch', (event) => {
 
   /* 视频、跨域片源和 Range 请求不经过缓存，避免把大文件塞进 Cache Storage。 */
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/api/')) return;
   if (request.destination === 'video' || request.headers.has('range')) return;
   if (url.pathname.endsWith('/sw.js')) return;
 

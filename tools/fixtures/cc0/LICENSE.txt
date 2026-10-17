@@ -1,0 +1,10 @@
+flower.mp4
+==========
+
+来源：MDN Web Docs 示例视频（CC0）
+https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4
+
+许可：CC0 1.0 Universal（公共领域贡献）
+https://creativecommons.org/publicdomain/zero/1.0/
+
+该文件仅用于 AH 影视的本地端到端测试，不随正式站点分发视频内容。

@@ -6,7 +6,7 @@ const path = require('path');
 
 const CHROME = 'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe';
 const PORT = 9334;
-const BASE = 'http://127.0.0.1:4173/';
+const BASE = process.env.AH_BASE || 'http://127.0.0.1:4173/';
 const PROFILE = path.join(process.env.TEMP || 'C:/Windows/Temp', 'ah-cdp-run-' + process.pid);
 const SHOTS = path.resolve(__dirname, '..', '预览截图');
 
@@ -617,8 +617,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v6') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v6')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v7') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v7')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;

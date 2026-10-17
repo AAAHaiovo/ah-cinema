@@ -1,10 +1,10 @@
 # AH 影视
 
-个人自用的「粘贴链接播放器」PWA。纯静态，原生 HTML / CSS / JavaScript，**不需要后端、不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。
+个人自用的影视 PWA。前端是纯静态的原生 HTML / CSS / JavaScript，**不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。v0.5.0 起增加**可选的**源管理与多源点播搜索，需要一个自己的 Vercel / 本地 Node 服务来转发源请求（浏览器跨域所限）。
 
-**线上地址**：<https://aaahaiovo.github.io/ah-cinema/>（iPhone 用 Safari 打开 → 分享 → 添加到主屏幕）
+**线上地址**：<https://aaahaiovo.github.io/ah-cinema/>（纯静态备用入口；iPhone 用 Safari 打开 → 分享 → 添加到主屏幕）
 
-> 版权边界：App 不内置、不抓取、不代理任何影视资源。只播放你自己粘贴的**视频文件直链**、**哔哩哔哩官方嵌入**，或你设备上的**本机文件**。不接入盗版站、未授权聚合、破解接口，也不绕过 DRM。请只播放你有权观看的内容，并遵守所在地区法律和平台规则。
+> 版权边界：App 不内置、不推荐、不代找任何采集站或影视资源，默认源列表是**空的**。只播放你自己粘贴的**视频文件直链**、**哔哩哔哩官方嵌入**、你设备上的**本机文件**，以及**你自己确认已获授权**的 Apple CMS 源。不接入盗版站、未授权聚合、破解接口，也不绕过 DRM。你对自己添加的每个源负责；请只播放你有权观看的内容，并遵守所在地区法律和平台规则。
 
 ---
 
@@ -17,7 +17,7 @@
 | 链接类型 | 例子 | 播放方式 |
 |---|---|---|
 | 视频文件直链 | `https://example.com/movie.mp4` | 浏览器原生 `<video>` 播放 |
-| 视频文件直链 | `.webm` / `.mov` / `.ogg` / `.m3u8` | 同上；HLS 仅 Safari / iPhone 原生支持 |
+| 视频文件直链 | `.webm` / `.mov` / `.ogg` / `.m3u8` | 同上；HLS 在 Safari / iPhone 原生播放，桌面 Chrome / Edge 自动加载 hls.js |
 | 哔哩哔哩视频页 | `https://www.bilibili.com/video/BV1xxxxxxxxx` | B 站官方嵌入式 iframe |
 | 哔哩哔哩 BV 号 | `BV1xxxxxxxxx` | 同上 |
 
@@ -27,11 +27,26 @@
 - 无效地址（不是 `http://` / `https://`）会直接提示，不添加任何内容。
 - `http://` 直链在 GitHub Pages 这类 HTTPS 页面里可能被浏览器当作混合内容拦截，优先用 `https://`。
 
+### 源管理与多源搜索（可选，v0.5.0）
+
+这是按 LibreTV 的使用方式做的能力，但**不带任何内置源**：
+
+- **源管理**：在「我的 → 源管理」里添加你自己的 Apple CMS JSON 接口（`ac=videolist`）。添加时必须勾选授权确认；重复地址会被拒绝；可以启用 / 停用 / 测活 / 编辑 / 删除。
+- **订阅**：支持 LibreTV-SourceList、裸数组、TVBox 的 JSON CMS 站点列表；不导入直播源。同步失败不会删除已有源。
+- **服务连接**：GitHub Pages 版需要填写你的 Vercel 服务地址和访问口令；Vercel / 本地同源部署留空即可。口令只保存在这台浏览器。
+- **多源搜索**：在搜索页按回车或点最近搜索，最多同时请求 8 个已启用的源；结果按「标题 + 年份」合并，显示每个源的成功 / 超时状态。一个源失败不影响其他源。
+- **播放**：点结果卡片，多来源时先选源；解析出的多线路、多集进入现有详情页 / 播放器，支持切线路、续播、收藏。HLS 由 hls.js 播放，签名代理 URL 自动处理跨域和 HTTP 混合内容。
+- **健康退避**：同一个源连续两次搜索失败会冷却 10 分钟；测活成功立即恢复。
+
+> 服务端只请求 Apple CMS 的 JSON，不抓取 HTML 详情页，不做网页解析。搜索结果、详情和播放地址都来自你自己添加的源。
+
 ### 所有功能
 
 - 首页：粘贴框、继续观看、我的链接海报墙（分页、上一页/下一页、跳页校验）
 - 我的视频：粘贴链接 / 选择本机视频；列表、删除（同时清理进度和收藏）
-- 搜索：在自己的链接和本机文件中搜片名、文件名、来源域名、BV 号；最近搜索记录
+- 搜索：本地链接 / 本机文件即时搜索 + 网络源搜索（回车触发，最多 8 个源），结果按片名分组
+- 源管理：添加 / 编辑 / 测活 / 启停 / 删除你自己的授权源，JSON 订阅同步，导入导出
+- 多线路播放：远程详情支持多线路、多集，播放页可切线路；签名代理处理 HTTP 分片与 m3u8 重写
 - 历史：观看记录、继续观看
 - 收藏：收藏链接或本机视频，单独一页
 - 详情页：标题、标记（网址 / 本机 / B站）、来源、片源类型、简介、进度、播放入口
@@ -69,11 +84,50 @@ node tools/serve.js 4173
 
 浏览器打开 <http://127.0.0.1:4173/>。
 
-这个本地服务器支持视频 Range 请求，所以进度条可以拖动。它只监听 `127.0.0.1`，iPhone 不能直接通过局域网访问；要在 iPhone 上测试，请先按下一节部署到 GitHub Pages。
+这个本地服务器支持视频 Range 请求，所以进度条可以拖动。它只监听 `127.0.0.1`，iPhone 不能直接通过局域网访问；要在 iPhone 上测试，请先按后面的章节部署到 Vercel 或 GitHub Pages。
+
+如果要在本地测源管理与多源搜索，用一体化服务器（静态文件 + `/api/*`）：
+
+```bash
+# 终端 1：开发模式，仅允许 loopback 源，免口令
+AH_ENV=development AH_DEV_ALLOW_PRIVATE=1 AH_DEV_NO_AUTH=1 node tools/ah-server.js 4173
+
+# 终端 2：合法的本地 mock 源（自造 JSON + CC0 短片）
+node tools/mock-cms.js 4180
+```
+
+打开 <http://127.0.0.1:4173/#/sources>，添加 `http://127.0.0.1:4180/api.php/provide/vod`（勾选授权），再到搜索页搜 `Big`。
+
+一键跑完界面回归 + 源管理 + 多源搜索：
+
+```bash
+node tools/e2e.js
+```
 
 ### 安装成 Windows App
 
 用 Chrome 或 Edge 打开上面的地址（部署后则是 GitHub Pages 地址），点地址栏右侧的“安装”图标，或浏览器菜单里的“安装 AH 影视”。安装后是一个独立窗口，有任务栏图标，断网也能打开应用壳。
+
+---
+
+## 部署到 Vercel（多源搜索主入口，推荐）
+
+Vercel 免费 Hobby 计划不需要信用卡；静态 PWA 和 `/api/*` 在同一个域名下，iPhone 用蜂窝网络也能直接打开。没配置源时，它就是一个普通的静态 App。
+
+1. 把代码推到 GitHub（`AAAHaiovo/ah-cinema`）。
+2. 打开 <https://vercel.com>，用 GitHub 登录 → **Add New → Project** → 导入仓库。
+3. 配置：Root Directory `./`，Framework Preset `Other`，Build Command 留空，**Output Directory 填 `docs`**。
+4. 在 Environment Variables 里加：
+   - `AH_API_TOKEN`：随机口令，App 的「访问口令」填这个。生成：`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+   - `AH_SIGNING_SECRET`：另一个随机值，只放 Vercel，**不要**填进 App。
+   - `AH_ENV=production`
+   - 可选：`AH_ALLOWED_ORIGINS=https://aaahaiovo.github.io`、`AH_SEARCH_MAX_PAGES=2`、`AH_PROXY_TTL_SECONDS=43200`。
+   - **不要**设置 `AH_DEV_NO_AUTH` 或 `AH_DEV_ALLOW_PRIVATE`。
+5. Deploy 完成后打开 `https://<项目名>.vercel.app/api/health`，确认 `ok:true`、`authRequired:true`、`proxyReady:true`。缺少口令或签名密钥时，受保护接口会直接 503，不会变成公开代理。
+6. 打开 App → 我的 → 源管理：服务地址留空（同源），口令填 `AH_API_TOKEN`，点「保存并检测」。
+7. 添加你有权使用的 Apple CMS 地址并勾选授权，然后到搜索页按回车搜索。
+
+> GitHub Pages 版仍然保留。要在 Pages 版里用多源搜索，在源管理把服务地址填成 Vercel 地址、口令相同即可（CORS 已允许 `aaahaiovo.github.io`）。
 
 ---
 
@@ -87,7 +141,7 @@ GitHub Pages 免费版需要 **public（公开）仓库**。代码会公开；�
 ```bash
 git init
 git add .
-git commit -m "AH 影视 v0.4.0"
+git commit -m "AH 影视 v0.5.0"
 git branch -M main
 git remote add origin https://github.com/<你的用户名>/ah-cinema.git
 git push -u origin main
@@ -107,7 +161,7 @@ https://<你的用户名>.github.io/ah-cinema/
 
 App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也能正常工作；`docs/.nojekyll` 已放好，GitHub Pages 不会用 Jekyll 处理这些文件。
 
-> **更新后还是旧版本？** Service Worker 会缓存应用壳。新版本部署后，iPhone 上先从主屏幕完全退出 App，再用 Safari 打开线上地址刷新一次；Windows 上按 `Ctrl + Shift + R`。缓存版本变化（`ah-cinema-v6`）后会自动清理旧缓存。
+> **更新后还是旧版本？** Service Worker 会缓存应用壳。新版本部署后，iPhone 上先从主屏幕完全退出 App，再用 Safari 打开线上地址刷新一次；Windows 上按 `Ctrl + Shift + R`。缓存版本变化（`ah-cinema-v7`）后会自动清理旧缓存。
 
 ---
 
@@ -116,7 +170,9 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 - 粘贴的链接、播放进度、收藏、搜索记录、设置都存在当前设备的浏览器里（IndexedDB / localStorage），不上传。
 - 本机视频文件存进浏览器的 IndexedDB，**不会上传**，也**不在 JSON 备份里**；备份只包含链接、进度、收藏、设置等小数据。
 - 删除本机视频会同时删除浏览器里保存的文件、进度和收藏。
-- App 没有账号、没有统计、没有第三方脚本；唯一的外部请求是你自己粘贴的视频地址和 B 站官方播放器。
+- 添加的源、订阅、远程详情缓存（只含元数据和签名地址）也存在 IndexedDB；视频文件不会缓存。备份 JSON 包含已授权的源与订阅，但**不包含访问口令**。
+- 访问口令只保存在当前浏览器的 `localStorage`（`ah-api-token`），不写入设置、不进备份、不出现在网址里。
+- App 没有账号、没有统计、没有第三方脚本。外部请求只有：你自己粘贴的视频地址、B 站官方播放器、你自己的 API 服务，以及你添加的源（经你的服务或签名代理请求）。
 
 ---
 
@@ -124,7 +180,10 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 
 - **只播链接本身**：App 不会解析普通网页、网盘或平台会员页，也不会抓取视频地址或绕过 DRM。这类链接即使点了“仍要尝试”，也大概率无法播放。
 - **网络直链需要对方允许**：服务器若限制 Referer、需要登录、禁止直接播放，或证书有问题，播放器会报错，这不是 App 能绕过的。
-- **HLS `.m3u8` 只在 Safari / iPhone 原生播放**，Chrome / Edge 不支持；MP4（H.264 + AAC）兼容性最好。
+- **HLS `.m3u8`**：Safari / iPhone 原生播放，桌面 Chrome / Edge 通过自托管的 hls.js 播放。若源站限制跨域或防盗链，可在源管理 → 高级开启「HLS 分片走代理」（会增加流量）。MP4（H.264 + AAC）兼容性最好。
+- **源由你自己负责**：源失效、超时、地区限制、需要登录、防盗链都可能导致搜索或播放失败。App 只做 JSON 解析和转发，不会绕过这些限制；也不会推荐或代找任何源。
+- **多源搜索需要服务**：GitHub Pages 纯静态版必须先配置 Vercel 地址和口令；没有配置或离线时，本地搜索仍然可用。
+- **免费服务的限制**：Vercel 函数有响应体大小、执行时长和带宽限制；签名代理默认只承载 m3u8 清单和必要的 HTTP 分片，HTTPS 分片通常直连。
 - **B 站嵌入依赖哔哩哔哩**：需要能访问 `player.bilibili.com`；iframe 里的清晰度、倍速、字幕由 B 站播放器提供，App 自己的这些按钮不适用于嵌入条目。上传者删除视频、改为不可播放、地区限制或登录限制都会导致画面无法加载。
 - B 站 iframe 在部分浏览器/无头测试环境里截图是黑屏，这是截图合成的限制，不代表页面结构有问题；真实 iPhone Safari 上还需人工确认能否正常起播和全屏。
 - **本机文件依赖浏览器存储**：容量受浏览器配额限制（单个文件上限 2 GB，实际可用空间可能更小）；Safari 长期不用站点后可能清理数据，重要文件请保留原始文件。
@@ -139,21 +198,35 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 
 ```text
 影视/
-├─ docs/                    # App 本体；GitHub Pages 只发布这个文件夹
+├─ docs/                    # App 本体；GitHub Pages / Vercel 静态输出都指向这里
 │  ├─ index.html
 │  ├─ manifest.webmanifest
-│  ├─ sw.js                 # Service Worker（缓存版本 ah-cinema-v6）
+│  ├─ sw.js                 # Service Worker（缓存版本 ah-cinema-v7）
 │  ├─ css/                  # tokens.css / app.css / player.css
-│  ├─ js/                   # app / router / store / catalog / views / player / ui / db / local-library
+│  ├─ js/                   # app / router / store / catalog / views / player / ui / db
+│  │                        # local-library / sources / sources-view / sources-controller
+│  │                        # remote-api / remote-library
+│  ├─ vendor/hls.min.js     # 自托管 hls.js 1.5.x（Apache-2.0，另有 LICENSE）
 │  ├─ data/catalog.json     # 内置片库，v0.4.0 起为空
 │  ├─ assets/               # AH 标识
 │  └─ icons/                # 红白 PWA 图标（192 / 512 / 独立 maskable / Apple 180）
+├─ api/                     # Vercel Serverless Functions（health / search / detail /
+│  │                        # source-test / subscription / proxy）
+├─ server/                  # API 实现与单测（lib / handlers / tests）
 ├─ tools/
-│  ├─ serve.js              # 本地预览服务器（支持 Range）
-│  ├─ cdp-run.js            # 用 Chrome 跑 15 项交互测试并截图
+│  ├─ serve.js              # 纯静态本地预览（支持 Range）
+│  ├─ ah-server.js          # 静态 + /api 一体化本地服务器
+│  ├─ mock-cms.js           # 合法的本地 Apple CMS 测试源（自造数据 + CC0）
+│  ├─ fixtures/             # 测试 JSON 与 CC0 短片
+│  ├─ e2e.js                # 一键启动两个服务并跑全部测试
+│  ├─ cdp-run.js            # 用 Chrome 跑 15 项界面回归并截图
+│  ├─ smoke-remote.js       # 源管理 + 多源搜索 + 详情 + 播放冒烟测试
 │  ├─ cdp-test.js           # 启动诊断
 │  ├─ recolor-icon.ps1      # 生成品牌红 + 白 AH 图标（含 maskable）
 │  └─ resize-icons.ps1      # 重新生成 192 / 180 图标
+├─ vercel.json              # Output Directory = docs
+├─ package.json             # 仅用于本地测试，无构建步骤
+├─ .env.example             # 服务端环境变量示例
 ├─ 预览截图/                 # 测试自动生成的手机/桌面截图
 ├─ AH标识图/                 # 你提供的 AH 标识原图
 ├─ 需求文档（讨论稿）.md      # 早期需求讨论（历史）
@@ -186,12 +259,21 @@ node tools/cdp-run.js
 - 粘贴 B 站视频页，官方嵌入式 iframe 地址与尺寸
 - 无效链接拒绝、网页链接需确认且取消后不添加
 - 分页（27 条 / 每页 24 条）与跳页校验
-- Service Worker、缓存版本 `ah-cinema-v6`、manifest 图标
+- Service Worker、缓存版本 `ah-cinema-v7`、manifest 图标
 - 断网重载仍能打开应用壳
 - 本机文件：写入 IndexedDB 的 blob、刷新后恢复、删除后清空
 - 手机横屏与桌面布局
+- 源管理空状态、添加两个 mock 源、测活结果
+- 多源搜索：按「标题 + 年份」合并为一组、显示来源数量
+- 选源 → 远程详情 → 刷新片源入口 → 播放 → 拿到签名代理地址
 
-当前结果：**15/15 通过**（版本 v0.4.0，Service Worker `ah-cinema-v6`），无未捕获异常、无控制台错误。测试脚本里的 Chrome 路径是当前机器的位置：
+当前结果：界面回归 **15/15 通过**，源管理与多源搜索 **23/23 通过**（版本 v0.5.0，Service Worker `ah-cinema-v7`），无未捕获异常、无控制台错误。一次跑完两者：
+
+```bash
+node tools/e2e.js
+```
+
+`e2e.js` 会自动启动一体化服务器（4174）和 mock CMS（4181），跑完清理。也可以手动先启动服务，再运行 `tools/cdp-run.js` 和 `tools/smoke-remote.js`。测试脚本里的 Chrome 路径是当前机器的位置：
 
 ```js
 const CHROME = 'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe';
@@ -213,7 +295,9 @@ const CHROME = 'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe';
 
 ## 版权与致谢
 
-App 本身**不附带任何影片**，也不提供片源搜索。播放内容来自你自己粘贴的链接或本机文件，版权与观看权限由你和来源平台负责。
+App 本身**不附带任何影片**，也不推荐、代找或内置任何片源。播放内容来自你自己粘贴的链接、本机文件，或你自己添加并确认已授权的源；版权与观看权限由你和来源平台负责。
 
-- 测试用公开示例：**Sintel** 预告片 © Blender Foundation，CC BY 3.0，片源由 W3C 提供；**《将军号》** 为公共领域电影，B 站嵌入仅用于测试官方播放器。
+- 测试用公开示例：**Sintel** 预告片 © Blender Foundation，CC BY 3.0，片源由 W3C 提供；**《将军号》** 为公共领域电影，B 站嵌入仅用于测试官方播放器；CC0 短片 **flower.mp4** 用于 mock 源与代理测试。
+- **hls.js** 1.5.x，Apache-2.0，自托管于 `docs/vendor/`，许可证见同目录 `hls.LICENSE`。
+- Apple CMS 搜索 / 详情解析、m3u8 重写与签名代理为独立实现，只参考公开的接口形态，不复制 LibreTV（AGPL）代码。
 - AH 标识来自项目内的 `AH标识图/`，App 图标使用品牌红 `#C92F36` 底 + 白色 AH；界面顶栏与启动页使用同一套标记。

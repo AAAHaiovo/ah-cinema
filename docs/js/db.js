@@ -1,8 +1,8 @@
 /* 本机数据层：优先 IndexedDB，失败时退回 localStorage / 内存。 */
 
 const DB_NAME = 'ah-cinema';
-const DB_VERSION = 2;
-const STORES = ['progress', 'favorites', 'settings', 'searches', 'custom'];
+const DB_VERSION = 3;
+const STORES = ['progress', 'favorites', 'settings', 'searches', 'custom', 'sources', 'subscriptions', 'remote'];
 const LS_PREFIX = 'ah-fallback:';
 
 let dbPromise = null;
@@ -97,9 +97,19 @@ function readFallback(store) {
 }
 
 function writeFallback(store, values) {
-  memory.set(store, values);
+  let next = values;
+
+  // 远程详情缓存只保留最近 20 条，避免 localStorage 被塞满。
+  if (store === 'remote' && next.length > 20) {
+    next = next
+      .slice()
+      .sort((a, b) => (b.fetchedAt || 0) - (a.fetchedAt || 0))
+      .slice(0, 20);
+  }
+
+  memory.set(store, next);
   try {
-    localStorage.setItem(LS_PREFIX + store, JSON.stringify(values));
+    localStorage.setItem(LS_PREFIX + store, JSON.stringify(next));
   } catch (error) {
     /* 私密模式 / 配额满时只保留在内存里。 */
   }

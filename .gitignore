@@ -10,3 +10,12 @@ desktop.ini
 
 # 临时 GitHub 部署令牌（用完删除）
 .github-token
+
+# 本地密钥 / Vercel
+.env
+.env.*
+!.env.example
+.vercel/
+
+# Node
+node_modules/

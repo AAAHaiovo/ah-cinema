@@ -12,9 +12,41 @@ import {
   openSheet
 } from './ui.js';
 import { href } from './router.js';
+import { resolveSourceUrl } from './remote-api.js';
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 const LANDSCAPE_KEY = 'ah-player-landscape';
+
+let hlsPromise = null;
+
+/* hls.js 按需加载：Safari 用原生 HLS，其他浏览器用 hls.js。 */
+function loadHls() {
+  if (window.Hls) return Promise.resolve(window.Hls);
+  if (hlsPromise) return hlsPromise;
+
+  hlsPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = './vendor/hls.min.js';
+    script.async = true;
+    script.onload = () => {
+      if (window.Hls) resolve(window.Hls);
+      else reject(new Error('hls.js 加载失败'));
+    };
+    script.onerror = () => reject(new Error('hls.js 加载失败'));
+    document.head.appendChild(script);
+  }).catch((error) => {
+    hlsPromise = null;
+    throw error;
+  });
+
+  return hlsPromise;
+}
+
+function looksLikeHls(source) {
+  if (!source) return false;
+  if (source.isHls) return true;
+  return /\.m3u8(?:$|[?#])/i.test(String(source.src || ''));
+}
 
 function formatRate(rate) {
   return String(Number(rate) || 1) + '×';
@@ -215,6 +247,107 @@ export function mountPlayer(item, episode) {
   let resumeApplied = false;
   let forcedLandscape = false;
   let mediaSessionCleanup = null;
+  let hls = null;
+  let attachSeq = 0;
+
+  function destroyHls() {
+    if (!hls) return;
+    try {
+      hls.destroy();
+    } catch (error) {
+      /* 忽略。 */
+    }
+    hls = null;
+  }
+
+  /*
+   * 按当前 currentSource 装载媒体：MP4 直链、Safari 原生 HLS、其他浏览器 hls.js。
+   * ready 回调只触发一次，供切源时恢复进度。
+   */
+  async function attachCurrentSource(options = {}) {
+    const seq = ++attachSeq;
+    const source = currentSource;
+    if (!source) return;
+
+    destroyHls();
+    hideError();
+    showBuffering();
+
+    try {
+      video.removeAttribute('src');
+      video.load();
+    } catch (error) {
+      /* 忽略。 */
+    }
+
+    const src = resolveSourceUrl(source.src);
+    const rate = Number(options.rate) || video.playbackRate || initialRate;
+    const seekTime = Number(options.seekTime) || 0;
+    const autoplay = Boolean(options.autoplay);
+
+    const applyReady = () => {
+      if (seq !== attachSeq) return;
+      hideBuffering();
+      video.playbackRate = rate;
+      if (seekTime > 1) {
+        const duration = Number.isFinite(video.duration) ? video.duration : 0;
+        video.currentTime = duration > 0 ? Math.min(seekTime, duration - 0.5) : seekTime;
+      }
+      updateQualityLabel();
+      updateSpeedLabel();
+      updateProgressUI();
+      if (typeof options.onReady === 'function') options.onReady();
+      if (autoplay) video.play().catch(() => {});
+    };
+
+    video.addEventListener('loadedmetadata', applyReady, { once: true, signal });
+
+    if (looksLikeHls(source)) {
+      const nativeHls = video.canPlayType && video.canPlayType('application/vnd.apple.mpegurl');
+      if (nativeHls) {
+        video.src = src;
+        video.load();
+        return;
+      }
+
+      let Hls = null;
+      try {
+        Hls = await loadHls();
+      } catch (error) {
+        if (seq !== attachSeq) return;
+        hideBuffering();
+        showError('hls.js 加载失败，无法播放 HLS。请检查网络后重试。');
+        return;
+      }
+      if (seq !== attachSeq) return;
+
+      if (!Hls || !Hls.isSupported()) {
+        showError('当前浏览器无法播放 HLS。可以试试 Safari，或者换一个片源。');
+        return;
+      }
+
+      hls = new Hls({ enableWorker: true });
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+        if (seq !== attachSeq || !hls) return;
+        hls.loadSource(src);
+      });
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (seq !== attachSeq || !hls || !data || !data.fatal) return;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          showError('HLS 加载失败：源站可能限制跨域或需要代理。可在源管理 → 高级开启“HLS 分片走代理”，或换一个片源。');
+        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          showError('HLS 解码失败，请换一个清晰度或片源。');
+        } else {
+          showError('HLS 播放失败，请稍后重试或换一个片源。');
+        }
+      });
+      return;
+    }
+
+    video.src = src;
+    video.load();
+  }
 
   if (sources.length > 1) {
     try {
@@ -572,32 +705,16 @@ export function mountPlayer(item, episode) {
 
     sourceIndex = nextIndex;
     currentSource = sources[nextIndex];
-    hideError();
-    showBuffering();
 
-    video.src = currentSource.src;
-    video.load();
-
-    const onReady = () => {
-      hideBuffering();
-      video.playbackRate = rate;
-
-      if (previousTime > 1) {
-        const duration = Number.isFinite(video.duration) ? video.duration : 0;
-        video.currentTime = duration > 0 ? Math.min(previousTime, duration - 0.5) : previousTime;
+    attachCurrentSource({
+      seekTime: previousTime,
+      rate,
+      autoplay: wasPlaying,
+      onReady() {
+        showToast('已切换到 ' + qualityOf(currentSource));
       }
+    }).catch(() => {});
 
-      updateQualityLabel();
-      updateSpeedLabel();
-      updateProgressUI();
-      showToast('已切换到 ' + qualityOf(currentSource));
-
-      if (wasPlaying) {
-        video.play().catch(() => {});
-      }
-    };
-
-    video.addEventListener('loadedmetadata', onReady, { once: true, signal });
     try {
       localStorage.setItem('ah-quality', qualityOf(currentSource));
     } catch (error) {
@@ -629,11 +746,10 @@ export function mountPlayer(item, episode) {
     if (!currentSource) return;
     hideError();
     hideBuffering();
-    video.load();
-    const promise = video.play();
-    if (promise && typeof promise.catch === 'function') {
-      promise.catch(() => {});
-    }
+    attachCurrentSource({
+      seekTime: Number.isFinite(video.currentTime) ? video.currentTime : 0,
+      autoplay: true
+    }).catch(() => {});
   }
 
   function goBack() {
@@ -786,8 +902,16 @@ export function mountPlayer(item, episode) {
     cleaned = true;
 
     saveNow(video.ended);
+    destroyHls();
+    attachSeq += 1;
     try {
       video.pause();
+    } catch (error) {
+      /* 忽略。 */
+    }
+    try {
+      video.removeAttribute('src');
+      video.load();
     } catch (error) {
       /* 忽略。 */
     }
@@ -904,6 +1028,9 @@ export function mountPlayer(item, episode) {
   }, { signal });
 
   video.addEventListener('error', () => {
+    /* HLS.js 会给出更具体的原因，避免重复弹错误。 */
+    if (hls) return;
+
     hideBuffering();
     const code = video.error ? video.error.code : 0;
     let message = '片源加载失败，请检查网络后重试。';
@@ -911,7 +1038,7 @@ export function mountPlayer(item, episode) {
     if (code === 1) message = '播放被中断，请再试一次。';
     else if (code === 2) message = '网络错误：视频没有加载成功。请检查网络，或者换一个清晰度。';
     else if (code === 3) message = '视频解码失败。这个文件可能已损坏，或者当前设备不支持它的编码。';
-    else if (code === 4) message = '当前浏览器不支持这个视频格式。可以试试 Safari，或者换一个清晰度。';
+    else if (code === 4) message = '当前浏览器不支持这个视频格式。HLS 链接在桌面 Chrome 需要 hls.js；仍然失败时请换一个片源。';
 
     showError(message + '（错误 ' + code + '）');
   }, { signal });
@@ -948,8 +1075,7 @@ export function mountPlayer(item, episode) {
   const errorQualityButton = errorBox ? errorBox.querySelector('[data-paction="quality"]') : null;
   if (errorQualityButton && sources.length <= 1) errorQualityButton.hidden = true;
 
-  video.src = currentSource.src;
-  video.load();
+  attachCurrentSource().catch(() => {});
 
   return cleanup;
 }

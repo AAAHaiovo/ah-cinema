@@ -1,11 +1,10 @@
-/* 本地测试服务器：支持 Range，方便测视频拖动。只用于开发，不参与部署。 */
+/* 本地静态服务器：支持 Range，方便测视频拖动。只用于开发，不参与部署。 */
 
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const root = path.resolve(__dirname, '..', 'docs');
-const port = Number(process.argv[2] || 4173);
+const DEFAULT_ROOT = path.resolve(__dirname, '..', 'docs');
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -18,6 +17,7 @@ const TYPES = {
   '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml; charset=utf-8',
   '.mp4': 'video/mp4',
+  '.m3u8': 'application/vnd.apple.mpegurl; charset=utf-8',
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
   '.woff2': 'font/woff2'
@@ -86,50 +86,67 @@ function sendFile(filePath, req, res) {
   fs.createReadStream(filePath).pipe(res);
 }
 
-const server = http.createServer((req, res) => {
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    res.writeHead(405, { Allow: 'GET, HEAD' });
-    res.end();
-    return;
-  }
+/*
+ * 返回静态请求处理函数；tools/ah-server.js 复用它来组合 /api 路由。
+ */
+function createStaticHandler(options = {}) {
+  const root = path.resolve(options.root || DEFAULT_ROOT);
 
-  let pathname;
-  try {
-    pathname = decodeURIComponent(new URL(req.url, `http://127.0.0.1:${port}`).pathname);
-  } catch (error) {
-    res.writeHead(400);
-    res.end('Bad request');
-    return;
-  }
-
-  if (pathname === '/') pathname = '/index.html';
-  const filePath = path.resolve(root, '.' + pathname);
-
-  if (!filePath.startsWith(root + path.sep) && filePath !== root) {
-    res.writeHead(403);
-    res.end('Forbidden');
-    return;
-  }
-
-  if (req.method === 'HEAD') {
-    try {
-      const stat = fs.statSync(filePath);
-      res.writeHead(200, {
-        'Content-Type': TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream',
-        'Content-Length': stat.size,
-        'Accept-Ranges': 'bytes'
-      });
+  return function handleStatic(req, res) {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { Allow: 'GET, HEAD' });
       res.end();
-    } catch (error) {
-      res.writeHead(404);
-      res.end();
+      return;
     }
-    return;
-  }
 
-  sendFile(filePath, req, res);
-});
+    let pathname;
+    try {
+      pathname = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
+    } catch (error) {
+      res.writeHead(400);
+      res.end('Bad request');
+      return;
+    }
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`AH 影视本地预览：http://127.0.0.1:${port}/`);
-});
+    if (pathname === '/') pathname = '/index.html';
+    const filePath = path.resolve(root, '.' + pathname);
+
+    if (!filePath.startsWith(root + path.sep) && filePath !== root) {
+      res.writeHead(403);
+      res.end('Forbidden');
+      return;
+    }
+
+    if (req.method === 'HEAD') {
+      try {
+        const stat = fs.statSync(filePath);
+        res.writeHead(200, {
+          'Content-Type': TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream',
+          'Content-Length': stat.size,
+          'Accept-Ranges': 'bytes'
+        });
+        res.end();
+      } catch (error) {
+        res.writeHead(404);
+        res.end();
+      }
+      return;
+    }
+
+    sendFile(filePath, req, res);
+  };
+}
+
+function createStaticServer(options = {}) {
+  return http.createServer(createStaticHandler(options));
+}
+
+module.exports = { createStaticHandler, createStaticServer, TYPES };
+
+if (require.main === module) {
+  const port = Number(process.argv[2] || 4173);
+  const server = createStaticServer();
+  server.listen(port, '127.0.0.1', () => {
+    console.log(`AH 影视本地预览：http://127.0.0.1:${port}/`);
+  });
+}

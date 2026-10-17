@@ -62,8 +62,38 @@ import {
   renderAbout,
   renderDetail,
   renderNotFound,
-  renderBootError
+  renderBootError,
+  renderRemoteSection,
+  emptyRemoteState
 } from './views.js';
+
+import { renderSources } from './sources-view.js';
+import {
+  setupSourcesPage,
+  setSourcesRefreshHandler,
+  isSourcesAction,
+  isSourcesForm,
+  handleSourcesAction,
+  handleSourcesSubmit,
+  handleSourcesChange
+} from './sources-controller.js';
+import {
+  loadSources,
+  loadSubscriptions,
+  cachedSources,
+  searchableSources,
+  recordSearchOutcome
+} from './sources.js';
+import { isConfigured, searchSources } from './remote-api.js';
+import {
+  loadRemoteLibrary,
+  groupSearchResults,
+  fetchRemoteGroup,
+  getRemoteRecord,
+  isStale,
+  refreshIfStale,
+  refreshRemoteItem
+} from './remote-library.js';
 
 import { playerPage, mountPlayer } from './player.js';
 
@@ -178,6 +208,20 @@ async function boot() {
       setCustomItems([]);
     }
 
+    await Promise.all([
+      loadSources().catch((error) => {
+        console.warn('[AH 影视] 源加载失败', error);
+      }),
+      loadSubscriptions().catch((error) => {
+        console.warn('[AH 影视] 订阅加载失败', error);
+      }),
+      loadRemoteLibrary().catch((error) => {
+        console.warn('[AH 影视] 在线内容缓存加载失败', error);
+      })
+    ]);
+
+    setSourcesRefreshHandler(renderRoute);
+
     booted = true;
     document.documentElement.dataset.booted = '1';
     applyTheme();
@@ -211,6 +255,7 @@ function setDocumentTitle(resolved) {
     favorites: '收藏 · ' + base,
     local: '我的视频 · ' + base,
     me: '我的 · ' + base,
+    sources: '源管理 · ' + base,
     settings: '设置 · ' + base,
     about: '关于 · ' + base,
     notfound: '页面不存在 · ' + base
@@ -262,6 +307,12 @@ function renderRoute() {
     currentCleanup = null;
   }
 
+  if (currentRoute && currentRoute.name === 'search' && resolved.name !== 'search') {
+    abortRemoteSearch();
+    remoteState = remoteBaseState(remoteState.query);
+    lastRemoteQuery = '';
+  }
+
   currentRoute = resolved;
   currentRouteKey = nextKey;
 
@@ -289,6 +340,8 @@ function renderRoute() {
     html = renderLocal();
   } else if (resolved.name === 'me') {
     html = renderMe();
+  } else if (resolved.name === 'sources') {
+    html = renderSources(route);
   } else if (resolved.name === 'settings') {
     html = renderSettings();
   } else if (resolved.name === 'about') {
@@ -312,6 +365,23 @@ function renderRoute() {
   setDocumentTitle(resolved);
   els.view.innerHTML = html;
 
+  if (resolved.name === 'search') {
+    ensureRemoteForRoute(state.ui.searchQuery);
+    renderRemote();
+  }
+
+  if (resolved.name === 'detail') {
+    const detailItem = getItem(resolved.itemId);
+    const record = detailItem && detailItem.remote ? getRemoteRecord(detailItem.id) : null;
+    if (record && isStale(record)) {
+      refreshIfStale(record).then((item) => {
+        if (item && currentRoute && currentRoute.name === 'detail' && currentRoute.itemId === item.id) {
+          renderRoute();
+        }
+      }).catch(() => {});
+    }
+  }
+
   if (playerSetup) {
     try {
       currentCleanup = mountPlayer(playerSetup.item, playerSetup.episode);
@@ -324,6 +394,11 @@ function renderRoute() {
 
   if (resolved.name === 'settings') updateStorageUsage();
   if (resolved.name === 'me') updateInstallButton();
+  if (resolved.name === 'sources') {
+    setupSourcesPage().catch((error) => {
+      console.warn('[AH 影视] 连接检测失败', error);
+    });
+  }
   syncThemeChoices();
 
   const savedScroll = tabbed ? (scrollMemory.get(nextKey) || 0) : 0;
@@ -381,6 +456,218 @@ function applySearch(query, options = {}) {
     const trimmed = value.trim();
     if (trimmed) addSearch(trimmed).catch(() => {});
   }
+
+  if (options.remote) {
+    runRemoteSearch(value, { force: true }).catch(() => {});
+  } else {
+    const trimmed = value.trim();
+    if (trimmed !== remoteState.query || remoteAbort) {
+      resetRemote(trimmed);
+    }
+  }
+}
+
+/* ---------- 网络搜索 ---------- */
+
+let remoteState = emptyRemoteState('');
+let remoteAbort = null;
+let remoteRunId = 0;
+let lastRemoteQuery = '';
+
+function remoteBaseState(query) {
+  const next = emptyRemoteState(query);
+  next.configured = isConfigured();
+  return next;
+}
+
+function renderRemote() {
+  const section = document.getElementById('remote-section');
+  if (!section) return;
+  section.innerHTML = renderRemoteSection(remoteState);
+}
+
+function abortRemoteSearch() {
+  if (remoteAbort) remoteAbort.abort();
+  remoteAbort = null;
+  remoteRunId += 1;
+}
+
+function resetRemote(query) {
+  abortRemoteSearch();
+  remoteState = remoteBaseState(query);
+  if (!String(query || '').trim()) lastRemoteQuery = '';
+  renderRemote();
+}
+
+async function runRemoteSearch(query, options = {}) {
+  const q = String(query || '').trim();
+  if (!q) {
+    resetRemote('');
+    return;
+  }
+
+  if (!options.force && q === lastRemoteQuery) return;
+
+  abortRemoteSearch();
+  remoteState = remoteBaseState(q);
+  lastRemoteQuery = q;
+  renderRemote();
+
+  if (!isConfigured()) {
+    remoteState.status = 'unconfigured';
+    renderRemote();
+    return;
+  }
+
+  const now = Date.now();
+  const enabled = cachedSources().filter(
+    (source) => source.enabled && source.selected && source.authorized
+  );
+  remoteState.sourceCount = enabled.length;
+
+  const statusMap = new Map();
+  enabled.forEach((source) => {
+    statusMap.set(source.id, {
+      sourceId: source.id,
+      sourceName: source.name,
+      state: (source.health && source.health.cooldownUntil > now) ? 'cooling' : 'pending',
+      count: 0,
+      ms: 0,
+      error: ''
+    });
+  });
+  remoteState.statuses = Array.from(statusMap.values());
+
+  if (!enabled.length) {
+    remoteState.status = 'no-sources';
+    renderRemote();
+    return;
+  }
+
+  const searchable = searchableSources();
+  if (!searchable.ready.length) {
+    remoteState.status = 'cooling';
+    renderRemote();
+    return;
+  }
+
+  const readyIds = new Set(searchable.ready.map((source) => source.id));
+  statusMap.forEach((status) => {
+    if (!readyIds.has(status.sourceId) && status.state === 'pending') status.state = 'skipped';
+  });
+
+  remoteState.status = 'loading';
+  remoteState.statuses = Array.from(statusMap.values());
+  renderRemote();
+
+  const runId = ++remoteRunId;
+  const controller = new AbortController();
+  remoteAbort = controller;
+  const results = [];
+
+  try {
+    await searchSources({ q, sources: searchable.ready }, {
+      signal: controller.signal,
+      onEvent(event) {
+        if (runId !== remoteRunId || !event) return;
+
+        if (event.type === 'source') {
+          const status = statusMap.get(event.sourceId) || {
+            sourceId: event.sourceId,
+            sourceName: event.sourceName || '源',
+            state: 'pending',
+            count: 0,
+            ms: 0,
+            error: ''
+          };
+
+          status.state = event.ok ? 'ok' : 'error';
+          status.count = Math.max(0, Number(event.count) || 0);
+          status.ms = Math.max(0, Number(event.ms) || 0);
+          status.error = event.ok ? '' : (event.timedOut ? '超时' : (event.error || '失败'));
+
+          if (!statusMap.has(event.sourceId)) statusMap.set(event.sourceId, status);
+          if (event.ok && Array.isArray(event.items)) results.push(...event.items);
+
+          remoteState.statuses = Array.from(statusMap.values());
+          remoteState.results = results;
+          remoteState.groups = groupSearchResults(results, cachedSources());
+          renderRemote();
+
+          recordSearchOutcome(event.sourceId, Boolean(event.ok)).catch(() => {});
+          return;
+        }
+
+        if (event.type === 'done') {
+          remoteState.status = remoteState.groups.length ? 'done' : 'empty';
+          renderRemote();
+        }
+      }
+    });
+
+    if (runId !== remoteRunId) return;
+    if (remoteState.status === 'loading') {
+      remoteState.status = remoteState.groups.length ? 'done' : 'empty';
+      renderRemote();
+    }
+  } catch (error) {
+    if (runId !== remoteRunId) return;
+    if (error && error.code === 'ABORTED') return;
+    remoteState.status = 'error';
+    remoteState.error = error && error.message ? error.message : '网络搜索失败';
+    renderRemote();
+  } finally {
+    if (runId === remoteRunId) remoteAbort = null;
+  }
+}
+
+function ensureRemoteForRoute(query) {
+  const q = String(query || '').trim();
+  if (!q) {
+    resetRemote('');
+    return;
+  }
+  if (q === lastRemoteQuery) return;
+  runRemoteSearch(q).catch(() => {});
+}
+
+async function openRemoteGroup(key) {
+  const group = remoteState.groups.find((entry) => entry.key === key);
+  if (!group || !group.sources.length) return;
+
+  let ref = group.sources[0];
+  if (group.sources.length > 1) {
+    const choice = await openSheet({
+      title: '选择来源 · ' + group.title,
+      options: group.sources.map((source) => ({
+        value: source.sourceId,
+        label: (source.sourceName || '源') + (source.remarks ? ' · ' + source.remarks : '')
+      }))
+    });
+    if (choice === null) return;
+    ref = group.sources.find((source) => source.sourceId === choice) || ref;
+  }
+
+  remoteState.fetchingKey = key;
+  remoteState.failedKey = '';
+  renderRemote();
+  toast('正在获取详情…', 5000);
+
+  try {
+    const item = await fetchRemoteGroup(group, ref);
+    remoteState.fetchingKey = '';
+    renderRemote();
+
+    if (currentRoute && currentRoute.name === 'search') {
+      location.hash = '#/title/' + encodeURIComponent(item.id);
+    }
+    if (item.episodes && item.episodes.length) toast('已获取 ' + item.episodes.length + ' 集');
+  } catch (error) {
+    remoteState.fetchingKey = '';
+    remoteState.failedKey = key;
+    renderRemote();
+    toast(error && error.message ? error.message : '获取详情失败');
+  }
 }
 
 const debouncedSearch = debounce(() => {
@@ -395,7 +682,7 @@ function handleSearchChip(value) {
     location.hash = href('/search', { q: query });
     return;
   }
-  applySearch(query, { updateUrl: true, persist: true });
+  applySearch(query, { updateUrl: true, persist: true, remote: true });
 }
 
 function rememberSearchResultClick(event) {
@@ -598,7 +885,7 @@ async function playPastedLink(raw) {
     if (input) input.value = '';
 
     if (classified.kind === 'embed') toast('正在打开 B 站官方播放器');
-    else if (isHlsUrl(classified.url)) toast('HLS 只有 Safari / iPhone 原生支持');
+    else if (isHlsUrl(classified.url)) toast('HLS 链接：Safari 原生播放，Chrome / Edge 自动加载 hls.js');
     else toast('正在打开：' + item.title);
 
     location.hash = '#/watch/' + encodeURIComponent(item.id);
@@ -665,7 +952,7 @@ async function addLocalUrlFlow() {
     toast(classified.kind === 'embed'
       ? '已添加 B 站链接'
       : isHlsUrl(classified.url)
-        ? '已添加（HLS 仅 Safari / iPhone 原生支持）'
+        ? '已添加（HLS：Safari 原生，Chrome 用 hls.js）'
         : '已添加：' + item.title);
     location.hash = '#/title/' + encodeURIComponent(item.id);
   } catch (error) {
@@ -767,6 +1054,21 @@ async function onDocumentClick(event) {
   event.preventDefault();
   const action = actionElement.getAttribute('data-action');
 
+  if (isSourcesAction(action)) {
+    await handleSourcesAction(actionElement);
+    return;
+  }
+
+  if (action === 'remote-open') {
+    await openRemoteGroup(actionElement.getAttribute('data-group-key') || '');
+    return;
+  }
+
+  if (action === 'remote-retry') {
+    await runRemoteSearch(remoteState.query, { force: true });
+    return;
+  }
+
   if (action === 'toggle-theme') {
     updateThemeFromHeader();
   } else if (action === 'theme-choice') {
@@ -849,6 +1151,19 @@ async function onDocumentClick(event) {
       }
     } else {
       renderRoute();
+    }
+  } else if (action === 'refresh-remote') {
+    const id = actionElement.getAttribute('data-item-id') || '';
+    if (!id) return;
+    actionElement.disabled = true;
+    toast('正在刷新片源…', 5000);
+    try {
+      await refreshRemoteItem(id);
+      toast('片源已刷新');
+      renderRoute();
+    } catch (error) {
+      actionElement.disabled = false;
+      toast(error && error.message ? error.message : '刷新失败，请稍后再试');
     }
   } else if (action === 'remove-progress') {
     const id = actionElement.getAttribute('data-progress-id');
@@ -940,6 +1255,8 @@ async function onDocumentClick(event) {
 async function onDocumentChange(event) {
   const target = event.target;
 
+  if (await handleSourcesChange(target)) return;
+
   if (target.id === 'setting-rate') {
     const rate = Number(target.value);
     saveSettings({ defaultRate: rate }).catch(() => {});
@@ -961,7 +1278,17 @@ function onDocumentInput(event) {
 }
 
 function onDocumentSubmit(event) {
-  if (event.target.id === 'link-form') {
+  const formId = event.target.getAttribute ? event.target.getAttribute('id') : event.target.id;
+  if (isSourcesForm(formId)) {
+    event.preventDefault();
+    handleSourcesSubmit(event.target).catch((error) => {
+      console.error('[AH 影视] 源表单提交失败', error);
+      toast('操作失败，请再试一次');
+    });
+    return;
+  }
+
+  if (formId === 'link-form') {
     event.preventDefault();
     const input = document.getElementById('link-input');
     const value = input ? input.value : '';
@@ -970,12 +1297,12 @@ function onDocumentSubmit(event) {
     return;
   }
 
-  if (event.target.id !== 'search-form') return;
+  if (formId !== 'search-form') return;
   event.preventDefault();
 
   const input = document.getElementById('search-input');
   const query = input ? input.value : '';
-  applySearch(query, { updateUrl: true, persist: true });
+  applySearch(query, { updateUrl: true, persist: true, remote: true });
   if (input) input.blur();
 }
 

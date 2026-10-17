@@ -6,7 +6,10 @@ export const DEFAULT_SETTINGS = {
   theme: 'auto',
   pageSize: 24,
   defaultRate: 1,
-  autoplayNext: true
+  autoplayNext: true,
+  apiBase: '',
+  remoteSearch: true,
+  hlsProxySegments: false
 };
 
 export const ALLOWED_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
@@ -37,7 +40,29 @@ function sanitizeSettings(input) {
   else next.defaultRate = Number(next.defaultRate);
 
   next.autoplayNext = Boolean(next.autoplayNext);
+  next.remoteSearch = next.remoteSearch !== false;
+  next.hlsProxySegments = Boolean(next.hlsProxySegments);
+  next.apiBase = sanitizeApiBase(next.apiBase);
   return next;
+}
+
+/* 服务地址只保留 http(s) origin + 可选路径；去掉尾斜杠与末尾 /api。 */
+function sanitizeApiBase(value) {
+  const raw = String(value === undefined || value === null ? '' : value).trim();
+  if (!raw) return '';
+
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    if (url.username || url.password) return '';
+    url.hash = '';
+    url.search = '';
+    let base = url.origin + url.pathname.replace(/\/+$/, '');
+    if (/\/api$/i.test(base)) base = base.slice(0, -4);
+    return base.slice(0, 300);
+  } catch (error) {
+    return '';
+  }
 }
 
 function validProgress(record) {
@@ -263,14 +288,45 @@ export async function clearSearches() {
 }
 
 export async function exportData() {
+  const [sourceRows, subscriptionRows] = await Promise.all([
+    db.getAll('sources').catch(() => []),
+    db.getAll('subscriptions').catch(() => [])
+  ]);
+
   return {
     app: 'AH 影视',
-    schema: 1,
+    schema: 2,
     exportedAt: new Date().toISOString(),
     settings: { ...state.settings },
     progress: Array.from(state.progress.values()),
     favorites: Array.from(state.favorites.values()),
-    searches: state.searches.slice()
+    searches: state.searches.slice(),
+    // 只导出已确认授权的源；不含访问口令，也不含远程详情缓存。
+    sources: sourceRows
+      .filter((row) => row && row.authorized === true && typeof row.url === 'string')
+      .map((row) => ({
+        id: row.id,
+        name: row.name || '',
+        url: row.url,
+        detail: row.detail || '',
+        enabled: row.enabled !== false,
+        selected: row.selected !== false,
+        authorized: true,
+        authorizedAt: Number(row.authorizedAt) || 0,
+        origin: row.origin || 'manual',
+        createdAt: Number(row.createdAt) || 0,
+        updatedAt: Number(row.updatedAt) || 0
+      })),
+    subscriptions: subscriptionRows
+      .filter((row) => row && typeof row.url === 'string')
+      .map((row) => ({
+        id: row.id,
+        name: row.name || '',
+        url: row.url,
+        enabled: row.enabled !== false,
+        lastSyncAt: Number(row.lastSyncAt) || 0,
+        createdAt: Number(row.createdAt) || 0
+      }))
   };
 }
 
@@ -309,6 +365,93 @@ function sanitizeImportedSearches(rows) {
     }));
 }
 
+function hashedId(prefix, value) {
+  let hash = 0x811c9dc5;
+  const text = String(value || '');
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return prefix + hash.toString(36);
+}
+
+function normalizeImportedUrl(value) {
+  try {
+    const url = new URL(String(value || '').trim());
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    if (url.username || url.password) return '';
+    return url.toString().replace(/\/+$/, '');
+  } catch (error) {
+    return '';
+  }
+}
+
+function sanitizeImportedSources(rows) {
+  const seen = new Set();
+  const list = [];
+
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    if (!row || typeof row !== 'object' || row.authorized !== true) return;
+    const url = normalizeImportedUrl(row.url);
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    if (list.length >= 50) return;
+
+    const id = typeof row.id === 'string' && /^s_[a-zA-Z0-9_-]{1,80}$/.test(row.id)
+      ? row.id
+      : hashedId('s_', url);
+
+    list.push({
+      id,
+      name: String(row.name || '').slice(0, 60),
+      url,
+      detail: String(row.detail || '').slice(0, 120),
+      enabled: row.enabled !== false,
+      selected: row.selected !== false,
+      authorized: true,
+      authorizedAt: Number(row.authorizedAt) || Date.now(),
+      origin: typeof row.origin === 'string' ? row.origin.slice(0, 80) : 'manual',
+      createdAt: Number(row.createdAt) || Date.now(),
+      updatedAt: Date.now(),
+      lastTest: null,
+      health: { failures: 0, cooldownUntil: 0, lastOkAt: 0 }
+    });
+  });
+
+  return list;
+}
+
+function sanitizeImportedSubscriptions(rows) {
+  const seen = new Set();
+  const list = [];
+
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    if (!row || typeof row !== 'object') return;
+    const url = normalizeImportedUrl(row.url);
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    if (list.length >= 20) return;
+
+    const id = typeof row.id === 'string' && /^sub_[a-zA-Z0-9_-]{1,80}$/.test(row.id)
+      ? row.id
+      : hashedId('sub_', url);
+
+    list.push({
+      id,
+      name: String(row.name || '').slice(0, 60),
+      url,
+      enabled: row.enabled !== false,
+      lastSyncAt: Number(row.lastSyncAt) || 0,
+      lastSyncStatus: 'unknown',
+      lastError: '',
+      sourceCount: 0,
+      createdAt: Number(row.createdAt) || Date.now()
+    });
+  });
+
+  return list;
+}
+
 export async function importData(payload) {
   if (!payload || typeof payload !== 'object' || payload.app !== 'AH 影视') {
     throw new Error('这不是 AH 影视的备份文件');
@@ -317,18 +460,32 @@ export async function importData(payload) {
   const progress = sanitizeImportedProgress(payload.progress);
   const favorites = sanitizeImportedFavorites(payload.favorites);
   const searches = sanitizeImportedSearches(payload.searches);
+  const hasSources = Array.isArray(payload.sources) || Array.isArray(payload.subscriptions);
+  const sources = sanitizeImportedSources(payload.sources);
+  const subscriptions = sanitizeImportedSubscriptions(payload.subscriptions);
 
-  await db.clearMany(['progress', 'favorites', 'searches']);
+  const stores = ['progress', 'favorites', 'searches'].concat(hasSources ? ['sources', 'subscriptions'] : []);
+  await db.clearMany(stores);
   await db.bulkPut('progress', progress);
   await db.bulkPut('favorites', favorites);
   await db.bulkPut('searches', searches);
+  if (hasSources) {
+    await db.bulkPut('sources', sources);
+    await db.bulkPut('subscriptions', subscriptions);
+  }
 
   if (payload.settings && typeof payload.settings === 'object') {
     await saveSettings(payload.settings);
   }
 
   await loadState();
-  return { progress: progress.length, favorites: favorites.length, searches: searches.length };
+  return {
+    progress: progress.length,
+    favorites: favorites.length,
+    searches: searches.length,
+    sources: hasSources ? sources.length : 0,
+    subscriptions: hasSources ? subscriptions.length : 0
+  };
 }
 
 export async function storageEstimate() {

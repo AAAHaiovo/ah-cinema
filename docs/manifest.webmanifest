@@ -2,7 +2,7 @@
   "id": "./",
   "name": "AH 影视",
   "short_name": "AH 影视",
-  "description": "个人合法影视库：公共领域与开放授权影片，支持 Windows 与 iPhone。",
+  "description": "个人合法影视库：本地链接、B 站官方嵌入，以及你自己已授权的 Apple CMS 源多源搜索。",
   "lang": "zh-CN",
   "dir": "ltr",
   "start_url": "./",
