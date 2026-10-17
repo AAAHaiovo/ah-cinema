@@ -2,6 +2,8 @@
 
 个人自用的影视库 App。纯静态 PWA，原生 HTML / CSS / JavaScript，**不需要后端、不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。
 
+**线上地址**：<https://aaahaiovo.github.io/ah-cinema/>（iPhone 用 Safari 打开 → 分享 → 添加到主屏幕）
+
 > 版权边界：只使用公共领域、开放授权，或你自己拥有使用权的影片。不接入盗版站、未授权聚合、破解接口，也不绕过 DRM。
 
 ---
