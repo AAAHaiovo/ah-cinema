@@ -1,0 +1,9 @@
+# 本机测试产物
+预览截图/
+.research/
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini

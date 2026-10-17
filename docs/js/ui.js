@@ -1,0 +1,562 @@
+/* 通用 UI 片段与交互：图标、海报卡、分页、Toast、弹窗、底部面板。 */
+
+import { categoryLabel } from './catalog.js';
+
+const ICONS = {
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',
+  chevronLeft: '<path d="M14.5 5 8 12l6.5 7"/>',
+  chevronRight: '<path d="M9.5 5 16 12l-6.5 7"/>',
+  chevronDown: '<path d="M6 9.5 12 15l6-5.5"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+  play: '<path d="M8 5.5v13l10-6.5z" fill="currentColor" stroke="none"/>',
+  pause: '<path d="M8 5.5h3v13H8zM13 5.5h3v13h-3z" fill="currentColor" stroke="none"/>',
+  rewind: '<path d="M4.8 9.5A8 8 0 1 1 4 14"/><path d="M4.8 4.8v4.7h4.7"/><text x="12" y="15.6" text-anchor="middle" font-size="6.4" font-weight="700" fill="currentColor" stroke="none">10</text>',
+  forward: '<path d="M19.2 9.5A8 8 0 1 0 20 14"/><path d="M19.2 4.8v4.7h-4.7"/><text x="12" y="15.6" text-anchor="middle" font-size="6.4" font-weight="700" fill="currentColor" stroke="none">10</text>',
+  volume: '<path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/>',
+  volumeMute: '<path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/>',
+  fullscreen: '<path d="M8.5 4H4v4.5M15.5 4H20v4.5M20 15.5V20h-4.5M4 15.5V20h4.5"/>',
+  exitFullscreen: '<path d="M4 8.5h4.5V4M20 8.5h-4.5V4M15.5 20v-4.5H20M8.5 20v-4.5H4"/>',
+  rotate: '<rect x="9" y="6" width="6" height="12" rx="1.6"/><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4.5v5h-5"/>',
+  quality: '<path d="M5 16.5v-4M9.5 16.5V8M14 16.5v-6M18.5 16.5V6"/>',
+  speed: '<path d="M12 13.5l3.4-3.4"/><path d="M4.5 17a8.5 8.5 0 1 1 15 0"/><circle cx="12" cy="13.5" r="1.2" fill="currentColor" stroke="none"/>',
+  cc: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10.2 10.2a2.4 2.4 0 1 0 0 3.6"/><path d="M17.2 10.2a2.4 2.4 0 1 0 0 3.6"/>',
+  list: '<path d="M8 6.5h12M8 12h12M8 17.5h12"/><circle cx="4.5" cy="6.5" r="1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4.5" cy="17.5" r="1" fill="currentColor" stroke="none"/>',
+  heart: '<path d="M12 20s-7.5-4.6-7.5-10A4.2 4.2 0 0 1 12 7.2 4.2 4.2 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/>',
+  heartFill: '<path d="M12 20s-7.5-4.6-7.5-10A4.2 4.2 0 0 1 12 7.2 4.2 4.2 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z" fill="currentColor"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  trash: '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 10.5v6M14 10.5v6"/>',
+  download: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/>',
+  upload: '<path d="M12 16V5M7.5 9.5 12 5l4.5 4.5M5 19.5h14"/>',
+  database: '<ellipse cx="12" cy="5.5" rx="7" ry="3"/><path d="M5 5.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6M5 11.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>',
+  info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r=".9" fill="currentColor" stroke="none"/>',
+  user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.7-3.5 3.4-5.5 7-5.5s6.3 2 7 5.5"/>',
+  film: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M7 4.5v15M17 4.5v15M3.5 9h3.5M3.5 15h3.5M17 9h3.5M17 15h3.5"/>',
+  external: '<path d="M14 4.5h5.5V10M19 5l-8 8"/><path d="M18 14v5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 19V8a1.5 1.5 0 0 1 1.5-1.5h5"/>',
+  refresh: '<path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4.5v5h-5"/>',
+  alert: '<path d="M12 4 21 20H3z"/><path d="M12 9.5v4.5"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.5 12h2M19.5 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 2-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V20h-3v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1-2-2 .1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H4v-3h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2-2 .1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V4h3v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1 2 2-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1v3h-.1a1.7 1.7 0 0 0-1.6 1z"/>'
+};
+
+export function escapeHtml(value) {
+  return String(value === undefined || value === null ? '' : value).replace(/[&<>"']/g, (char) => {
+    return {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[char];
+  });
+}
+
+export function icon(name, className = '') {
+  const body = ICONS[name] || '';
+  return '<svg class="icon ' + className + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
+}
+
+export function safeAssetUrl(value) {
+  const url = String(value || '');
+  if (!url) return '';
+  if (/^(https?:\/\/|assets\/|icons\/|data:image\/)/i.test(url)) return url;
+  if (url.startsWith('./')) return url.slice(2);
+  return '';
+}
+
+export function safeExternalUrl(value) {
+  const url = String(value || '');
+  return /^https?:\/\//i.test(url) ? url : '';
+}
+
+export function formatTime(seconds) {
+  let total = Math.floor(Number(seconds) || 0);
+  if (total < 0) total = 0;
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+
+  if (hours > 0) {
+    return hours + ':' + String(minutes).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+  }
+  return minutes + ':' + String(secs).padStart(2, '0');
+}
+
+export function formatDuration(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  if (total < 60) return total + ' 秒';
+
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+
+  if (hours > 0) {
+    return hours + ' 小时' + (minutes ? ' ' + minutes + ' 分' : '');
+  }
+
+  return minutes + ' 分' + (secs ? ' ' + secs + ' 秒' : '');
+}
+
+export function formatRuntime(item) {
+  if (!item) return '—';
+  if (Number(item.runtimeSeconds) > 0) return formatDuration(item.runtimeSeconds);
+  return item.runtime || '—';
+}
+
+export function formatRelative(timestamp) {
+  const value = Number(timestamp);
+  if (!Number.isFinite(value) || value <= 0) return '';
+
+  const now = new Date();
+  const date = new Date(value);
+  const diff = now.getTime() - value;
+
+  if (diff < 60 * 1000) return '刚刚';
+  if (diff < 60 * 60 * 1000) return Math.floor(diff / (60 * 1000)) + ' 分钟前';
+
+  const time = String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
+  const sameDay = now.getFullYear() === date.getFullYear() && now.getMonth() === date.getMonth() && now.getDate() === date.getDate();
+  if (sameDay) return '今天 ' + time;
+
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const isYesterday = yesterday.getFullYear() === date.getFullYear() && yesterday.getMonth() === date.getMonth() && yesterday.getDate() === date.getDate();
+  if (isYesterday) return '昨天 ' + time;
+
+  if (now.getFullYear() === date.getFullYear()) {
+    return (date.getMonth() + 1) + ' 月 ' + date.getDate() + ' 日';
+  }
+
+  return date.getFullYear() + ' 年 ' + (date.getMonth() + 1) + ' 月 ' + date.getDate() + ' 日';
+}
+
+export function formatBytes(bytes) {
+  const value = Number(bytes);
+  if (!Number.isFinite(value) || value <= 0) return '—';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let index = 0;
+  let size = value;
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index += 1;
+  }
+  return (size >= 10 || index === 0 ? Math.round(size) : size.toFixed(1)) + ' ' + units[index];
+}
+
+export function progressPercent(record) {
+  if (!record) return 0;
+  if (record.completed) return 100;
+  if (!record.duration || record.duration <= 0) return 0;
+  return Math.max(0, Math.min(100, (record.time / record.duration) * 100));
+}
+
+export function formatEpisodeLabel(episode) {
+  if (!episode) return '';
+  const number = episode.episode || episode.number;
+  const parts = [];
+  if (number) parts.push('第 ' + number + ' 集');
+  if (episode.title) parts.push(episode.title);
+  return parts.join(' · ');
+}
+
+export function itemMeta(item) {
+  if (!item) return [];
+  const parts = [];
+
+  if (item.year) parts.push(String(item.year));
+  if (item.category) parts.push(categoryLabel(item.category));
+  if (item.kind === 'series' && Array.isArray(item.episodes) && item.episodes.length) {
+    parts.push('共 ' + item.episodes.length + ' 集');
+  }
+  const runtime = formatRuntime(item);
+  if (runtime && runtime !== '—') parts.push(runtime);
+
+  return parts;
+}
+
+export function badgeFor(item) {
+  if (!item) return '';
+  if (Array.isArray(item.tags) && item.tags.includes('预告片')) return '预告片';
+  if (item.license === 'CC0 1.0') return 'CC0';
+  const first = Array.isArray(item.sources) ? item.sources[0] : null;
+  if (first && first.quality && /1080/.test(first.quality)) return '1080P';
+  return '';
+}
+
+export function titleHref(item) {
+  return '#/title/' + encodeURIComponent(item.id);
+}
+
+export function watchHref(item, episodeId) {
+  return '#/watch/' + encodeURIComponent(item.id) + (episodeId ? '/' + encodeURIComponent(episodeId) : '');
+}
+
+export function playLabel(item, record, episode) {
+  if (!record || record.completed) {
+    if (item && Array.isArray(item.tags) && item.tags.includes('预告片')) return '播放预告';
+    return '开始播放';
+  }
+  const label = episode ? formatEpisodeLabel(episode) : '';
+  return '继续观看 ' + (label ? label + ' · ' : '') + formatTime(record.time);
+}
+
+export function posterPlaceholder(item) {
+  return '<div class="poster-placeholder" aria-hidden="true">' +
+    '<span class="brand-mark"></span>' +
+    '<span class="poster-ph-title">' + escapeHtml(item.title) + '</span>' +
+    '</div>';
+}
+
+export function posterMedia(item, options = {}) {
+  const src = safeAssetUrl(item.poster);
+  const badge = options.badge === false ? '' : (options.badge || badgeFor(item));
+  const duration = Number(item.runtimeSeconds) > 0 && item.kind !== 'series'
+    ? '<span class="poster-duration">' + escapeHtml(formatTime(item.runtimeSeconds)) + '</span>'
+    : '';
+  const progress = options.progress;
+  const showProgress = progress && progress.time > 0;
+  const percent = showProgress ? progressPercent(progress) : 0;
+  const loading = options.eager ? 'eager' : 'lazy';
+
+  return '<div class="poster-media">' +
+    posterPlaceholder(item) +
+    (src ? '<img src="' + escapeHtml(src) + '" alt="" loading="' + loading + '" decoding="async" draggable="false">' : '') +
+    (badge ? '<span class="poster-badge">' + escapeHtml(badge) + '</span>' : '') +
+    duration +
+    (showProgress ? '<div class="poster-progress"><i style="width:' + percent.toFixed(2) + '%"></i></div>' : '') +
+    '</div>';
+}
+
+export function posterCard(item, options = {}) {
+  const meta = [item.year, categoryLabel(item.category)].filter(Boolean).join(' · ');
+  return '<a class="poster-card" href="' + titleHref(item) + '" aria-label="' + escapeHtml(item.title) + '">' +
+    posterMedia(item, options) +
+    '<div class="poster-title" title="' + escapeHtml(item.title) + '">' + escapeHtml(item.title) + '</div>' +
+    (meta ? '<div class="poster-meta">' + escapeHtml(meta) + '</div>' : '') +
+    '</a>';
+}
+
+export function continueCard(item, record, episode) {
+  const src = safeAssetUrl(item.poster);
+  const percent = progressPercent(record);
+  const sub = '看到 ' + formatTime(record.time) +
+    (episode ? ' · ' + formatEpisodeLabel(episode) : '') +
+    (record.duration > 0 ? ' / ' + formatTime(record.duration) : '');
+
+  return '<a class="continue-card" href="' + watchHref(item, record.episodeId) + '">' +
+    '<div class="continue-thumb">' +
+    posterPlaceholder(item) +
+    (src ? '<img src="' + escapeHtml(src) + '" alt="" loading="lazy" decoding="async">' : '') +
+    '<div class="continue-play"><span>' + icon('play') + '</span></div>' +
+    '<div class="continue-progress"><i style="width:' + percent.toFixed(2) + '%"></i></div>' +
+    '</div>' +
+    '<div class="continue-title">' + escapeHtml(item.title) + '</div>' +
+    '<div class="continue-sub">' + escapeHtml(sub) + '</div>' +
+    '</a>';
+}
+
+export function emptyState({ title, text, action = '', mark = true }) {
+  return '<div class="empty">' +
+    (mark ? '<span class="empty-mark brand-mark" aria-hidden="true"></span>' : '') +
+    '<h3>' + escapeHtml(title) + '</h3>' +
+    '<p>' + escapeHtml(text) + '</p>' +
+    (action || '') +
+    '</div>';
+}
+
+export function pagination({ page, totalPages, totalItems, basePath, params = {} }) {
+  const prevParams = { ...params, page: page - 1 };
+  const nextParams = { ...params, page: page + 1 };
+  const query = new URLSearchParams(params).toString();
+  const base = escapeHtml(basePath);
+
+  const prev = page > 1
+    ? '<a class="page-btn" href="#' + escapeHtml(basePath) + '?' + escapeHtml(new URLSearchParams(prevParams).toString()) + '" aria-label="上一页">' + icon('chevronLeft') + '</a>'
+    : '<span class="page-btn is-disabled" aria-hidden="true">' + icon('chevronLeft') + '</span>';
+
+  const next = page < totalPages
+    ? '<a class="page-btn" href="#' + escapeHtml(basePath) + '?' + escapeHtml(new URLSearchParams(nextParams).toString()) + '" aria-label="下一页">' + icon('chevronRight') + '</a>'
+    : '<span class="page-btn is-disabled" aria-hidden="true">' + icon('chevronRight') + '</span>';
+
+  return '<nav class="pagination" aria-label="分页">' +
+    prev +
+    '<span class="page-status">第 ' + page + ' / ' + totalPages + ' 页 · 共 ' + totalItems + ' 部</span>' +
+    next +
+    '<button class="page-btn page-jump" type="button" data-action="jump-page" data-total-pages="' + totalPages + '" data-base="' + base + '" data-query="' + escapeHtml(query) + '" data-current="' + page + '">跳页</button>' +
+    '</nav>';
+}
+
+let toastTimer = null;
+
+export function toast(message, timeout = 2200) {
+  const element = document.getElementById('toast');
+  if (!element) return;
+
+  element.textContent = String(message || '');
+  element.classList.add('is-visible');
+
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    element.classList.remove('is-visible');
+    toastTimer = null;
+  }, timeout);
+}
+
+export function debounce(fn, wait = 150) {
+  let timer = null;
+  return function debounced(...args) {
+    if (timer) clearTimeout(timer);
+    timer = window.setTimeout(() => {
+      timer = null;
+      fn.apply(this, args);
+    }, wait);
+  };
+}
+
+let activeOverlayClose = null;
+
+function closeActiveOverlay() {
+  if (activeOverlayClose) {
+    const close = activeOverlayClose;
+    activeOverlayClose = null;
+    close();
+  }
+}
+
+export function closeOverlay() {
+  closeActiveOverlay();
+}
+
+function createBackdrop(className, onClick) {
+  const backdrop = document.createElement('div');
+  backdrop.className = className;
+  backdrop.addEventListener('click', (event) => {
+    if (event.target === backdrop) onClick();
+  });
+  return backdrop;
+}
+
+function focusSoon(element) {
+  window.requestAnimationFrame(() => {
+    try {
+      element.focus({ preventScroll: true });
+      if (typeof element.select === 'function') element.select();
+    } catch (error) {
+      /* 忽略。 */
+    }
+  });
+}
+
+export function openPrompt({ title, description = '', value = '', placeholder = '', confirmText = '确定', cancelText = '取消', inputMode = 'numeric', validate }) {
+  closeActiveOverlay();
+
+  return new Promise((resolve) => {
+    const root = document.getElementById('dialog-root');
+    if (!root) {
+      resolve(null);
+      return;
+    }
+
+    const previousFocus = document.activeElement;
+    const backdrop = createBackdrop('dialog-backdrop', () => close(null));
+    const dialog = document.createElement('form');
+    dialog.className = 'dialog';
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.innerHTML = '<h3>' + escapeHtml(title) + '</h3>' +
+      (description ? '<p>' + escapeHtml(description) + '</p>' : '') +
+      '<input type="text" inputmode="' + escapeHtml(inputMode) + '" autocomplete="off" value="' + escapeHtml(value) + '" placeholder="' + escapeHtml(placeholder) + '">' +
+      '<div class="dialog-error" role="alert"></div>' +
+      '<div class="dialog-actions">' +
+      '<button type="button" class="btn btn-secondary" data-cancel>' + escapeHtml(cancelText) + '</button>' +
+      '<button type="submit" class="btn btn-primary">' + escapeHtml(confirmText) + '</button>' +
+      '</div>';
+
+    const input = dialog.querySelector('input');
+    const error = dialog.querySelector('.dialog-error');
+
+    function cleanup() {
+      document.removeEventListener('keydown', onKeydown);
+      backdrop.remove();
+      if (activeOverlayClose === cleanup) activeOverlayClose = null;
+      try {
+        if (previousFocus && typeof previousFocus.focus === 'function') {
+          previousFocus.focus({ preventScroll: true });
+        }
+      } catch (error) {
+        /* 忽略。 */
+      }
+    }
+
+    function close(result) {
+      cleanup();
+      resolve(result);
+    }
+
+    function submit() {
+      const raw = input ? input.value.trim() : '';
+      const message = typeof validate === 'function' ? validate(raw) : '';
+      if (message) {
+        if (error) error.textContent = message;
+        focusSoon(input);
+        return;
+      }
+      close(raw);
+    }
+
+    function onKeydown(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close(null);
+      }
+    }
+
+    dialog.addEventListener('submit', (event) => {
+      event.preventDefault();
+      submit();
+    });
+
+    dialog.querySelector('[data-cancel]').addEventListener('click', () => close(null));
+    document.addEventListener('keydown', onKeydown);
+
+    backdrop.appendChild(dialog);
+    root.appendChild(backdrop);
+    activeOverlayClose = () => close(null);
+    focusSoon(input);
+  });
+}
+
+export function openConfirm({ title, description = '', confirmText = '确定', cancelText = '取消', danger = false }) {
+  closeActiveOverlay();
+
+  return new Promise((resolve) => {
+    const root = document.getElementById('dialog-root');
+    if (!root) {
+      resolve(false);
+      return;
+    }
+
+    const previousFocus = document.activeElement;
+    const backdrop = createBackdrop('dialog-backdrop', () => close(false));
+    const dialog = document.createElement('div');
+    dialog.className = 'dialog';
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.innerHTML = '<h3>' + escapeHtml(title) + '</h3>' +
+      (description ? '<p>' + escapeHtml(description) + '</p>' : '') +
+      '<div class="dialog-actions">' +
+      '<button type="button" class="btn btn-secondary" data-cancel>' + escapeHtml(cancelText) + '</button>' +
+      '<button type="button" class="btn ' + (danger ? 'btn-danger' : 'btn-primary') + '" data-confirm>' + escapeHtml(confirmText) + '</button>' +
+      '</div>';
+
+    function cleanup() {
+      document.removeEventListener('keydown', onKeydown);
+      backdrop.remove();
+      if (activeOverlayClose === cleanup) activeOverlayClose = null;
+      try {
+        if (previousFocus && typeof previousFocus.focus === 'function') {
+          previousFocus.focus({ preventScroll: true });
+        }
+      } catch (error) {
+        /* 忽略。 */
+      }
+    }
+
+    function close(result) {
+      cleanup();
+      resolve(result);
+    }
+
+    function onKeydown(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close(false);
+      }
+    }
+
+    dialog.querySelector('[data-cancel]').addEventListener('click', () => close(false));
+    dialog.querySelector('[data-confirm]').addEventListener('click', () => close(true));
+    document.addEventListener('keydown', onKeydown);
+
+    backdrop.appendChild(dialog);
+    root.appendChild(backdrop);
+    activeOverlayClose = () => close(false);
+    focusSoon(dialog.querySelector('[data-confirm]'));
+  });
+}
+
+export function openSheet({ title, options = [], value = null }) {
+  closeActiveOverlay();
+
+  return new Promise((resolve) => {
+    const root = document.getElementById('dialog-root');
+    if (!root) {
+      resolve(null);
+      return;
+    }
+
+    const previousFocus = document.activeElement;
+    const backdrop = createBackdrop('sheet-backdrop', () => close(null));
+    const sheet = document.createElement('div');
+    sheet.className = 'sheet';
+    sheet.setAttribute('role', 'dialog');
+    sheet.setAttribute('aria-modal', 'true');
+
+    const list = options.map((option) => {
+      const active = value !== null && String(option.value) === String(value);
+      return '<button type="button" class="sheet-option' + (active ? ' is-active' : '') + '" data-value="' + escapeHtml(option.value) + '">' +
+        '<span>' + escapeHtml(option.label) + '</span>' +
+        (active ? icon('check') : '') +
+        '</button>';
+    }).join('');
+
+    sheet.innerHTML = '<div class="sheet-title">' + escapeHtml(title) + '</div>' +
+      '<div class="sheet-list">' + list + '</div>' +
+      '<button type="button" class="sheet-cancel" data-cancel>取消</button>';
+
+    function cleanup() {
+      document.removeEventListener('keydown', onKeydown);
+      backdrop.remove();
+      if (activeOverlayClose === cleanup) activeOverlayClose = null;
+      try {
+        if (previousFocus && typeof previousFocus.focus === 'function') {
+          previousFocus.focus({ preventScroll: true });
+        }
+      } catch (error) {
+        /* 忽略。 */
+      }
+    }
+
+    function close(result) {
+      cleanup();
+      resolve(result);
+    }
+
+    function onKeydown(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close(null);
+      }
+    }
+
+    sheet.querySelectorAll('[data-value]').forEach((button) => {
+      button.addEventListener('click', () => close(button.getAttribute('data-value')));
+    });
+    sheet.querySelector('[data-cancel]').addEventListener('click', () => close(null));
+    document.addEventListener('keydown', onKeydown);
+
+    backdrop.appendChild(sheet);
+    root.appendChild(backdrop);
+    activeOverlayClose = () => close(null);
+    focusSoon(sheet.querySelector('[data-value]'));
+  });
+}
+
+export function isIOS() {
+  const ua = navigator.userAgent || '';
+  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+export function isStandalone() {
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+}
