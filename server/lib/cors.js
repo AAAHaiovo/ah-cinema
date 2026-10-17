@@ -6,8 +6,19 @@ function stripSlash(value) {
   return String(value || '').replace(/\/+$/, '');
 }
 
+function forwardedHost(req) {
+  const value = req && req.headers ? req.headers['x-forwarded-host'] : '';
+  return String(value || '').split(',')[0].trim();
+}
+
+function forwardedProto(req) {
+  const value = req && req.headers ? req.headers['x-forwarded-proto'] : '';
+  const raw = String(value || '').split(',')[0].trim().toLowerCase();
+  return raw === 'http' || raw === 'https' ? raw : '';
+}
+
 function headerHost(req) {
-  const forwarded = req && req.headers ? req.headers['x-forwarded-host'] : '';
+  const forwarded = forwardedHost(req);
   const host = forwarded || (req && req.headers ? req.headers.host : '');
   return String(host || '').split(',')[0].trim();
 }
@@ -15,13 +26,37 @@ function headerHost(req) {
 function requestOrigin(req) {
   const host = headerHost(req);
   if (!host) return '';
-  const forwardedProto = req && req.headers ? String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() : '';
-  const proto = forwardedProto || (req && req.socket && req.socket.encrypted ? 'https' : 'http');
+  // 反向代理后面（如 EdgeOne）如果没有 x-forwarded-proto，按 https 处理，避免同源误判。
+  const proto =
+    forwardedProto(req) ||
+    (forwardedHost(req) ? 'https' : '') ||
+    (req && req.socket && req.socket.encrypted ? 'https' : 'http');
   return proto + '://' + host;
 }
 
+function normalizeHost(host) {
+  return String(host || '').toLowerCase().replace(/:(80|443)$/, '');
+}
+
+function originHost(origin) {
+  try {
+    return normalizeHost(new URL(String(origin)).host);
+  } catch (error) {
+    return '';
+  }
+}
+
 function isSameOrigin(req, origin) {
-  return Boolean(origin) && stripSlash(origin) === stripSlash(requestOrigin(req));
+  if (!origin) return false;
+  if (stripSlash(origin) === stripSlash(requestOrigin(req))) return true;
+
+  // 某些 CDN / 函数平台把 Host 换成内部地址，公开域名在 x-forwarded-host 或 Origin 里。
+  // 只比较 host（忽略协议），并接受浏览器明确标记的 same-origin 请求。
+  const host = normalizeHost(headerHost(req));
+  if (host && originHost(origin) === host) return true;
+
+  const site = String((req && req.headers && req.headers['sec-fetch-site']) || '').toLowerCase();
+  return site === 'same-origin';
 }
 
 function isAllowedOrigin(req, config, origin) {

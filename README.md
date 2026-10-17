@@ -1,6 +1,6 @@
 # AH 影视
 
-个人自用的影视 PWA。前端是纯静态的原生 HTML / CSS / JavaScript，**不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。v0.5.0 起增加**可选的**源管理与多源点播搜索，需要一个自己的 Vercel / 本地 Node 服务来转发源请求（浏览器跨域所限）。
+个人自用的影视 PWA。前端是纯静态的原生 HTML / CSS / JavaScript，**不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。v0.5.0 起增加**可选的**源管理与多源点播搜索，需要一个自己的 Vercel / 腾讯云 EdgeOne Pages / 本地 Node 服务来转发源请求（浏览器跨域所限）。
 
 **线上地址**：<https://aaahaiovo.github.io/ah-cinema/>（纯静态备用入口；iPhone 用 Safari 打开 → 分享 → 添加到主屏幕）
 
@@ -110,9 +110,9 @@ node tools/e2e.js
 
 ---
 
-## 部署到 Vercel（多源搜索主入口，推荐）
+## 部署到 Vercel（海外 / 备用入口）
 
-Vercel 免费 Hobby 计划不需要信用卡；静态 PWA 和 `/api/*` 在同一个域名下，iPhone 用蜂窝网络也能直接打开。没配置源时，它就是一个普通的静态 App。
+Vercel 免费 Hobby 计划不需要信用卡；静态 PWA 和 `/api/*` 在同一个域名下。没配置源时，它就是一个普通的静态 App。注意 `*.vercel.app` 在国内常被 DNS 污染；国内使用请优先选下一节的 **EdgeOne Pages**。
 
 1. 把代码推到 GitHub（`AAAHaiovo/ah-cinema`）。
 2. 打开 <https://vercel.com>，用 GitHub 登录 → **Add New → Project** → 导入仓库。
@@ -128,6 +128,53 @@ Vercel 免费 Hobby 计划不需要信用卡；静态 PWA 和 `/api/*` 在同一
 7. 添加你有权使用的 Apple CMS 地址并勾选授权，然后到搜索页按回车搜索。
 
 > GitHub Pages 版仍然保留。要在 Pages 版里用多源搜索，在源管理把服务地址填成 Vercel 地址、口令相同即可（CORS 已允许 `aaahaiovo.github.io`）。
+
+---
+
+## 部署到腾讯云 EdgeOne Pages（国内网络推荐）
+
+`*.vercel.app` 在国内常见 DNS 污染，手机蜂窝网络往往打不开。EdgeOne Pages 提供国内可访问的默认域名，并且同样能把静态 PWA 和 `/api/*` 放在同一个域名下。免费版够个人使用：Node 函数默认 30 秒超时、单次响应上限 6 MB、每月 300 万次调用。
+
+> 首次使用需要在腾讯云完成**实名认证**（大陆节点要求）。
+
+1. 把代码推到 GitHub（`AAAHaiovo/ah-cinema`）。仓库里的 `edgeone.json` 已经写好构建配置。
+2. 打开 EdgeOne Pages 控制台：<https://console.cloud.tencent.com/edgeone/pages> → 创建项目 → 导入 Git 仓库 → 选择 `AAAHaiovo/ah-cinema`、`main` 分支。
+3. 构建配置（与 `edgeone.json` 一致）：
+   - 安装命令：`npm install`
+   - 构建命令：`npm run build:edgeone`
+   - 输出目录：`docs`
+   - Node 版本：`20`
+4. 环境变量（Production）：
+
+   | 变量 | 值 | 说明 |
+   |---|---|---|
+   | `AH_ENV` | `production` | **必填**；不设会落在开发模式 |
+   | `AH_API_TOKEN` | 随机口令 | App 的「访问口令」填这个 |
+   | `AH_SIGNING_SECRET` | 另一个随机值 | 只放服务端，不要填进 App |
+   | `AH_PROXY_MAX_BYTES` | `5500000` | 给 6 MB 响应上限留余量 |
+   | `AH_ALLOWED_ORIGINS` | 可选 | 额外允许的跨域来源 |
+
+   生成随机值：
+
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
+
+   **不要**设置 `AH_DEV_NO_AUTH` 或 `AH_DEV_ALLOW_PRIVATE`。
+
+5. 点击部署。完成后控制台会给出 `https://<项目名>.edgeone.app` 之类的默认域名。
+6. 打开 `https://<域名>/api/health`，确认返回 `"ok":true`、`"missingEnv":[]`、`"authRequired":true`、`"proxyReady":true`。若返回的是 HTML 403，先检查控制台里的「默认域名访问保护」，不是 CORS 问题。
+7. 打开 App → 我的 → 源管理：服务地址留空（同源），口令填 `AH_API_TOKEN`，点「保存并检测」。
+8. iPhone Safari 打开该域名 → 分享 → 添加到主屏幕。
+
+部署后的限制：
+
+- **单次响应上限 6 MB**：m3u8 清单没问题；HTTPS 视频直链和 HTTPS 分片默认直连、不经过函数；HTTP MP4 通常超过 6 MB，在 EdgeOne 上无法通过代理播放，优先用 HTTPS 直链或 HLS。
+- **Node 函数默认 30 秒超时**：搜索（8 秒）和代理（15 秒）都在时限内。
+- **改了 `server/` 下的代码**：本地先运行 `npm run build:edgeone` 重新生成 `cloud-functions/api/[[default]].js` 并提交；平台构建时也会再跑一次，提交产物是为了本地预览和回滚。
+- 本地可以用 `npm run dev:edgeone` 模拟 EdgeOne（静态 + `/api`，端口 4199）。
+
+> Vercel 版仍然保留，可作为备用。两个后端可以同时存在，App 的「服务地址」填哪个就用哪个。
 
 ---
 
@@ -182,8 +229,8 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 - **网络直链需要对方允许**：服务器若限制 Referer、需要登录、禁止直接播放，或证书有问题，播放器会报错，这不是 App 能绕过的。
 - **HLS `.m3u8`**：Safari / iPhone 原生播放，桌面 Chrome / Edge 通过自托管的 hls.js 播放。若源站限制跨域或防盗链，可在源管理 → 高级开启「HLS 分片走代理」（会增加流量）。MP4（H.264 + AAC）兼容性最好。
 - **源由你自己负责**：源失效、超时、地区限制、需要登录、防盗链都可能导致搜索或播放失败。App 只做 JSON 解析和转发，不会绕过这些限制；也不会推荐或代找任何源。
-- **多源搜索需要服务**：GitHub Pages 纯静态版必须先配置 Vercel 地址和口令；没有配置或离线时，本地搜索仍然可用。
-- **免费服务的限制**：Vercel 函数有响应体大小、执行时长和带宽限制；签名代理默认只承载 m3u8 清单和必要的 HTTP 分片，HTTPS 分片通常直连。
+- **多源搜索需要服务**：GitHub Pages 纯静态版必须先配置 Vercel / EdgeOne 地址和口令；没有配置或离线时，本地搜索仍然可用。
+- **免费服务的限制**：Vercel 函数有响应体大小、执行时长和带宽限制；EdgeOne 免费版单次响应上限 6 MB、默认 30 秒超时。签名代理默认只承载 m3u8 清单和必要的 HTTP 分片，HTTPS 分片通常直连；HTTP MP4 超过 6 MB 时在 EdgeOne 上无法代理播放。
 - **B 站嵌入依赖哔哩哔哩**：需要能访问 `player.bilibili.com`；iframe 里的清晰度、倍速、字幕由 B 站播放器提供，App 自己的这些按钮不适用于嵌入条目。上传者删除视频、改为不可播放、地区限制或登录限制都会导致画面无法加载。
 - B 站 iframe 在部分浏览器/无头测试环境里截图是黑屏，这是截图合成的限制，不代表页面结构有问题；真实 iPhone Safari 上还需人工确认能否正常起播和全屏。
 - **本机文件依赖浏览器存储**：容量受浏览器配额限制（单个文件上限 2 GB，实际可用空间可能更小）；Safari 长期不用站点后可能清理数据，重要文件请保留原始文件。
@@ -198,7 +245,7 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 
 ```text
 影视/
-├─ docs/                    # App 本体；GitHub Pages / Vercel 静态输出都指向这里
+├─ docs/                    # App 本体；GitHub Pages / Vercel / EdgeOne 静态输出都指向这里
 │  ├─ index.html
 │  ├─ manifest.webmanifest
 │  ├─ sw.js                 # Service Worker（缓存版本 ah-cinema-v7）
@@ -213,9 +260,14 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 ├─ api/                     # Vercel Serverless Functions（health / search / detail /
 │  │                        # source-test / subscription / proxy）
 ├─ server/                  # API 实现与单测（lib / handlers / tests）
+├─ cloud-functions/         # EdgeOne Pages 云函数
+│  └─ api/[[default]].js    # 由 npm run build:edgeone 生成，勿手改
 ├─ tools/
 │  ├─ serve.js              # 纯静态本地预览（支持 Range）
 │  ├─ ah-server.js          # 静态 + /api 一体化本地服务器
+│  ├─ edgeone-entry.js      # EdgeOne 函数入口（Express 适配）
+│  ├─ build-edgeone.js      # esbuild 打包成单个 CJS 文件
+│  ├─ edgeone-local.js      # 本地模拟 EdgeOne（静态 + /api）
 │  ├─ mock-cms.js           # 合法的本地 Apple CMS 测试源（自造数据 + CC0）
 │  ├─ fixtures/             # 测试 JSON 与 CC0 短片
 │  ├─ e2e.js                # 一键启动两个服务并跑全部测试
@@ -225,7 +277,8 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 │  ├─ recolor-icon.ps1      # 生成品牌红 + 白 AH 图标（含 maskable）
 │  └─ resize-icons.ps1      # 重新生成 192 / 180 图标
 ├─ vercel.json              # Output Directory = docs
-├─ package.json             # 仅用于本地测试，无构建步骤
+├─ edgeone.json             # EdgeOne Pages 构建配置（输出 docs，Node 20）
+├─ package.json             # express / esbuild；本地测试与 EdgeOne 打包
 ├─ .env.example             # 服务端环境变量示例
 ├─ 预览截图/                 # 测试自动生成的手机/桌面截图
 ├─ AH标识图/                 # 你提供的 AH 标识原图
@@ -267,7 +320,13 @@ node tools/cdp-run.js
 - 多源搜索：按「标题 + 年份」合并为一组、显示来源数量
 - 选源 → 远程详情 → 刷新片源入口 → 播放 → 拿到签名代理地址
 
-当前结果：界面回归 **15/15 通过**，源管理与多源搜索 **23/23 通过**（版本 v0.5.0，Service Worker `ah-cinema-v7`），无未捕获异常、无控制台错误。一次跑完两者：
+当前结果：界面回归 **15/15 通过**，源管理与多源搜索 **23/23 通过**（版本 v0.5.0，Service Worker `ah-cinema-v7`），无未捕获异常、无控制台错误。服务端单测另跑：
+
+```bash
+npm test        # 39/39，含 CORS 与代理相关用例
+```
+
+一次跑完界面回归和远程冒烟：
 
 ```bash
 node tools/e2e.js

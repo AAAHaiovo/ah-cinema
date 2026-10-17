@@ -1,0 +1,6 @@
+{
+  "outputDirectory": "docs",
+  "installCommand": "npm install",
+  "buildCommand": "npm run build:edgeone",
+  "nodeVersion": "20"
+}

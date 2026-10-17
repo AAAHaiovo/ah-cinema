@@ -5,7 +5,10 @@
  * 生产环境缺少访问口令或签名密钥时不提供任何受保护接口。
  */
 
-const MODE = String(process.env.AH_ENV || (process.env.VERCEL ? 'production' : 'development')).toLowerCase();
+const explicitMode = String(process.env.AH_ENV || '').trim().toLowerCase();
+const MODE =
+  explicitMode ||
+  ((process.env.VERCEL || process.env.NODE_ENV === 'production') ? 'production' : 'development');
 const IS_PRODUCTION = MODE === 'production';
 const IS_VERCEL = Boolean(process.env.VERCEL);
 

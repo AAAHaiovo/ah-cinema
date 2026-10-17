@@ -7,6 +7,7 @@
 
 const config = require('../lib/config');
 const { createRoute } = require('../lib/route');
+const { ApiError } = require('../lib/http');
 const { open, readAll } = require('../lib/safe-fetch');
 const { createProxyPath, verifyProxyParams } = require('../lib/sign');
 const { rewritePlaylist, isM3u8ContentType, isM3u8Url } = require('../lib/m3u8');
@@ -81,8 +82,23 @@ module.exports = createRoute(
       isM3u8ContentType(contentType) ||
       (isM3u8Url(targetUrl) && !/^video\/|^audio\//i.test(contentType));
 
-    const onClose = () => safeDestroy(upstream.request);
+    const onClose = () => {
+      // Serverless 运行时可能提前触发 close；只在确实没写完时中断上游。
+      if (!res.writableEnded) safeDestroy(upstream.request);
+    };
     res.on('close', onClose);
+
+    // EdgeOne 等平台有单次响应大小上限；提前用 Content-Length 拦截，避免传到一半才失败。
+    const declaredLength = Number(upstream.headers['content-length']);
+    if (method === 'GET' && Number.isFinite(declaredLength) && declaredLength > config.proxyMaxBytes) {
+      safeDestroy(upstream.request);
+      res.removeListener('close', onClose);
+      throw new ApiError(
+        502,
+        'PROXY_RESPONSE_TOO_LARGE',
+        '片源响应超过当前部署的单次响应大小上限'
+      );
+    }
 
     try {
       if (method === 'GET' && upstream.status === 200 && looksLikePlaylist) {
