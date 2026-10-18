@@ -344,6 +344,32 @@ export async function searchSources(payload, options = {}) {
   }
 }
 
+/* 首页片库：拉取已启用源的最新列表（不带关键词）。 */
+export async function browseSources(payload, options = {}) {
+  const body = {
+    page: Math.max(1, Number.parseInt(payload.page, 10) || 1),
+    sources: (Array.isArray(payload.sources) ? payload.sources : []).slice(0, 8).map(normalizeSourceParam)
+  };
+
+  if (!body.sources.length) {
+    throw new RemoteError('请先添加并启用至少一个源', { code: 'INPUT' });
+  }
+
+  const data = await requestJson('/api/browse', {
+    method: 'POST',
+    body,
+    timeoutMs: Number(options.timeoutMs) || 15000,
+    signal: options.signal,
+    timeoutMessage: '加载片库超时'
+  });
+
+  if (!data || data.ok !== true || !Array.isArray(data.sources)) {
+    throw new RemoteError('服务返回了无法识别的数据', { code: 'BAD_RESPONSE' });
+  }
+
+  return data;
+}
+
 export async function fetchDetail(source, vodId, options = {}) {
   return requestJson('/api/detail', {
     method: 'POST',

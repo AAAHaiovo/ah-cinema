@@ -120,6 +120,18 @@ async function main() {
     const statusText = await evaluate('document.querySelector("[data-source-status]")?.innerText || ""');
     record(results, '源测活显示结果', /可用|条|失败|错误/.test(statusText), statusText);
 
+    await send('Page.navigate', { url: BASE + '#/' });
+    record(results, '首页显示源影片', await waitFor('Boolean(document.querySelector("#home-browse .remote-card"))', 20000));
+    record(results, '首页不再有粘贴链接框', !(await evaluate('Boolean(document.querySelector("#link-form"))')));
+    const homeCards = await evaluate('document.querySelectorAll("#home-browse .remote-card").length');
+    record(results, '首页片库有影片卡片', homeCards > 0, String(homeCards));
+
+    await evaluate('document.querySelector("#home-browse .remote-card").click()');
+    if (await waitFor('Boolean(document.querySelector(".sheet [data-value]"))', 3000)) {
+      await evaluate('document.querySelector(".sheet [data-value]").click()');
+    }
+    record(results, '首页卡片进入详情', await waitFor('Boolean(document.querySelector(".detail-page"))', 20000));
+
     await send('Page.navigate', { url: BASE + '#/search?q=Big' });
     record(results, '看到网络结果卡片', await waitFor('Boolean(document.querySelector(".remote-card"))', 20000));
 

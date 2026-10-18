@@ -64,6 +64,7 @@ import {
   renderNotFound,
   renderBootError,
   renderRemoteSection,
+  renderHomeBrowse,
   emptyRemoteState
 } from './views.js';
 
@@ -84,7 +85,7 @@ import {
   searchableSources,
   recordSearchOutcome
 } from './sources.js';
-import { isConfigured, searchSources } from './remote-api.js';
+import { isConfigured, searchSources, browseSources } from './remote-api.js';
 import {
   loadRemoteLibrary,
   groupSearchResults,
@@ -365,6 +366,10 @@ function renderRoute() {
   setDocumentTitle(resolved);
   els.view.innerHTML = html;
 
+  if (resolved.name === 'home') {
+    ensureBrowse();
+  }
+
   if (resolved.name === 'search') {
     ensureRemoteForRoute(state.ui.searchQuery);
     renderRemote();
@@ -631,8 +636,176 @@ function ensureRemoteForRoute(query) {
   runRemoteSearch(q).catch(() => {});
 }
 
-async function openRemoteGroup(key) {
-  const group = remoteState.groups.find((entry) => entry.key === key);
+/* ---------- 首页片库 ---------- */
+
+let browseState = emptyBrowseState();
+let browseAbort = null;
+let browseRunId = 0;
+let browseKey = '';
+
+function emptyBrowseState() {
+  return {
+    status: 'idle',
+    groups: [],
+    rawItems: [],
+    statuses: [],
+    error: '',
+    page: 1,
+    hasMore: false,
+    loadingMore: false,
+    fetchingKey: '',
+    failedKey: ''
+  };
+}
+
+function browseSourceKey(sources) {
+  return sources.map((source) => source.id).sort().join(',');
+}
+
+function renderBrowse() {
+  const section = document.getElementById('home-browse');
+  if (!section) return;
+  section.innerHTML = renderHomeBrowse(browseState);
+}
+
+function abortBrowse() {
+  if (browseAbort) browseAbort.abort();
+  browseAbort = null;
+  browseRunId += 1;
+}
+
+function ensureBrowse() {
+  if (!isConfigured()) {
+    browseState = emptyBrowseState();
+    browseState.status = 'unconfigured';
+    renderBrowse();
+    return;
+  }
+
+  const enabled = cachedSources().filter(
+    (source) => source.enabled && source.selected && source.authorized
+  );
+  if (!enabled.length) {
+    browseState = emptyBrowseState();
+    browseState.status = 'no-sources';
+    renderBrowse();
+    return;
+  }
+
+  const searchable = searchableSources();
+  if (!searchable.ready.length) {
+    browseState = emptyBrowseState();
+    browseState.status = 'cooling';
+    renderBrowse();
+    return;
+  }
+
+  const key = browseSourceKey(searchable.ready);
+  if (key === browseKey && (browseState.groups.length || browseState.status === 'loading')) {
+    renderBrowse();
+    return;
+  }
+
+  browseKey = key;
+  browseState = emptyBrowseState();
+  browseState.status = 'loading';
+  renderBrowse();
+  loadBrowse(1, false).catch(() => {});
+}
+
+async function loadBrowse(page, append) {
+  const sources = searchableSources().ready;
+  if (!sources.length) {
+    browseState.status = 'cooling';
+    renderBrowse();
+    return;
+  }
+
+  abortBrowse();
+  const runId = ++browseRunId;
+  const controller = new AbortController();
+  browseAbort = controller;
+
+  if (append) {
+    browseState.loadingMore = true;
+  } else {
+    browseState = emptyBrowseState();
+    browseState.status = 'loading';
+    browseState.page = 1;
+  }
+  renderBrowse();
+
+  try {
+    const data = await browseSources({ page, sources }, { signal: controller.signal });
+    if (runId !== browseRunId) return;
+
+    const items = [];
+    const statuses = [];
+
+    data.sources.forEach((entry) => {
+      statuses.push({
+        sourceId: entry.sourceId,
+        sourceName: entry.sourceName,
+        state: entry.ok ? 'ok' : 'error',
+        count: Math.max(0, Number(entry.count) || 0),
+        ms: Math.max(0, Number(entry.ms) || 0),
+        error: entry.ok ? '' : (entry.timedOut ? '超时' : (entry.error || '失败'))
+      });
+      if (entry.ok && Array.isArray(entry.items)) items.push(...entry.items);
+      recordSearchOutcome(entry.sourceId, Boolean(entry.ok)).catch(() => {});
+    });
+
+    browseState.rawItems = append ? browseState.rawItems.concat(items) : items;
+    browseState.groups = groupSearchResults(browseState.rawItems, cachedSources());
+    browseState.statuses = statuses;
+    browseState.page = Math.max(1, Number(data.page) || page);
+    browseState.hasMore = data.sources.some(
+      (entry) => entry.ok && Number(entry.pagecount) > browseState.page
+    );
+    browseState.loadingMore = false;
+
+    if (!browseState.groups.length) {
+      const failed = statuses.filter((entry) => entry.state === 'error');
+      if (failed.length === statuses.length && failed.length > 0) {
+        browseState.status = 'error';
+        browseState.error = '所有源都没有返回数据：' + failed[0].error;
+      } else {
+        browseState.status = 'empty';
+      }
+    } else {
+      browseState.status = 'done';
+    }
+
+    renderBrowse();
+  } catch (error) {
+    if (runId !== browseRunId) return;
+    if (error && error.code === 'ABORTED') return;
+    browseState.status = 'error';
+    browseState.error = error && error.message ? error.message : '片库加载失败';
+    browseState.loadingMore = false;
+    renderBrowse();
+  } finally {
+    if (runId === browseRunId) browseAbort = null;
+  }
+}
+
+function refreshBrowse() {
+  browseKey = '';
+  browseState = emptyBrowseState();
+  ensureBrowse();
+}
+
+function loadMoreBrowse() {
+  if (browseState.loadingMore || !browseState.hasMore) return;
+  loadBrowse(browseState.page + 1, true).catch(() => {});
+}
+
+async function openBrowseGroup(key) {
+  await openRemoteGroup(key, browseState, renderBrowse);
+}
+
+async function openRemoteGroup(key, sourceState = remoteState, render = renderRemote) {
+  const group = (sourceState.groups || []).find((entry) => entry.key === key);
   if (!group || !group.sources.length) return;
 
   let ref = group.sources[0];
@@ -648,24 +821,24 @@ async function openRemoteGroup(key) {
     ref = group.sources.find((source) => source.sourceId === choice) || ref;
   }
 
-  remoteState.fetchingKey = key;
-  remoteState.failedKey = '';
-  renderRemote();
+  sourceState.fetchingKey = key;
+  sourceState.failedKey = '';
+  render();
   toast('正在获取详情…', 5000);
 
   try {
     const item = await fetchRemoteGroup(group, ref);
-    remoteState.fetchingKey = '';
-    renderRemote();
+    sourceState.fetchingKey = '';
+    render();
 
-    if (currentRoute && currentRoute.name === 'search') {
+    if (currentRoute && (currentRoute.name === 'search' || currentRoute.name === 'home')) {
       location.hash = '#/title/' + encodeURIComponent(item.id);
     }
     if (item.episodes && item.episodes.length) toast('已获取 ' + item.episodes.length + ' 集');
   } catch (error) {
-    remoteState.fetchingKey = '';
-    remoteState.failedKey = key;
-    renderRemote();
+    sourceState.fetchingKey = '';
+    sourceState.failedKey = key;
+    render();
     toast(error && error.message ? error.message : '获取详情失败');
   }
 }
@@ -855,45 +1028,6 @@ function linkTypeError(classified) {
   return '只支持 http:// 或 https:// 开头的视频地址';
 }
 
-/* 首页“粘贴链接”入口：识别 B 站页面与视频直链，添加后直接进入播放器。 */
-async function playPastedLink(raw) {
-  const value = String(raw || '').trim();
-  const classified = classifyLink(value);
-
-  if (classified.kind === 'empty' || classified.kind === 'invalid') {
-    toast(linkTypeError(classified));
-    return;
-  }
-
-  if (classified.kind === 'page') {
-    const proceed = await openConfirm({
-      title: '这个链接不是视频文件',
-      description: 'App 只能直接播放视频文件直链（.mp4 / .webm / .m3u8 等）和哔哩哔哩视频页。网页、网盘或平台会员页面无法解析。仍要尝试播放吗？',
-      confirmText: '仍要尝试'
-    });
-    if (!proceed) return;
-  }
-
-  try {
-    const item = classified.kind === 'embed'
-      ? await addLocalEmbed({ bvid: classified.bvid, page: classified.page })
-      : await addLocalUrl({ url: classified.url });
-
-    await refreshLocalItems();
-
-    const input = document.getElementById('link-input');
-    if (input) input.value = '';
-
-    if (classified.kind === 'embed') toast('正在打开 B 站官方播放器');
-    else if (isHlsUrl(classified.url)) toast('HLS 链接：Safari 原生播放，Chrome / Edge 自动加载 hls.js');
-    else toast('正在打开：' + item.title);
-
-    location.hash = '#/watch/' + encodeURIComponent(item.id);
-  } catch (error) {
-    toast(error && error.message ? error.message : '无法打开这个链接');
-  }
-}
-
 async function addLocalUrlFlow() {
   const url = await openPrompt({
     title: '粘贴视频链接',
@@ -1061,6 +1195,21 @@ async function onDocumentClick(event) {
 
   if (action === 'remote-open') {
     await openRemoteGroup(actionElement.getAttribute('data-group-key') || '');
+    return;
+  }
+
+  if (action === 'browse-open') {
+    await openBrowseGroup(actionElement.getAttribute('data-group-key') || '');
+    return;
+  }
+
+  if (action === 'browse-refresh') {
+    refreshBrowse();
+    return;
+  }
+
+  if (action === 'browse-more') {
+    loadMoreBrowse();
     return;
   }
 
@@ -1285,15 +1434,6 @@ function onDocumentSubmit(event) {
       console.error('[AH 影视] 源表单提交失败', error);
       toast('操作失败，请再试一次');
     });
-    return;
-  }
-
-  if (formId === 'link-form') {
-    event.preventDefault();
-    const input = document.getElementById('link-input');
-    const value = input ? input.value : '';
-    if (input) input.blur();
-    playPastedLink(value);
     return;
   }
 

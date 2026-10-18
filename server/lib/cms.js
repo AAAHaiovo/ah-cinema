@@ -34,6 +34,11 @@ function searchUrl(base, query, page) {
   return withParams(base, { ac: 'videolist', wd: String(query), pg: String(page) });
 }
 
+/* 不带关键词，Apple CMS 通常返回最新入库的影片列表。 */
+function browseUrl(base, page) {
+  return withParams(base, { ac: 'videolist', pg: String(page) });
+}
+
 function detailUrl(base, vodId) {
   return withParams(base, { ac: 'videolist', ids: String(vodId) });
 }
@@ -266,6 +271,7 @@ function buildDetailItem(data, options) {
 module.exports = {
   CmsError,
   searchUrl,
+  browseUrl,
   detailUrl,
   parseSearchResponse,
   parsePlayLines,

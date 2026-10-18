@@ -22,3 +22,6 @@ node_modules/
 
 # SCF 上传包（构建产物；scf/index.js 仍提交）
 scf/*.zip
+
+# SCF 私有包：内含口令与签名密钥，绝不能提交
+scf/private/

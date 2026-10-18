@@ -193,7 +193,7 @@ var require_config = __commonJS({
       mode: MODE,
       isProduction: IS_PRODUCTION,
       isVercel: IS_VERCEL,
-      version: "0.5.0",
+      version: "0.6.0",
       apiVersion: 1,
       apiToken,
       signingSecret: signingSecret || devSigningSecret,
@@ -205,7 +205,7 @@ var require_config = __commonJS({
       missingEnv,
       configured: missingEnv.length === 0,
       allowedOrigins,
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AH-Cinema/0.5.0",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AH-Cinema/0.6.0",
       maxSources: 8,
       searchMaxPages: intEnv("AH_SEARCH_MAX_PAGES", 2, 1, 5),
       searchSourceTimeoutMs: 5e3,
@@ -882,6 +882,9 @@ var require_cms = __commonJS({
     function searchUrl(base, query, page) {
       return withParams(base, { ac: "videolist", wd: String(query), pg: String(page) });
     }
+    function browseUrl(base, page) {
+      return withParams(base, { ac: "videolist", pg: String(page) });
+    }
     function detailUrl(base, vodId) {
       return withParams(base, { ac: "videolist", ids: String(vodId) });
     }
@@ -1055,6 +1058,7 @@ var require_cms = __commonJS({
     module2.exports = {
       CmsError,
       searchUrl,
+      browseUrl,
       detailUrl,
       parseSearchResponse,
       parsePlayLines,
@@ -1394,6 +1398,120 @@ var require_common = __commonJS({
       ensureUpstreamOk,
       upstreamErrorMessage
     };
+  }
+});
+
+// server/handlers/browse.js
+var require_browse = __commonJS({
+  "server/handlers/browse.js"(exports2, module2) {
+    "use strict";
+    var config = require_config();
+    var cms = require_cms();
+    var { createRoute } = require_route();
+    var { readJson, sendJson: sendJson2, ApiError } = require_http();
+    var { fetchText } = require_safe_fetch();
+    var {
+      allowPrivateFor,
+      normalizeSource,
+      parseCmsJson,
+      ensureUpstreamOk,
+      upstreamErrorMessage
+    } = require_common();
+    var MAX_PAGE = 20;
+    function normalizeSources(rawList, allowPrivate) {
+      if (!Array.isArray(rawList) || rawList.length === 0) {
+        throw new ApiError(400, "SOURCES_REQUIRED", "\u8BF7\u5148\u6DFB\u52A0\u5E76\u542F\u7528\u81F3\u5C11\u4E00\u4E2A\u6E90");
+      }
+      if (rawList.length > config.maxSources) {
+        throw new ApiError(400, "TOO_MANY_SOURCES", "\u4E00\u6B21\u6700\u591A\u4F7F\u7528 " + config.maxSources + " \u4E2A\u6E90");
+      }
+      const seen = /* @__PURE__ */ new Set();
+      const sources = [];
+      rawList.forEach((raw) => {
+        const source = normalizeSource(raw, allowPrivate);
+        if (seen.has(source.url)) return;
+        seen.add(source.url);
+        sources.push(source);
+      });
+      if (!sources.length) {
+        throw new ApiError(400, "SOURCES_REQUIRED", "\u8BF7\u5148\u6DFB\u52A0\u5E76\u542F\u7528\u81F3\u5C11\u4E00\u4E2A\u6E90");
+      }
+      return sources;
+    }
+    async function browseOne(source, page, { allowPrivate, signal }) {
+      const startedAt = Date.now();
+      const response = await fetchText(cms.browseUrl(source.url, page), {
+        timeoutMs: config.searchSourceTimeoutMs,
+        maxBytes: config.jsonMaxBytes,
+        allowPrivate,
+        signal
+      });
+      ensureUpstreamOk(response);
+      const parsed = cms.parseSearchResponse(parseCmsJson(response.text));
+      return {
+        items: parsed.items.map(
+          (entry) => Object.assign({}, entry, { sourceId: source.id, sourceName: source.name })
+        ),
+        pagecount: parsed.pagecount,
+        ms: Date.now() - startedAt
+      };
+    }
+    module2.exports = createRoute(
+      async (req, res) => {
+        const body = await readJson(req, config.bodyMaxBytes);
+        const page = Math.min(Math.max(1, Number.parseInt(body.page, 10) || 1), MAX_PAGE);
+        const allowPrivate = allowPrivateFor(req);
+        const sources = normalizeSources(body.sources, allowPrivate);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), config.searchTotalTimeoutMs);
+        const onClientGone = () => {
+          if (!res.writableEnded) controller.abort();
+        };
+        res.on("close", onClientGone);
+        try {
+          const results = await Promise.all(
+            sources.map(async (source) => {
+              const startedAt = Date.now();
+              try {
+                const result = await browseOne(source, page, {
+                  allowPrivate,
+                  signal: controller.signal
+                });
+                return {
+                  sourceId: source.id,
+                  sourceName: source.name,
+                  ok: true,
+                  page,
+                  pagecount: result.pagecount,
+                  ms: result.ms,
+                  count: result.items.length,
+                  items: result.items
+                };
+              } catch (error) {
+                return {
+                  sourceId: source.id,
+                  sourceName: source.name,
+                  ok: false,
+                  page,
+                  pagecount: 0,
+                  ms: Date.now() - startedAt,
+                  count: 0,
+                  items: [],
+                  timedOut: controller.signal.aborted,
+                  error: upstreamErrorMessage(error, controller.signal.aborted)
+                };
+              }
+            })
+          );
+          const total = results.reduce((sum, result) => sum + result.items.length, 0);
+          sendJson2(res, 200, { ok: true, page, total, sources: results });
+        } finally {
+          clearTimeout(timer);
+          res.removeListener("close", onClientGone);
+        }
+      },
+      { auth: true, rateKey: "search", methods: ["POST", "OPTIONS"] }
+    );
   }
 });
 
@@ -2094,6 +2212,7 @@ var { Readable, Writable } = require("stream");
 var { sendJson } = require_http();
 var ROUTES = {
   "/health": require_health(),
+  "/browse": require_browse(),
   "/search": require_search(),
   "/detail": require_detail(),
   "/source-test": require_source_test(),

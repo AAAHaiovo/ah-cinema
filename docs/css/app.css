@@ -2206,7 +2206,7 @@ body.no-tabbar .toast {
   }
 }
 
-/* ---------- 粘贴链接 ---------- */
+/* ---------- 首页片库 ---------- */
 
 .section-hint {
   margin: -2px 0 10px;
@@ -2215,23 +2215,30 @@ body.no-tabbar .toast {
   line-height: 1.6;
 }
 
-.link-paste {
+.home-browse {
+  min-height: 80px;
+}
+
+.browse-more-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.mine-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin: 0 0 24px;
-  padding: 16px;
+  padding: 13px 14px;
   border: 1px solid var(--ah-line);
   border-radius: var(--ah-radius-card);
   background: var(--ah-surface);
   box-shadow: var(--ah-shadow-soft);
+  color: var(--ah-text);
 }
 
-.link-paste-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.link-paste-icon {
+.mine-entry-icon {
   display: grid;
   flex: 0 0 auto;
   width: 40px;
@@ -2242,58 +2249,32 @@ body.no-tabbar .toast {
   color: var(--ah-accent);
 }
 
-.link-paste-icon .icon {
+.mine-entry-icon .icon {
   width: 20px;
   height: 20px;
 }
 
-.link-paste-title {
+.mine-entry-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mine-entry-title {
   font-size: 15px;
   font-weight: 700;
 }
 
-.link-paste-sub {
+.mine-entry-sub {
   color: var(--ah-text-2);
   font-size: 12px;
 }
 
-.link-paste-row {
-  display: flex;
-  gap: 8px;
-}
-
-.link-paste-row input {
-  flex: 1;
-  min-width: 0;
-  height: 44px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  outline: 0;
-  background: var(--ah-surface-2);
-  color: var(--ah-text);
-  font-size: 16px;
-}
-
-.link-paste-row input::placeholder {
-  color: var(--ah-text-3);
-}
-
-.link-paste-row input:focus {
-  border-color: var(--ah-accent);
-  box-shadow: 0 0 0 3px var(--ah-accent-soft);
-}
-
-.link-paste-row .btn {
+.mine-entry .chevron {
   flex: 0 0 auto;
-  min-height: 44px;
-}
-
-.link-paste-note {
-  margin-top: 10px;
   color: var(--ah-text-3);
-  font-size: 11px;
-  line-height: 1.55;
 }
 
 /* ---------- 我的视频页面 ---------- */

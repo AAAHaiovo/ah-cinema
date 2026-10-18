@@ -198,13 +198,32 @@ async function main() {
       await wait(220);
     }
 
+    /*
+     * 通过“我的视频 → 粘贴链接”添加视频。
+     * 返回：
+     *   'ok'      已添加并进入播放页
+     *   'confirm' 网页链接需要确认，对话框仍打开
+     *   'invalid' 地址格式不合法，对话框仍打开
+     */
     async function pasteLink(url) {
-      await waitFor('document.querySelector("#link-form")');
-      await evaluate(`(() => {
-        const input = document.querySelector('#link-input');
-        input.value = ${JSON.stringify(url)};
-        document.querySelector('#link-form').requestSubmit();
-      })()`);
+      await navigate('#/local');
+      await waitFor('document.querySelector("[data-action=local-add-url]")');
+      await click('[data-action="local-add-url"]');
+      await submitDialog(url);
+      await wait(320);
+
+      const error = await evaluate('document.querySelector(".dialog-error") ? document.querySelector(".dialog-error").textContent : ""');
+      if (error) return 'invalid';
+
+      const dialogText = await evaluate('document.querySelector(".dialog") ? document.querySelector(".dialog").innerText : ""');
+      if (dialogText.includes('不是视频文件')) return 'confirm';
+
+      await waitFor('document.querySelector(".dialog input")');
+      await evaluate(`document.querySelector('.dialog').requestSubmit()`);
+      await waitFor('location.hash.startsWith("#/title/")', 20000);
+      await evaluate('location.hash = "#/watch/" + location.hash.split("/title/")[1]');
+      await waitFor('Boolean(document.querySelector("#player-video")) || Boolean(document.querySelector(".embed-frame"))', 20000);
+      return 'ok';
     }
 
     async function seedLinks(count) {
@@ -227,27 +246,28 @@ async function main() {
 
     await setViewport(390, 844, 2, true);
     await send('Page.navigate', { url: BASE + '#/' });
-    await waitFor('document.querySelector("#link-form")', 15000);
+    await waitFor('document.querySelector(".home-page")', 15000);
     await wait(600);
 
-    await step('首页启动、粘贴链接入口、无内置片库', async () => {
+    await step('首页启动、源片库入口、无内置片库', async () => {
       const data = JSON.parse(await evaluate(`JSON.stringify({
         booted: document.documentElement.dataset.booted,
         splashHidden: document.querySelector('#splash').classList.contains('is-hidden'),
-        form: Boolean(document.querySelector('#link-form')),
-        input: Boolean(document.querySelector('#link-input')),
-        cards: document.querySelectorAll('.poster-card').length,
+        pasteForm: Boolean(document.querySelector('#link-form')),
+        browse: Boolean(document.querySelector('#home-browse')),
+        mine: Boolean(document.querySelector('.mine-entry')),
+        notice: document.querySelector('#home-browse .remote-notice strong') ? document.querySelector('#home-browse .remote-notice strong').textContent : '',
         pageSub: document.querySelector('.page-sub').textContent,
-        empty: document.querySelector('.empty h3') ? document.querySelector('.empty h3').textContent : '',
         catalog: null
       })`));
       const catalogCount = await evaluate(`import('./js/catalog.js').then((m) => m.allItems().length)`, true);
 
       if (data.booted !== '1' || !data.splashHidden) throw new Error('启动状态异常');
-      if (!data.form || !data.input) throw new Error('缺少粘贴链接输入框');
-      if (data.cards !== 0 || catalogCount !== 0) throw new Error('内置片库没有清空：' + data.cards + ' / ' + catalogCount);
-      if (!data.empty.includes('还没有添加')) throw new Error('空状态 ' + data.empty);
-      await screenshot('01-首页-空-手机.png');
+      if (data.pasteForm) throw new Error('首页仍然有粘贴链接输入框');
+      if (!data.browse || !data.mine) throw new Error('首页缺少片库或“我的视频”入口');
+      if (!data.notice.includes('还没有可用的源')) throw new Error('未配置源时的提示 ' + data.notice);
+      if (catalogCount !== 0) throw new Error('内置片库没有清空：' + catalogCount);
+      await screenshot('01-首页-源片库-手机.png');
       return data.pageSub + '；内置条目 ' + catalogCount;
     });
 
@@ -405,22 +425,22 @@ async function main() {
       return '续播 ' + resumed.toFixed(1) + 's；' + historyText;
     });
 
-    await step('首页链接列表、详情页与收藏', async () => {
-      await navigate('#/');
-      await waitFor('document.querySelector(".poster-card")');
-      const home = JSON.parse(await evaluate(`JSON.stringify({
-        cards: document.querySelectorAll('.poster-card').length,
-        title: document.querySelector('.poster-title').textContent,
-        cardWidth: document.querySelector('.poster-card').getBoundingClientRect().width,
-        titleWidth: document.querySelector('.poster-title').getBoundingClientRect().width,
-        overflow: getComputedStyle(document.querySelector('.poster-title')).textOverflow
+    await step('我的视频链接列表、详情页与收藏', async () => {
+      await navigate('#/local');
+      await waitFor('document.querySelector(".local-row")');
+      const local = JSON.parse(await evaluate(`JSON.stringify({
+        rows: document.querySelectorAll('.local-row').length,
+        title: document.querySelector('.local-row .history-title').textContent,
+        sub: document.querySelector('.local-row .history-sub').textContent
       })`));
-      if (home.cards !== 1) throw new Error('首页条目 ' + home.cards);
-      if (home.titleWidth > home.cardWidth + 1) throw new Error('标题比海报宽');
+      if (local.rows !== 1) throw new Error('我的视频条目 ' + local.rows);
+      if (!local.sub.includes('网络地址')) throw new Error('条目类型 ' + local.sub);
       await clearToast();
-      await screenshot('06-首页-有链接-手机.png');
+      await screenshot('06-我的视频-链接-手机.png');
 
-      await click('.poster-card');
+      const watchHref = await evaluate('document.querySelector(".local-row .history-link").getAttribute("href")');
+      const itemId = watchHref.split('/').pop();
+      await navigate('#/title/' + itemId);
       await waitFor('document.querySelector(".detail-page")');
       const detail = JSON.parse(await evaluate(`JSON.stringify({
         title: document.querySelector('.detail-title').textContent,
@@ -551,15 +571,14 @@ async function main() {
     });
 
     await step('无效链接与网页链接的处理', async () => {
-      await navigate('#/');
-      await pasteLink('不是网址');
-      await wait(250);
-      const toast = await evaluate('document.querySelector("#toast").textContent');
-      if (!toast.includes('http://')) throw new Error('无效链接提示 ' + toast);
+      const invalid = await pasteLink('不是网址');
+      const error = await evaluate('document.querySelector(".dialog-error") ? document.querySelector(".dialog-error").textContent : ""');
+      if (invalid !== 'invalid' || !error.includes('http://')) throw new Error('无效链接提示 ' + invalid + ' / ' + error);
+      await click('.dialog [data-cancel]');
 
       const before = await evaluate(`import('./js/catalog.js').then((m) => m.allItems().length)`, true);
-      await pasteLink('https://example.com/watch/12345');
-      await waitFor('document.querySelector(".dialog")');
+      const page = await pasteLink('https://example.com/watch/12345');
+      if (page !== 'confirm') throw new Error('网页链接没有弹出确认：' + page);
       const dialog = await evaluate('document.querySelector(".dialog").textContent');
       if (!dialog.includes('不是视频文件')) throw new Error('确认弹窗 ' + dialog);
       await click('.dialog [data-cancel]');
@@ -569,21 +588,28 @@ async function main() {
       return '无效链接被拒绝；网页链接需要确认且取消后不添加';
     });
 
-    await step('分页与跳页校验（27 条链接）', async () => {
+    await step('收藏页分页与跳页校验（27 条链接）', async () => {
       await seedLinks(25);
       await reloadApp();
-      await navigate('#/');
+      await evaluate(`import('./js/store.js').then(async (store) => {
+        const catalog = await import('./js/catalog.js');
+        for (const item of catalog.allItems()) {
+          if (!store.isFavorite(item.id)) await store.toggleFavorite(item.id);
+        }
+        return true;
+      })`, true);
+
+      await navigate('#/favorites');
       await waitFor('document.querySelector(".poster-card")');
 
       const page1 = JSON.parse(await evaluate(`JSON.stringify({
         cards: document.querySelectorAll('.poster-card').length,
-        status: document.querySelector('.page-status') ? document.querySelector('.page-status').textContent : '',
-        total: document.querySelectorAll('.poster-card').length
+        status: document.querySelector('.page-status') ? document.querySelector('.page-status').textContent : ''
       })`));
       if (page1.cards !== 24) throw new Error('第一页数量 ' + page1.cards);
       if (!page1.status.includes('1 / 2')) throw new Error('分页状态 ' + page1.status);
 
-      await navigate('#/?page=2');
+      await navigate('#/favorites?page=2');
       await waitFor(`document.querySelectorAll('.poster-card').length > 0`);
       const page2 = await evaluate('document.querySelectorAll(".poster-card").length');
       if (page2 !== 3) throw new Error('第二页数量 ' + page2);
@@ -596,8 +622,8 @@ async function main() {
 
       await clearCustom();
       await reloadApp();
-      await navigate('#/');
-      await waitFor('document.querySelector("#link-form")');
+      await navigate('#/local');
+      await waitFor('document.querySelector(".local-empty-actions")');
       const remaining = await evaluate(`import('./js/catalog.js').then((m) => m.allItems().length)`, true);
       if (remaining !== 0) throw new Error('清理后剩余 ' + remaining);
       return '24 / 3；跳页校验正常；已清理测试链接';
@@ -617,14 +643,16 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v7') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v7')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v8') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v8')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;
     });
 
     await step('断网重载仍能打开应用壳', async () => {
+      await navigate('#/');
+      await waitFor('document.querySelector(".home-page")');
       await send('Network.emulateNetworkConditions', {
         offline: true,
         latency: 0,
@@ -633,7 +661,7 @@ async function main() {
       });
       await send('Page.reload', { ignoreCache: false });
       await waitFor('document.documentElement.dataset.booted === "1"', 20000);
-      await waitFor('document.querySelector("#link-form")', 12000);
+      await waitFor('document.querySelector(".home-page")', 12000);
       await send('Network.emulateNetworkConditions', {
         offline: false,
         latency: 0,
@@ -641,7 +669,7 @@ async function main() {
         uploadThroughput: -1
       });
       await wait(300);
-      return '离线仍可打开首页和粘贴框';
+      return '离线仍可打开首页和片库区域';
     });
 
     await step('本机文件：写入 IndexedDB 并在刷新后恢复', async () => {
@@ -711,7 +739,14 @@ async function main() {
     await step('手机横屏与桌面布局', async () => {
       await seedLinks(4);
       await reloadApp();
-      await navigate('#/');
+      await evaluate(`import('./js/store.js').then(async (store) => {
+        const catalog = await import('./js/catalog.js');
+        for (const item of catalog.allItems()) {
+          if (!store.isFavorite(item.id)) await store.toggleFavorite(item.id);
+        }
+        return true;
+      })`, true);
+      await navigate('#/favorites');
       await waitFor('document.querySelector(".poster-card")');
 
       await setViewport(844, 390, 2, true);
@@ -725,7 +760,7 @@ async function main() {
       })`));
       if (landscape.scrollWidth > landscape.clientWidth + 1) throw new Error('横向溢出 ' + JSON.stringify(landscape));
       if (landscape.tabbar === 'none') throw new Error('横屏底部导航不可见');
-      await screenshot('12-首页-横屏-手机.png');
+      await screenshot('12-收藏-横屏-手机.png');
 
       await setViewport(1280, 800, 1, false);
       await wait(400);
@@ -735,7 +770,7 @@ async function main() {
         header: getComputedStyle(document.querySelector('#app-header')).display
       })`));
       if (desktop.header !== 'none') throw new Error('桌面端不应显示顶栏');
-      await screenshot('13-首页-桌面.png');
+      await screenshot('13-收藏-桌面.png');
 
       await clearCustom();
       await reloadApp();

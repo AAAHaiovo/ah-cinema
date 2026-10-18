@@ -1,6 +1,6 @@
 {
   "name": "ah-cinema",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "type": "commonjs",
   "description": "AH 影视：静态 PWA + 可选的多源搜索代理",

@@ -54,7 +54,7 @@ import {
 import { localItems, localCount } from './local-library.js';
 import { cachedSources } from './sources.js';
 
-const APP_VERSION = '0.5.0';
+const APP_VERSION = '0.6.0';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -79,26 +79,72 @@ function thumbMedia(item) {
   return posterPlaceholder(item) + (src ? '<img src="' + escapeHtml(src) + '" alt="" loading="lazy" decoding="async">' : '');
 }
 
-function pasteBox() {
-  return '<form class="link-paste" id="link-form" autocomplete="off">' +
-    '<div class="link-paste-head">' +
-      '<span class="link-paste-icon">' + icon('external') + '</span>' +
-      '<div><div class="link-paste-title">粘贴链接，直接播放</div>' +
-      '<div class="link-paste-sub">视频文件直链，或哔哩哔哩视频页</div></div>' +
-    '</div>' +
-    '<div class="link-paste-row">' +
-      '<input id="link-input" type="text" inputmode="url" enterkeyhint="go" name="link" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://…/movie.mp4" aria-label="视频链接">' +
-      '<button class="btn btn-primary" type="submit">播放</button>' +
-    '</div>' +
-    '<p class="link-paste-note">只直接播放视频文件地址（MP4 / WebM / HLS）和 B 站官方嵌入；网页、网盘和会员页面无法解析，也不会去抓取。</p>' +
-    '</form>';
+export function renderHomeBrowse(browse) {
+  const view = browse || {};
+  const groups = Array.isArray(view.groups) ? view.groups : [];
+  const status = view.status || 'idle';
+
+  if (status === 'unconfigured') {
+    return '<div class="remote-notice">' +
+      '<strong>还没有连接服务</strong>' +
+      '<p>GitHub Pages 版需要先填写服务地址和访问口令，首页才能从源里加载影片。</p>' +
+      '<a class="btn btn-secondary btn-small" href="#/sources">去源管理配置</a>' +
+      '</div>';
+  }
+
+  if (status === 'no-sources') {
+    return '<div class="remote-notice">' +
+      '<strong>还没有可用的源</strong>' +
+      '<p>源管理默认是空的。只添加你自己已授权、仅用于个人合法观看的 Apple CMS 接口。</p>' +
+      '<a class="btn btn-secondary btn-small" href="#/sources">去添加源</a>' +
+      '</div>';
+  }
+
+  if (status === 'cooling') {
+    return '<div class="remote-notice">' +
+      '<strong>所有启用的源都在冷却中</strong>' +
+      '<p>连续加载失败后，源会暂停 10 分钟。可以稍后刷新，或到源管理测试源。</p>' +
+      '<div class="form-actions"><button class="btn btn-secondary btn-small" type="button" data-action="browse-refresh">重试</button>' +
+      '<a class="btn btn-secondary btn-small" href="#/sources">源管理</a></div>' +
+      '</div>';
+  }
+
+  if (status === 'error') {
+    return '<div class="remote-notice remote-error">' +
+      '<strong>片库加载失败</strong>' +
+      '<p>' + escapeHtml(view.error || '请稍后重试。') + '</p>' +
+      '<div class="form-actions"><button class="btn btn-secondary btn-small" type="button" data-action="browse-refresh">重试</button>' +
+      '<a class="btn btn-secondary btn-small" href="#/sources">检查源与服务</a></div>' +
+      '</div>';
+  }
+
+  if (!groups.length) {
+    if (status === 'loading' || status === 'idle') {
+      return '<div class="remote-loading"><span class="loading-spinner" aria-hidden="true"></span>正在从源里加载影片…</div>';
+    }
+    return '<div class="remote-empty">这些源暂时没有返回影片。</div>';
+  }
+
+  const failed = (Array.isArray(view.statuses) ? view.statuses : [])
+    .filter((statusItem) => statusItem.state === 'error');
+  const chips = failed.length
+    ? '<div class="remote-status">' + failed.map(remoteStatusChip).join('') + '</div>'
+    : '';
+
+  return chips +
+    '<div class="remote-grid">' + groups.map((group) => remoteCard(group, view, 'browse-open')).join('') + '</div>' +
+    (view.loadingMore
+      ? '<div class="remote-loading"><span class="loading-spinner" aria-hidden="true"></span>正在加载更多…</div>'
+      : '') +
+    (view.hasMore && !view.loadingMore
+      ? '<div class="browse-more-wrap"><button class="btn btn-secondary btn-small" type="button" data-action="browse-more">加载更多</button></div>'
+      : '');
 }
 
 export function renderHome(route) {
   const items = localItems();
   const meta = getMeta();
-  const page = route.params.get('page');
-  const paged = paginate(items, page, state.settings.pageSize);
+  const mineCount = items.length;
 
   const continueItems = latestProgressList()
     .filter((record) => !record.completed && !record.external)
@@ -120,34 +166,25 @@ export function renderHome(route) {
       '</section>'
     : '';
 
-  const listSection = items.length
-    ? '<section class="section">' +
-        '<div class="section-head"><h2 class="section-title">我的链接</h2>' +
-          '<a class="section-link" href="#/local">管理 · ' + items.length + ' 个</a></div>' +
-        gridFor(paged.items) +
-        pagination({
-          page: paged.page,
-          totalPages: paged.totalPages,
-          totalItems: paged.totalItems,
-          basePath: '/',
-          params: {}
-        }) +
-      '</section>'
-    : emptyState({
-        title: '还没有添加视频',
-        text: '把视频文件直链或 B 站视频页链接粘贴到上面的输入框，也可以从设备选择本机视频。',
-        action: '<div class="local-empty-actions">' +
-          '<button class="btn btn-primary" type="button" data-action="local-add-file">选择本机视频</button>' +
-          '<a class="btn btn-secondary" href="#/local">我的视频</a>' +
-          '</div>'
-      });
+  const mineEntry = '<a class="mine-entry" href="#/local">' +
+    '<span class="mine-entry-icon">' + icon('film') + '</span>' +
+    '<span class="mine-entry-main">' +
+      '<span class="mine-entry-title">我的视频</span>' +
+      '<span class="mine-entry-sub">本机文件与粘贴的链接' + (mineCount ? ' · ' + mineCount + ' 个' : '') + '</span>' +
+    '</span>' +
+    icon('chevronRight', 'chevron') +
+    '</a>';
 
   return '<div class="page home-page">' +
-    pageHeading('首页', items.length ? '我的链接 · 共 ' + items.length + ' 个' : '粘贴链接开始观看',
+    pageHeading('首页', '来自你添加的源',
       '<a class="icon-btn" href="#/search" aria-label="搜索">' + icon('search') + '</a>') +
-    pasteBox() +
     continueSection +
-    listSection +
+    '<section class="section">' +
+      '<div class="section-head"><h2 class="section-title">最新影片</h2>' +
+        '<button class="text-btn" type="button" data-action="browse-refresh">刷新</button></div>' +
+      '<div id="home-browse" class="home-browse">' + renderHomeBrowse({ status: 'loading', groups: [] }) + '</div>' +
+    '</section>' +
+    mineEntry +
     '<p class="foot-note">' + escapeHtml(meta.notice || '本 App 只播放你自己提供的内容，不提供、不抓取任何片源。') + '</p>' +
     '</div>';
 }
@@ -229,7 +266,7 @@ function remoteStatusChip(status) {
   return '<span class="remote-chip is-' + tone + '">' + escapeHtml(text) + '</span>';
 }
 
-function remoteCard(group, remote) {
+function remoteCard(group, remote, action = 'remote-open') {
   const busy = remote.fetchingKey === group.key;
   const failed = remote.failedKey === group.key;
   const names = Array.from(new Set(group.sources.map((ref) => ref.sourceName).filter(Boolean)));
@@ -237,7 +274,7 @@ function remoteCard(group, remote) {
   const meta = [group.year, group.typeName, group.area].filter(Boolean).join(' · ');
   const poster = /^https:\/\//i.test(group.pic || '') ? group.pic : '';
 
-  return '<button type="button" class="remote-card' + (busy ? ' is-busy' : '') + '" data-action="remote-open" data-group-key="' + escapeHtml(group.key) + '"' + (busy ? ' aria-busy="true"' : '') + '>' +
+  return '<button type="button" class="remote-card' + (busy ? ' is-busy' : '') + '" data-action="' + action + '" data-group-key="' + escapeHtml(group.key) + '"' + (busy ? ' aria-busy="true"' : '') + '>' +
     '<div class="poster-media">' +
       posterPlaceholder({ title: group.title }) +
       (poster ? '<img src="' + escapeHtml(poster) + '" alt="" loading="lazy" decoding="async">' : '') +

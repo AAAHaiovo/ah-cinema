@@ -7,6 +7,14 @@ const { stripHtml } = require('../lib/text');
 
 const proxyUrl = (url) => '/api/proxy?u=' + encodeURIComponent(url) + '&sig=test';
 
+test('browseUrl：不带关键词并保留已有查询参数', () => {
+  const url = new URL(cms.browseUrl('https://api.example/api.php/provide/vod?token=abc', 3));
+  assert.equal(url.searchParams.get('ac'), 'videolist');
+  assert.equal(url.searchParams.get('pg'), '3');
+  assert.equal(url.searchParams.get('wd'), null);
+  assert.equal(url.searchParams.get('token'), 'abc');
+});
+
 test('parseSearchResponse：正常列表与字段缺失', () => {
   const result = cms.parseSearchResponse({
     code: 1,
