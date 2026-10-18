@@ -182,6 +182,7 @@ export function renderSources(route) {
           '<label class="field-label" for="source-url">API 地址</label>' +
           '<input class="input" id="source-url" name="url" type="text" inputmode="url" spellcheck="false" autocapitalize="off" placeholder="https://…/api.php/provide/vod" value="' + escapeHtml(editing ? editing.url : '') + '">' +
           '<p class="field-hint">只接受 http / https 的 Apple CMS JSON 接口；不抓取网页，不解析播放页。</p>' +
+          '<p class="field-hint">提示：局域网地址（192.168.x.x等）仅本地开发模式可用，线上环境请填写公网可访问的API地址</p>' +
         '</div>' +
         '<label class="checkbox-row">' +
           '<input type="checkbox" id="source-authorized" name="authorized">' +
