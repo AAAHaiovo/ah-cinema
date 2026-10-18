@@ -15,6 +15,46 @@ test('browseUrl：不带关键词并保留已有查询参数', () => {
   assert.equal(url.searchParams.get('token'), 'abc');
 });
 
+test('browseUrl：分类参数写入 t，非法 typeId 被忽略', () => {
+  const filtered = new URL(cms.browseUrl('https://api.example/api.php/provide/vod', 2, '4'));
+  assert.equal(filtered.searchParams.get('ac'), 'videolist');
+  assert.equal(filtered.searchParams.get('pg'), '2');
+  assert.equal(filtered.searchParams.get('t'), '4');
+
+  const plain = new URL(cms.browseUrl('https://api.example/api.php/provide/vod', 1, ''));
+  assert.equal(plain.searchParams.get('t'), null);
+});
+
+test('listUrl：请求 ac=list 并保留已有查询参数', () => {
+  const url = new URL(cms.listUrl('https://api.example/api.php/provide/vod?token=abc'));
+  assert.equal(url.searchParams.get('ac'), 'list');
+  assert.equal(url.searchParams.get('token'), 'abc');
+});
+
+test('parseClassList：过滤成人分类、去重并兼容对象形式', () => {
+  const result = cms.parseClassList({
+    class: [
+      { type_id: 1, type_name: '动画', type_pid: 0 },
+      { type_id: 1, type_name: '重复分类', type_pid: 0 },
+      { type_id: 2, type_name: '伦理片', type_pid: 0 },
+      { type_id: 3, type_name: '剧情', type_pid: 1 },
+      { type_id: '', type_name: '缺少 ID' }
+    ]
+  });
+
+  assert.deepEqual(result, [
+    { id: '1', name: '动画', parent: 0 },
+    { id: '3', name: '剧情', parent: 1 }
+  ]);
+
+  const keyed = cms.parseClassList({ class: { a: { type_id: '7', type_name: '纪录' } } });
+  assert.deepEqual(keyed, [{ id: '7', name: '纪录', parent: 0 }]);
+
+  assert.deepEqual(cms.parseClassList({}), []);
+  assert.throws(() => cms.parseClassList(null), /Apple CMS/);
+  assert.throws(() => cms.parseClassList([1]), /Apple CMS/);
+});
+
 test('parseSearchResponse：正常列表与字段缺失', () => {
   const result = cms.parseSearchResponse({
     code: 1,

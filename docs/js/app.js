@@ -85,7 +85,7 @@ import {
   searchableSources,
   recordSearchOutcome
 } from './sources.js';
-import { isConfigured, searchSources, browseSources } from './remote-api.js';
+import { isConfigured, searchSources, browseSources, fetchCategories } from './remote-api.js';
 import {
   loadRemoteLibrary,
   groupSearchResults,
@@ -638,6 +638,9 @@ function ensureRemoteForRoute(query) {
 
 /* ---------- 首页片库 ---------- */
 
+/* 与 server/handlers/browse.js 的 MAX_PAGE 保持一致。 */
+const BROWSE_MAX_PAGE = 20;
+
 let browseState = emptyBrowseState();
 let browseAbort = null;
 let browseRunId = 0;
@@ -651,11 +654,42 @@ function emptyBrowseState() {
     statuses: [],
     error: '',
     page: 1,
-    hasMore: false,
-    loadingMore: false,
+    pagecount: 1,
+    loading: false,
+    categories: [],
+    categoriesLoaded: false,
+    category: '',
     fetchingKey: '',
     failedKey: ''
   };
+}
+
+/*
+ * 把各源的分类合并成一份目录：
+ * [{ name: '动作', types: { 源id: 'type_id' }, count: 出现该分类的源数 }]
+ */
+function buildCategoryList(data) {
+  const byName = new Map();
+
+  (data.sources || []).forEach((entry) => {
+    if (!entry.ok || !Array.isArray(entry.classes)) return;
+    entry.classes.forEach((cls) => {
+      if (!cls || !cls.id || !cls.name) return;
+      let category = byName.get(cls.name);
+      if (!category) {
+        category = { name: cls.name, types: {}, count: 0 };
+        byName.set(cls.name, category);
+      }
+      if (!category.types[entry.sourceId]) {
+        category.types[entry.sourceId] = String(cls.id);
+        category.count += 1;
+      }
+    });
+  });
+
+  return Array.from(byName.values())
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh-Hans-CN'))
+    .slice(0, 16);
 }
 
 function browseSourceKey(sources) {
@@ -672,6 +706,20 @@ function abortBrowse() {
   if (browseAbort) browseAbort.abort();
   browseAbort = null;
   browseRunId += 1;
+}
+
+async function loadCategories(runId) {
+  const sources = searchableSources().ready;
+  if (!sources.length) return [];
+
+  try {
+    const data = await fetchCategories({ sources });
+    if (runId !== browseRunId) return [];
+    return buildCategoryList(data);
+  } catch (error) {
+    /* 分类失败不阻塞片库；用户仍可看「全部」。 */
+    return [];
+  }
 }
 
 function ensureBrowse() {
@@ -701,39 +749,69 @@ function ensureBrowse() {
   }
 
   const key = browseSourceKey(searchable.ready);
-  if (key === browseKey && (browseState.groups.length || browseState.status === 'loading')) {
+  if (
+    key === browseKey &&
+    browseState.categoriesLoaded &&
+    (browseState.groups.length || browseState.status === 'loading')
+  ) {
     renderBrowse();
     return;
   }
 
   browseKey = key;
+  abortBrowse();
+  const runId = ++browseRunId;
   browseState = emptyBrowseState();
   browseState.status = 'loading';
   renderBrowse();
-  loadBrowse(1, false).catch(() => {});
+
+  loadCategories(runId).then((categories) => {
+    if (runId !== browseRunId) return;
+    browseState.categories = categories;
+    browseState.categoriesLoaded = true;
+    loadBrowse(1, '').catch(() => {});
+  });
 }
 
-async function loadBrowse(page, append) {
-  const sources = searchableSources().ready;
-  if (!sources.length) {
+async function loadBrowse(page, categoryName) {
+  const ready = searchableSources().ready;
+  if (!ready.length) {
     browseState.status = 'cooling';
     renderBrowse();
     return;
   }
 
+  const category = String(categoryName || '');
+  const categoryEntry = browseState.categories.find((entry) => entry.name === category);
+  const sources = category
+    ? ready
+        .filter((source) => categoryEntry && categoryEntry.types[source.id])
+        .map((source) => Object.assign({}, source, { typeId: categoryEntry.types[source.id] }))
+    : ready;
+
   abortBrowse();
   const runId = ++browseRunId;
+
+  const categories = browseState.categories;
+  browseState = Object.assign(emptyBrowseState(), {
+    categories,
+    categoriesLoaded: true,
+    category,
+    status: 'loading',
+    page: Math.max(1, page)
+  });
+  renderBrowse();
+
+  if (!sources.length) {
+    browseState.status = 'empty';
+    browseState.page = 1;
+    browseState.pagecount = 1;
+    renderBrowse();
+    return;
+  }
+
   const controller = new AbortController();
   browseAbort = controller;
-
-  if (append) {
-    browseState.loadingMore = true;
-  } else {
-    browseState = emptyBrowseState();
-    browseState.status = 'loading';
-    browseState.page = 1;
-  }
-  renderBrowse();
 
   try {
     const data = await browseSources({ page, sources }, { signal: controller.signal });
@@ -741,6 +819,7 @@ async function loadBrowse(page, append) {
 
     const items = [];
     const statuses = [];
+    let pagecount = 1;
 
     data.sources.forEach((entry) => {
       statuses.push({
@@ -752,17 +831,16 @@ async function loadBrowse(page, append) {
         error: entry.ok ? '' : (entry.timedOut ? '超时' : (entry.error || '失败'))
       });
       if (entry.ok && Array.isArray(entry.items)) items.push(...entry.items);
+      if (entry.ok) pagecount = Math.max(pagecount, Number(entry.pagecount) || 1);
       recordSearchOutcome(entry.sourceId, Boolean(entry.ok)).catch(() => {});
     });
 
-    browseState.rawItems = append ? browseState.rawItems.concat(items) : items;
-    browseState.groups = groupSearchResults(browseState.rawItems, cachedSources());
+    browseState.rawItems = items;
+    browseState.groups = groupSearchResults(items, cachedSources());
     browseState.statuses = statuses;
-    browseState.page = Math.max(1, Number(data.page) || page);
-    browseState.hasMore = data.sources.some(
-      (entry) => entry.ok && Number(entry.pagecount) > browseState.page
-    );
-    browseState.loadingMore = false;
+    browseState.page = Math.min(BROWSE_MAX_PAGE, Math.max(1, Number(data.page) || page));
+    browseState.pagecount = Math.min(BROWSE_MAX_PAGE, pagecount);
+    browseState.loading = false;
 
     if (!browseState.groups.length) {
       const failed = statuses.filter((entry) => entry.state === 'error');
@@ -782,7 +860,7 @@ async function loadBrowse(page, append) {
     if (error && error.code === 'ABORTED') return;
     browseState.status = 'error';
     browseState.error = error && error.message ? error.message : '片库加载失败';
-    browseState.loadingMore = false;
+    browseState.loading = false;
     renderBrowse();
   } finally {
     if (runId === browseRunId) browseAbort = null;
@@ -791,13 +869,25 @@ async function loadBrowse(page, append) {
 
 function refreshBrowse() {
   browseKey = '';
+  abortBrowse();
   browseState = emptyBrowseState();
   ensureBrowse();
 }
 
-function loadMoreBrowse() {
-  if (browseState.loadingMore || !browseState.hasMore) return;
-  loadBrowse(browseState.page + 1, true).catch(() => {});
+function browsePrev() {
+  if (browseState.status === 'loading' || browseState.page <= 1) return;
+  loadBrowse(browseState.page - 1, browseState.category).catch(() => {});
+}
+
+function browseNext() {
+  if (browseState.status === 'loading' || browseState.page >= browseState.pagecount) return;
+  loadBrowse(browseState.page + 1, browseState.category).catch(() => {});
+}
+
+function selectBrowseCategory(name) {
+  const next = String(name || '');
+  if (next === browseState.category && browseState.status !== 'error') return;
+  loadBrowse(1, next).catch(() => {});
 }
 
 async function openBrowseGroup(key) {
@@ -1208,8 +1298,18 @@ async function onDocumentClick(event) {
     return;
   }
 
-  if (action === 'browse-more') {
-    loadMoreBrowse();
+  if (action === 'browse-prev') {
+    browsePrev();
+    return;
+  }
+
+  if (action === 'browse-next') {
+    browseNext();
+    return;
+  }
+
+  if (action === 'browse-category') {
+    selectBrowseCategory(actionElement.getAttribute('data-category') || '');
     return;
   }
 

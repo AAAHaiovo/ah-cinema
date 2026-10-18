@@ -34,21 +34,62 @@ function searchUrl(base, query, page) {
   return withParams(base, { ac: 'videolist', wd: String(query), pg: String(page) });
 }
 
-/* 不带关键词，Apple CMS 通常返回最新入库的影片列表。 */
-function browseUrl(base, page) {
-  return withParams(base, { ac: 'videolist', pg: String(page) });
+/* 不带关键词，Apple CMS 通常返回最新入库的影片列表；t 为分类 id。 */
+function browseUrl(base, page, typeId) {
+  const params = { ac: 'videolist', pg: String(page) };
+  if (typeId) params.t = String(typeId);
+  return withParams(base, params);
+}
+
+/* ac=list 返回分类（class）与最新列表，用于取分类目录。 */
+function listUrl(base) {
+  return withParams(base, { ac: 'list' });
 }
 
 function detailUrl(base, vodId) {
   return withParams(base, { ac: 'videolist', ids: String(vodId) });
 }
 
+function isAdultText(text) {
+  const value = String(text || '');
+  return config.adultKeywords.some((keyword) => value.includes(keyword));
+}
+
 function isAdultEntry(raw) {
   const fields = [raw.type_name, raw.vod_class, raw.vod_sub, raw.vod_area, raw.vod_lang]
     .filter(Boolean)
     .join(' ');
-  const text = String(fields);
-  return config.adultKeywords.some((keyword) => text.includes(keyword));
+  return isAdultText(fields);
+}
+
+/*
+ * 解析 ac=list 返回的 class 分类。
+ * 返回 [{ id, name, parent }]，丢弃成人分类与重复 id。
+ */
+function parseClassList(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new CmsError('CMS_INVALID', '上游返回的不是 Apple CMS JSON');
+  }
+
+  const raw = data.class;
+  const list = Array.isArray(raw) ? raw : (raw && typeof raw === 'object' ? Object.values(raw) : []);
+  const seen = new Set();
+  const classes = [];
+
+  list.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') return;
+    const id = entry.type_id === undefined || entry.type_id === null ? '' : String(entry.type_id).trim();
+    const name = cleanText(entry.type_name, 40);
+    if (!id || !name || seen.has(id) || isAdultText(name)) return;
+    seen.add(id);
+    classes.push({
+      id,
+      name,
+      parent: intOr(entry.type_pid, 0)
+    });
+  });
+
+  return classes;
 }
 
 function normalizeSearchItem(raw) {
@@ -272,8 +313,10 @@ module.exports = {
   CmsError,
   searchUrl,
   browseUrl,
+  listUrl,
   detailUrl,
   parseSearchResponse,
+  parseClassList,
   parsePlayLines,
   parsePlayFrom: parsePlayLines,
   isHlsUrl,

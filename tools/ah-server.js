@@ -13,6 +13,7 @@ const { sendJson } = require('../server/lib/http');
 const ROUTES = {
   '/api/health': require('../server/handlers/health'),
   '/api/browse': require('../server/handlers/browse'),
+  '/api/categories': require('../server/handlers/categories'),
   '/api/search': require('../server/handlers/search'),
   '/api/detail': require('../server/handlers/detail'),
   '/api/source-test': require('../server/handlers/source-test'),

@@ -129,6 +129,65 @@ async function main() {
       `Array.from(document.querySelectorAll('#home-browse .remote-card')).some((card) => /CC0 短片|更新至 2 集/.test(card.textContent))`
     ));
 
+    record(results, '首页显示分类标签', await waitFor(
+      'document.querySelectorAll("#home-browse .category-chip").length >= 3',
+      10000
+    ));
+    const categoryNames = await evaluate(
+      `JSON.stringify(Array.from(document.querySelectorAll('#home-browse .category-chip')).map((chip) => chip.textContent.trim()))`
+    );
+    record(results, '分类目录含动作', JSON.parse(categoryNames).includes('动作'), categoryNames);
+    record(results, '分类不含成人分类', !JSON.parse(categoryNames).includes('伦理片'), categoryNames);
+
+    record(results, '首页显示分页器', await waitFor(
+      'Boolean(document.querySelector("#home-browse .browse-pager"))',
+      10000
+    ));
+    const firstPage = await evaluate('document.querySelector("#home-browse .browse-page-status")?.textContent || ""');
+    record(results, '默认第 1 页', /第 1 \/ [2-9] 页/.test(firstPage), firstPage);
+
+    await evaluate('document.querySelector("#home-browse [data-action=browse-next]").click()');
+    record(results, '翻到第 2 页', await waitFor(
+      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 2 /')`,
+      10000
+    ));
+    const secondPageCards = await evaluate('document.querySelectorAll("#home-browse .remote-card").length');
+    record(results, '第 2 页有影片', secondPageCards > 0, String(secondPageCards));
+
+    await evaluate('document.querySelector("#home-browse [data-action=browse-prev]").click()');
+    record(results, '回到第 1 页', await waitFor(
+      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 1 /')`,
+      10000
+    ));
+
+    await evaluate(
+      `Array.from(document.querySelectorAll('#home-browse .category-chip')).find((chip) => chip.textContent.trim() === '动作').click()`
+    );
+    record(results, '动作分类首屏 4 部', await waitFor(
+      'document.querySelectorAll("#home-browse .remote-card").length === 4',
+      10000
+    ));
+    const actionPage = await evaluate('document.querySelector("#home-browse .browse-page-status")?.textContent || ""');
+    record(results, '动作分类回到第 1 页', actionPage.includes('第 1 / 2 页'), actionPage);
+
+    await evaluate('document.querySelector("#home-browse [data-action=browse-next]").click()');
+    record(results, '动作分类翻到第 2 页', await waitFor(
+      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 2 / 2 页')`,
+      10000
+    ));
+    const actionSecond = await evaluate(
+      `JSON.stringify(Array.from(document.querySelectorAll('#home-browse .remote-card')).map((card) => card.textContent))`
+    );
+    record(results, '动作分类第 2 页仍是动作片', JSON.parse(actionSecond).length === 4 && /动作测试/.test(actionSecond), actionSecond.slice(0, 120));
+
+    await evaluate(
+      `Array.from(document.querySelectorAll('#home-browse .category-chip')).find((chip) => chip.textContent.trim() === '全部').click()`
+    );
+    record(results, '切回全部恢复第 1 页', await waitFor(
+      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 1 /')`,
+      10000
+    ));
+
     await evaluate('document.querySelector("#home-browse .remote-card").click()');
     if (await waitFor('Boolean(document.querySelector(".sheet [data-value]"))', 3000)) {
       await evaluate('document.querySelector(".sheet [data-value]").click()');

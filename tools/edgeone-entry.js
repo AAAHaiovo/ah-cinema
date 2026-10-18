@@ -12,6 +12,7 @@ const { sendJson } = require('../server/lib/http');
 const ROUTES = {
   '/health': require('../server/handlers/health'),
   '/browse': require('../server/handlers/browse'),
+  '/categories': require('../server/handlers/categories'),
   '/search': require('../server/handlers/search'),
   '/detail': require('../server/handlers/detail'),
   '/source-test': require('../server/handlers/source-test'),

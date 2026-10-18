@@ -1,6 +1,6 @@
 # AH 影视
 
-个人自用的影视 PWA。前端是纯静态的原生 HTML / CSS / JavaScript，**不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。v0.5.0 起增加**可选的**源管理与多源点播搜索，需要一个自己的 Vercel / 腾讯云 EdgeOne Pages / SCF / 本地 Node 服务来转发源请求（浏览器跨域所限）。v0.6.0 起首页直接显示已启用源的最新影片；粘贴链接的入口移到「我的视频」。
+个人自用的影视 PWA。前端是纯静态的原生 HTML / CSS / JavaScript，**不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。v0.5.0 起增加**可选的**源管理与多源点播搜索，需要一个自己的 Vercel / 腾讯云 EdgeOne Pages / SCF / 本地 Node 服务来转发源请求（浏览器跨域所限）。v0.6.0 起首页直接显示已启用源的最新影片；v0.7.0 起支持按源分类筛选和上一页 / 下一页翻页；粘贴链接的入口移到「我的视频」。
 
 **线上地址**：<https://aaahaiovo.github.io/ah-cinema/>（纯静态备用入口；iPhone 用 Safari 打开 → 分享 → 添加到主屏幕）
 
@@ -10,9 +10,11 @@
 
 ## 现在能做什么
 
-### 首页片库（v0.6.0）
+### 首页片库（v0.6.0，v0.7.0 增加分类与翻页）
 
-配置好源之后，首页「最新影片」会自动拉取所有已启用源的最新入库列表，以海报墙显示；两个源里的同一部影片会合并成一张卡片。底部「加载更多」按页继续拉取（最多 20 页），右上「刷新」重新加载；某个源失败时只显示失败提示，不影响其他源。没配置源时，首页会提示去「我的 → 源管理」添加。
+配置好源之后，首页「最新影片」会自动拉取所有已启用源的最新入库列表，以海报墙显示；两个源里的同一部影片会合并成一张卡片。
+
+片库顶部是按 `ac=list` 汇总的分类标签（最多 16 个，按覆盖源数排序）；点一个分类就只显示该分类的影片，点「全部」恢复。不同源对同一分类的 `type_id` 可能不同，App 会按「分类名 → 各源 type_id」映射后分别带 `t` 参数请求。底部是「上一页 / 下一页」分页器，显示当前页和总页数。右上「刷新」重新加载；某个源失败时只显示失败提示，不影响其他源。没配置源时，首页会提示去「我的 → 源管理」添加。
 
 ### 粘贴链接直接播放
 
@@ -31,12 +33,13 @@
 - 无效地址（不是 `http://` / `https://`）会直接提示，不添加任何内容。
 - `http://` 直链在 GitHub Pages 这类 HTTPS 页面里可能被浏览器当作混合内容拦截，优先用 `https://`。
 
-### 源管理、首页片库与多源搜索（v0.5.0 起，v0.6.0 增加首页片库）
+### 源管理、首页片库与多源搜索（v0.5.0 起，v0.7.0 增加分类与翻页）
 
 这是按 LibreTV 的使用方式做的能力，但**不带任何内置源**：
 
 - **源管理**：在「我的 → 源管理」里添加你自己的 Apple CMS JSON 接口（`ac=videolist`）。添加时必须勾选授权确认；重复地址会被拒绝；可以启用 / 停用 / 测活 / 编辑 / 删除。表单会提示：局域网地址（`192.168.x.x` 等）仅本地开发模式可用，线上请填公网可访问的 API 地址。
-- **首页片库**：已启用的源按 `ac=videolist&pg=N` 拉取最新影片，合并同名片目，支持刷新和分页加载。
+- **首页片库**：已启用的源按 `ac=videolist&pg=N` 拉取最新影片，合并同名片目，支持刷新、分类筛选和上一页 / 下一页。
+- **分类目录**：服务端并行请求各源的 `?ac=list`，读取 `class` 数组，过滤明显成人分类后按名称合并；客户端再把选中的分类映射成各源的 `t=type_id`。单个源的分类请求失败只影响该源。
 - **订阅**：支持 LibreTV-SourceList、裸数组、TVBox 的 JSON CMS 站点列表；不导入直播源。同步失败不会删除已有源。
 - **服务连接**：GitHub Pages 版需要填写你的 Vercel 服务地址和访问口令；Vercel / 本地同源部署留空即可。口令只保存在这台浏览器。
 - **多源搜索**：在搜索页按回车或点最近搜索，最多同时请求 8 个已启用的源；结果按「标题 + 年份」合并，显示每个源的成功 / 超时状态。一个源失败不影响其他源。
@@ -47,7 +50,7 @@
 
 ### 所有功能
 
-- 首页：源片库「最新影片」海报墙（刷新、加载更多、多源合并）、继续观看、我的视频入口
+- 首页：源片库「最新影片」海报墙（刷新、分类筛选、上一页 / 下一页、多源合并）、继续观看、我的视频入口
 - 我的视频：粘贴链接 / 选择本机视频；列表、删除（同时清理进度和收藏）
 - 搜索：本地链接 / 本机文件即时搜索 + 网络源搜索（回车触发，最多 8 个源），结果按片名分组
 - 源管理：添加 / 编辑 / 测活 / 启停 / 删除你自己的授权源，JSON 订阅同步，导入导出
@@ -267,7 +270,7 @@ GitHub Pages 免费版需要 **public（公开）仓库**。代码会公开；�
 ```bash
 git init
 git add .
-git commit -m "AH 影视 v0.6.0"
+git commit -m "AH 影视 v0.7.0"
 git branch -M main
 git remote add origin https://github.com/<你的用户名>/ah-cinema.git
 git push -u origin main
@@ -287,7 +290,7 @@ https://<你的用户名>.github.io/ah-cinema/
 
 App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也能正常工作；`docs/.nojekyll` 已放好，GitHub Pages 不会用 Jekyll 处理这些文件。
 
-> **更新后还是旧版本？** Service Worker 会缓存应用壳。新版本部署后，iPhone 上先从主屏幕完全退出 App，再用 Safari 打开线上地址刷新一次；Windows 上按 `Ctrl + Shift + R`。缓存版本变化（`ah-cinema-v8`）后会自动清理旧缓存。
+> **更新后还是旧版本？** Service Worker 会缓存应用壳。新版本部署后，iPhone 上先从主屏幕完全退出 App，再用 Safari 打开线上地址刷新一次；Windows 上按 `Ctrl + Shift + R`。缓存版本变化（`ah-cinema-v9`）后会自动清理旧缓存。
 
 ---
 
@@ -327,7 +330,7 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 ├─ docs/                    # App 本体；GitHub Pages / Vercel / EdgeOne 静态输出都指向这里
 │  ├─ index.html
 │  ├─ manifest.webmanifest
-│  ├─ sw.js                 # Service Worker（缓存版本 ah-cinema-v8）
+│  ├─ sw.js                 # Service Worker（缓存版本 ah-cinema-v9）
 │  ├─ css/                  # tokens.css / app.css / player.css
 │  ├─ js/                   # app / router / store / catalog / views / player / ui / db
 │  │                        # local-library / sources / sources-view / sources-controller
@@ -337,7 +340,7 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 │  ├─ assets/               # AH 标识
 │  └─ icons/                # 红白 PWA 图标（192 / 512 / 独立 maskable / Apple 180）
 ├─ api/                     # Vercel Serverless Functions（health / search / detail /
-│  │                        # browse / source-test / subscription / proxy）
+│  │                        # browse / categories / source-test / subscription / proxy）
 ├─ server/                  # API 实现与单测（lib / handlers / tests）
 ├─ cloud-functions/         # EdgeOne Pages 云函数
 │  └─ api/[[default]].js    # 由 npm run build:edgeone 生成，勿手改
@@ -396,16 +399,18 @@ node tools/cdp-run.js
 - 粘贴 B 站视频页，官方嵌入式 iframe 地址与尺寸
 - 无效链接拒绝、网页链接需确认且取消后不添加
 - 分页（27 条 / 每页 24 条）与跳页校验
-- Service Worker、缓存版本 `ah-cinema-v8`、manifest 图标
+- Service Worker、缓存版本 `ah-cinema-v9`、manifest 图标
 - 断网重载仍能打开应用壳
 - 本机文件：写入 IndexedDB 的 blob、刷新后恢复、删除后清空
 - 手机横屏与桌面布局
 - 源管理空状态、添加两个 mock 源、测活结果
 - 首页片库：显示源影片、无粘贴框、卡片数量、备注、点击进入详情
+- 分类与翻页：分类标签加载、成人分类过滤、默认第 1 页、下一页 / 上一页、动作分类两页、切回全部
+- 服务端单测：`browseUrl` 的 `t` 参数、`listUrl`、`parseClassList` 的过滤与去重
 - 多源搜索：按「标题 + 年份」合并为一组、显示来源数量
 - 选源 → 远程详情 → 刷新片源入口 → 播放 → 拿到签名代理地址
 
-当前结果：界面回归 **15/15 通过**，源管理与多源搜索 **28/28 通过**（版本 v0.6.0，Service Worker `ah-cinema-v8`），无未捕获异常、无控制台错误。服务端单测另跑：
+当前结果：界面回归 **15/15 通过**，源管理与多源搜索 **41/41 通过**（版本 v0.7.0，Service Worker `ah-cinema-v9`），无未捕获异常、无控制台错误。服务端单测另跑：
 
 ```bash
 npm test        # 45/45，含 CORS、代理、SCF 适配与片库 URL 用例

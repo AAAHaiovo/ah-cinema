@@ -50,6 +50,37 @@ function normalizeSource(raw, allowPrivate) {
   };
 }
 
+/*
+ * 校验并去重请求里的源列表。
+ * raw.typeId 可选，用于按分类筛选（Apple CMS 的 t 参数）。
+ */
+function normalizeSourceList(rawList, allowPrivate, options = {}) {
+  const max = Number(options.max) || config.maxSources;
+  if (!Array.isArray(rawList) || rawList.length === 0) {
+    throw new ApiError(400, 'SOURCES_REQUIRED', '请先添加并启用至少一个源');
+  }
+  if (rawList.length > max) {
+    throw new ApiError(400, 'TOO_MANY_SOURCES', '一次最多使用 ' + max + ' 个源');
+  }
+
+  const seen = new Set();
+  const sources = [];
+  rawList.forEach((raw) => {
+    const source = normalizeSource(raw, allowPrivate);
+    if (seen.has(source.url)) return;
+    seen.add(source.url);
+
+    const typeId = raw && typeof raw === 'object' ? String(raw.typeId || '').trim() : '';
+    if (/^\d{1,10}$/.test(typeId)) source.typeId = typeId;
+    sources.push(source);
+  });
+
+  if (!sources.length) {
+    throw new ApiError(400, 'SOURCES_REQUIRED', '请先添加并启用至少一个源');
+  }
+  return sources;
+}
+
 function parseCmsJson(text) {
   try {
     return JSON.parse(String(text || '').replace(/^﻿/, ''));
@@ -102,6 +133,7 @@ function upstreamErrorMessage(error, timedOut) {
 module.exports = {
   allowPrivateFor,
   normalizeSource,
+  normalizeSourceList,
   parseCmsJson,
   ensureUpstreamOk,
   upstreamErrorMessage

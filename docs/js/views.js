@@ -54,7 +54,7 @@ import {
 import { localItems, localCount } from './local-library.js';
 import { cachedSources } from './sources.js';
 
-const APP_VERSION = '0.6.0';
+const APP_VERSION = '0.7.0';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -79,10 +79,42 @@ function thumbMedia(item) {
   return posterPlaceholder(item) + (src ? '<img src="' + escapeHtml(src) + '" alt="" loading="lazy" decoding="async">' : '');
 }
 
+function browseCategoryChip(name, active) {
+  return '<button class="category-chip' + (active ? ' is-active' : '') + '" type="button" data-action="browse-category" data-category="' + escapeHtml(name) + '">' +
+    escapeHtml(name || '全部') + '</button>';
+}
+
+function browseCategoryBar(view) {
+  const categories = Array.isArray(view.categories) ? view.categories : [];
+  if (!categories.length) return '';
+  const selected = String(view.category || '');
+
+  return '<div class="browse-categories" aria-label="影片分类">' +
+    browseCategoryChip('', selected === '') +
+    categories.map((entry) => browseCategoryChip(entry.name, entry.name === selected)).join('') +
+    '</div>';
+}
+
+function browsePager(view) {
+  const page = Math.max(1, Number(view.page) || 1);
+  const pagecount = Math.max(1, Number(view.pagecount) || 1);
+  if (pagecount <= 1) return '';
+
+  const busy = view.status === 'loading' || view.loading;
+  return '<div class="browse-pager">' +
+    '<button class="btn btn-secondary btn-small" type="button" data-action="browse-prev"' +
+      (busy || page <= 1 ? ' disabled' : '') + '>上一页</button>' +
+    '<span class="browse-page-status">第 ' + page + ' / ' + pagecount + ' 页</span>' +
+    '<button class="btn btn-secondary btn-small" type="button" data-action="browse-next"' +
+      (busy || page >= pagecount ? ' disabled' : '') + '>下一页</button>' +
+    '</div>';
+}
+
 export function renderHomeBrowse(browse) {
   const view = browse || {};
   const groups = Array.isArray(view.groups) ? view.groups : [];
   const status = view.status || 'idle';
+  const bar = browseCategoryBar(view);
 
   if (status === 'unconfigured') {
     return '<div class="remote-notice">' +
@@ -110,7 +142,7 @@ export function renderHomeBrowse(browse) {
   }
 
   if (status === 'error') {
-    return '<div class="remote-notice remote-error">' +
+    return bar + '<div class="remote-notice remote-error">' +
       '<strong>片库加载失败</strong>' +
       '<p>' + escapeHtml(view.error || '请稍后重试。') + '</p>' +
       '<div class="form-actions"><button class="btn btn-secondary btn-small" type="button" data-action="browse-refresh">重试</button>' +
@@ -120,9 +152,12 @@ export function renderHomeBrowse(browse) {
 
   if (!groups.length) {
     if (status === 'loading' || status === 'idle') {
-      return '<div class="remote-loading"><span class="loading-spinner" aria-hidden="true"></span>正在从源里加载影片…</div>';
+      return bar + '<div class="remote-loading"><span class="loading-spinner" aria-hidden="true"></span>正在从源里加载影片…</div>';
     }
-    return '<div class="remote-empty">这些源暂时没有返回影片。</div>';
+    const emptyText = view.category
+      ? '「' + escapeHtml(view.category) + '」分类下暂时没有影片。'
+      : '这些源暂时没有返回影片。';
+    return bar + '<div class="remote-empty">' + emptyText + '</div>' + browsePager(view);
   }
 
   const failed = (Array.isArray(view.statuses) ? view.statuses : [])
@@ -131,14 +166,9 @@ export function renderHomeBrowse(browse) {
     ? '<div class="remote-status">' + failed.map(remoteStatusChip).join('') + '</div>'
     : '';
 
-  return chips +
+  return bar + chips +
     '<div class="remote-grid">' + groups.map((group) => remoteCard(group, view, 'browse-open')).join('') + '</div>' +
-    (view.loadingMore
-      ? '<div class="remote-loading"><span class="loading-spinner" aria-hidden="true"></span>正在加载更多…</div>'
-      : '') +
-    (view.hasMore && !view.loadingMore
-      ? '<div class="browse-more-wrap"><button class="btn btn-secondary btn-small" type="button" data-action="browse-more">加载更多</button></div>'
-      : '');
+    browsePager(view);
 }
 
 export function renderHome(route) {

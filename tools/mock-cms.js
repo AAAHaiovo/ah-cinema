@@ -51,16 +51,22 @@ function expandItem(item, origin) {
   });
 }
 
-function searchPayload(sourceKey, query, page, origin) {
+function searchPayload(sourceKey, query, page, typeId, origin) {
   const source = data.sources[sourceKey];
   if (!source) return { code: 0, msg: 'unknown source', list: null };
 
   const text = String(query || '').trim().toLowerCase();
-  const matches = source.items.filter((item) => !text || String(item.vod_name).toLowerCase().includes(text));
-  const limit = 20;
+  const type = String(typeId || '').trim();
+  const matches = source.items.filter((item) => {
+    if (type && String(item.type_id) !== type) return false;
+    return !text || String(item.vod_name).toLowerCase().includes(text);
+  });
+  /* 故意把每页压到 4 条，方便测试翻页。 */
+  const limit = 4;
   const total = matches.length;
   const pagecount = Math.max(1, Math.ceil(total / limit));
-  const safePage = Math.min(Math.max(1, Number(page) || 1), pagecount);
+  /* 超出末页时返回空列表，和真实 CMS 一致，避免把上一页内容重复一遍。 */
+  const safePage = Math.max(1, Number(page) || 1);
   const slice = matches.slice((safePage - 1) * limit, safePage * limit);
 
   return {
@@ -71,6 +77,17 @@ function searchPayload(sourceKey, query, page, origin) {
     limit: String(limit),
     total,
     list: slice.map((item) => expandItem(item, origin))
+  };
+}
+
+function listPayload(sourceKey) {
+  const source = data.sources[sourceKey];
+  if (!source) return { code: 0, msg: 'unknown source', class: null };
+
+  return {
+    code: 1,
+    msg: '数据列表',
+    class: Array.isArray(source.classes) ? source.classes : []
   };
 }
 
@@ -179,7 +196,11 @@ const server = http.createServer((req, res) => {
   if (pathname === '/api.php/provide/vod' || pathname === '/api2.php/provide/vod') {
     const sourceKey = pathname.slice(1);
     const ac = url.searchParams.get('ac');
-    if (ac !== 'videolist') {
+    if (ac === 'list') {
+      sendJson(res, 200, listPayload(sourceKey));
+      return;
+    }
+    if (ac !== 'videolist' && ac !== 'detail') {
       sendJson(res, 200, { code: 0, msg: 'unsupported ac', list: null });
       return;
     }
@@ -187,7 +208,13 @@ const server = http.createServer((req, res) => {
       sendJson(res, 200, detailPayload(sourceKey, url.searchParams.get('ids'), origin));
       return;
     }
-    sendJson(res, 200, searchPayload(sourceKey, url.searchParams.get('wd'), url.searchParams.get('pg'), origin));
+    sendJson(res, 200, searchPayload(
+      sourceKey,
+      url.searchParams.get('wd'),
+      url.searchParams.get('pg'),
+      url.searchParams.get('t'),
+      origin
+    ));
     return;
   }
 

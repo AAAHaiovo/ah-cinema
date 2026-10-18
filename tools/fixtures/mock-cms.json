@@ -3,11 +3,19 @@
   "sources": {
     "api.php/provide/vod": {
       "name": "Mock 甲",
+      "classes": [
+        { "type_id": 1, "type_name": "动画", "type_pid": 0 },
+        { "type_id": 2, "type_name": "剧情", "type_pid": 0 },
+        { "type_id": 3, "type_name": "纪录", "type_pid": 0 },
+        { "type_id": 4, "type_name": "动作", "type_pid": 0 },
+        { "type_id": 9, "type_name": "伦理片", "type_pid": 0 }
+      ],
       "items": [
         {
           "vod_id": 101,
           "vod_name": "Big Buck Bunny",
           "vod_year": "2008",
+          "type_id": 1,
           "type_name": "动画",
           "vod_area": "美国",
           "vod_lang": "英语",
@@ -21,6 +29,7 @@
           "vod_id": 102,
           "vod_name": "示例剧集",
           "vod_year": "2024",
+          "type_id": 2,
           "type_name": "剧情",
           "vod_area": "中国",
           "vod_remarks": "更新至 2 集",
@@ -33,20 +42,122 @@
           "vod_id": 103,
           "vod_name": "不应出现的条目",
           "vod_year": "2024",
+          "type_id": 9,
           "type_name": "伦理片",
           "vod_area": "未知",
           "vod_play_from": "线路一",
+          "vod_play_url": "正片$/media/flower.mp4"
+        },
+        {
+          "vod_id": 104,
+          "vod_name": "动作测试 1",
+          "vod_year": "2022",
+          "type_id": 4,
+          "type_name": "动作片",
+          "vod_area": "中国",
+          "vod_remarks": "动作测试 1",
+          "vod_pic": "/poster/action-1.svg",
+          "vod_play_from": "直连",
+          "vod_play_url": "正片$/media/flower.mp4"
+        },
+        {
+          "vod_id": 105,
+          "vod_name": "动作测试 2",
+          "vod_year": "2022",
+          "type_id": 4,
+          "type_name": "动作片",
+          "vod_area": "中国",
+          "vod_remarks": "动作测试 2",
+          "vod_pic": "/poster/action-2.svg",
+          "vod_play_from": "直连",
+          "vod_play_url": "正片$/media/flower.mp4"
+        },
+        {
+          "vod_id": 106,
+          "vod_name": "动作测试 3",
+          "vod_year": "2022",
+          "type_id": 4,
+          "type_name": "动作片",
+          "vod_area": "中国",
+          "vod_remarks": "动作测试 3",
+          "vod_pic": "/poster/action-3.svg",
+          "vod_play_from": "直连",
+          "vod_play_url": "正片$/media/flower.mp4"
+        },
+        {
+          "vod_id": 107,
+          "vod_name": "动作测试 4",
+          "vod_year": "2022",
+          "type_id": 4,
+          "type_name": "动作片",
+          "vod_area": "中国",
+          "vod_remarks": "动作测试 4",
+          "vod_pic": "/poster/action-4.svg",
+          "vod_play_from": "直连",
+          "vod_play_url": "正片$/media/flower.mp4"
+        },
+        {
+          "vod_id": 108,
+          "vod_name": "动作测试 5",
+          "vod_year": "2022",
+          "type_id": 4,
+          "type_name": "动作片",
+          "vod_area": "中国",
+          "vod_remarks": "动作测试 5",
+          "vod_pic": "/poster/action-5.svg",
+          "vod_play_from": "直连",
+          "vod_play_url": "正片$/media/flower.mp4"
+        },
+        {
+          "vod_id": 109,
+          "vod_name": "动作测试 6",
+          "vod_year": "2022",
+          "type_id": 4,
+          "type_name": "动作片",
+          "vod_area": "中国",
+          "vod_remarks": "动作测试 6",
+          "vod_pic": "/poster/action-6.svg",
+          "vod_play_from": "直连",
+          "vod_play_url": "正片$/media/flower.mp4"
+        },
+        {
+          "vod_id": 110,
+          "vod_name": "动作测试 7",
+          "vod_year": "2022",
+          "type_id": 4,
+          "type_name": "动作片",
+          "vod_area": "中国",
+          "vod_remarks": "动作测试 7",
+          "vod_pic": "/poster/action-7.svg",
+          "vod_play_from": "直连",
+          "vod_play_url": "正片$/media/flower.mp4"
+        },
+        {
+          "vod_id": 111,
+          "vod_name": "动作测试 8",
+          "vod_year": "2022",
+          "type_id": 4,
+          "type_name": "动作片",
+          "vod_area": "中国",
+          "vod_remarks": "动作测试 8",
+          "vod_pic": "/poster/action-8.svg",
+          "vod_play_from": "直连",
           "vod_play_url": "正片$/media/flower.mp4"
         }
       ]
     },
     "api2.php/provide/vod": {
       "name": "Mock 乙",
+      "classes": [
+        { "type_id": 1, "type_name": "动画", "type_pid": 0 },
+        { "type_id": 3, "type_name": "纪录", "type_pid": 0 }
+      ],
       "items": [
         {
           "vod_id": 201,
           "vod_name": "Big Buck Bunny",
           "vod_year": "2008",
+          "type_id": 1,
           "type_name": "动画",
           "vod_area": "美国",
           "vod_remarks": "双线路",
@@ -59,6 +170,7 @@
           "vod_id": 202,
           "vod_name": "另一部测试片",
           "vod_year": "2023",
+          "type_id": 3,
           "type_name": "纪录",
           "vod_area": "中国",
           "vod_remarks": "单集",

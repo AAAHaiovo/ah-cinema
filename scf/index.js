@@ -193,7 +193,7 @@ var require_config = __commonJS({
       mode: MODE,
       isProduction: IS_PRODUCTION,
       isVercel: IS_VERCEL,
-      version: "0.6.0",
+      version: "0.7.0",
       apiVersion: 1,
       apiToken,
       signingSecret: signingSecret || devSigningSecret,
@@ -205,7 +205,7 @@ var require_config = __commonJS({
       missingEnv,
       configured: missingEnv.length === 0,
       allowedOrigins,
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AH-Cinema/0.6.0",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AH-Cinema/0.7.0",
       maxSources: 8,
       searchMaxPages: intEnv("AH_SEARCH_MAX_PAGES", 2, 1, 5),
       searchSourceTimeoutMs: 5e3,
@@ -882,16 +882,46 @@ var require_cms = __commonJS({
     function searchUrl(base, query, page) {
       return withParams(base, { ac: "videolist", wd: String(query), pg: String(page) });
     }
-    function browseUrl(base, page) {
-      return withParams(base, { ac: "videolist", pg: String(page) });
+    function browseUrl(base, page, typeId) {
+      const params = { ac: "videolist", pg: String(page) };
+      if (typeId) params.t = String(typeId);
+      return withParams(base, params);
+    }
+    function listUrl(base) {
+      return withParams(base, { ac: "list" });
     }
     function detailUrl(base, vodId) {
       return withParams(base, { ac: "videolist", ids: String(vodId) });
     }
+    function isAdultText(text) {
+      const value = String(text || "");
+      return config.adultKeywords.some((keyword) => value.includes(keyword));
+    }
     function isAdultEntry(raw) {
       const fields = [raw.type_name, raw.vod_class, raw.vod_sub, raw.vod_area, raw.vod_lang].filter(Boolean).join(" ");
-      const text = String(fields);
-      return config.adultKeywords.some((keyword) => text.includes(keyword));
+      return isAdultText(fields);
+    }
+    function parseClassList(data) {
+      if (!data || typeof data !== "object" || Array.isArray(data)) {
+        throw new CmsError("CMS_INVALID", "\u4E0A\u6E38\u8FD4\u56DE\u7684\u4E0D\u662F Apple CMS JSON");
+      }
+      const raw = data.class;
+      const list = Array.isArray(raw) ? raw : raw && typeof raw === "object" ? Object.values(raw) : [];
+      const seen = /* @__PURE__ */ new Set();
+      const classes = [];
+      list.forEach((entry) => {
+        if (!entry || typeof entry !== "object") return;
+        const id = entry.type_id === void 0 || entry.type_id === null ? "" : String(entry.type_id).trim();
+        const name = cleanText(entry.type_name, 40);
+        if (!id || !name || seen.has(id) || isAdultText(name)) return;
+        seen.add(id);
+        classes.push({
+          id,
+          name,
+          parent: intOr(entry.type_pid, 0)
+        });
+      });
+      return classes;
     }
     function normalizeSearchItem(raw) {
       if (!raw || typeof raw !== "object") return null;
@@ -1059,8 +1089,10 @@ var require_cms = __commonJS({
       CmsError,
       searchUrl,
       browseUrl,
+      listUrl,
       detailUrl,
       parseSearchResponse,
+      parseClassList,
       parsePlayLines,
       parsePlayFrom: parsePlayLines,
       isHlsUrl,
@@ -1346,6 +1378,29 @@ var require_common = __commonJS({
         url: normalizedUrl
       };
     }
+    function normalizeSourceList(rawList, allowPrivate, options = {}) {
+      const max = Number(options.max) || config.maxSources;
+      if (!Array.isArray(rawList) || rawList.length === 0) {
+        throw new ApiError(400, "SOURCES_REQUIRED", "\u8BF7\u5148\u6DFB\u52A0\u5E76\u542F\u7528\u81F3\u5C11\u4E00\u4E2A\u6E90");
+      }
+      if (rawList.length > max) {
+        throw new ApiError(400, "TOO_MANY_SOURCES", "\u4E00\u6B21\u6700\u591A\u4F7F\u7528 " + max + " \u4E2A\u6E90");
+      }
+      const seen = /* @__PURE__ */ new Set();
+      const sources = [];
+      rawList.forEach((raw) => {
+        const source = normalizeSource(raw, allowPrivate);
+        if (seen.has(source.url)) return;
+        seen.add(source.url);
+        const typeId = raw && typeof raw === "object" ? String(raw.typeId || "").trim() : "";
+        if (/^\d{1,10}$/.test(typeId)) source.typeId = typeId;
+        sources.push(source);
+      });
+      if (!sources.length) {
+        throw new ApiError(400, "SOURCES_REQUIRED", "\u8BF7\u5148\u6DFB\u52A0\u5E76\u542F\u7528\u81F3\u5C11\u4E00\u4E2A\u6E90");
+      }
+      return sources;
+    }
     function parseCmsJson(text) {
       try {
         return JSON.parse(String(text || "").replace(/^﻿/, ""));
@@ -1394,6 +1449,7 @@ var require_common = __commonJS({
     module2.exports = {
       allowPrivateFor,
       normalizeSource,
+      normalizeSourceList,
       parseCmsJson,
       ensureUpstreamOk,
       upstreamErrorMessage
@@ -1408,39 +1464,19 @@ var require_browse = __commonJS({
     var config = require_config();
     var cms = require_cms();
     var { createRoute } = require_route();
-    var { readJson, sendJson: sendJson2, ApiError } = require_http();
+    var { readJson, sendJson: sendJson2 } = require_http();
     var { fetchText } = require_safe_fetch();
     var {
       allowPrivateFor,
-      normalizeSource,
+      normalizeSourceList,
       parseCmsJson,
       ensureUpstreamOk,
       upstreamErrorMessage
     } = require_common();
     var MAX_PAGE = 20;
-    function normalizeSources(rawList, allowPrivate) {
-      if (!Array.isArray(rawList) || rawList.length === 0) {
-        throw new ApiError(400, "SOURCES_REQUIRED", "\u8BF7\u5148\u6DFB\u52A0\u5E76\u542F\u7528\u81F3\u5C11\u4E00\u4E2A\u6E90");
-      }
-      if (rawList.length > config.maxSources) {
-        throw new ApiError(400, "TOO_MANY_SOURCES", "\u4E00\u6B21\u6700\u591A\u4F7F\u7528 " + config.maxSources + " \u4E2A\u6E90");
-      }
-      const seen = /* @__PURE__ */ new Set();
-      const sources = [];
-      rawList.forEach((raw) => {
-        const source = normalizeSource(raw, allowPrivate);
-        if (seen.has(source.url)) return;
-        seen.add(source.url);
-        sources.push(source);
-      });
-      if (!sources.length) {
-        throw new ApiError(400, "SOURCES_REQUIRED", "\u8BF7\u5148\u6DFB\u52A0\u5E76\u542F\u7528\u81F3\u5C11\u4E00\u4E2A\u6E90");
-      }
-      return sources;
-    }
     async function browseOne(source, page, { allowPrivate, signal }) {
       const startedAt = Date.now();
-      const response = await fetchText(cms.browseUrl(source.url, page), {
+      const response = await fetchText(cms.browseUrl(source.url, page, source.typeId), {
         timeoutMs: config.searchSourceTimeoutMs,
         maxBytes: config.jsonMaxBytes,
         allowPrivate,
@@ -1461,7 +1497,7 @@ var require_browse = __commonJS({
         const body = await readJson(req, config.bodyMaxBytes);
         const page = Math.min(Math.max(1, Number.parseInt(body.page, 10) || 1), MAX_PAGE);
         const allowPrivate = allowPrivateFor(req);
-        const sources = normalizeSources(body.sources, allowPrivate);
+        const sources = normalizeSourceList(body.sources, allowPrivate);
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), config.searchTotalTimeoutMs);
         const onClientGone = () => {
@@ -1505,6 +1541,88 @@ var require_browse = __commonJS({
           );
           const total = results.reduce((sum, result) => sum + result.items.length, 0);
           sendJson2(res, 200, { ok: true, page, total, sources: results });
+        } finally {
+          clearTimeout(timer);
+          res.removeListener("close", onClientGone);
+        }
+      },
+      { auth: true, rateKey: "search", methods: ["POST", "OPTIONS"] }
+    );
+  }
+});
+
+// server/handlers/categories.js
+var require_categories = __commonJS({
+  "server/handlers/categories.js"(exports2, module2) {
+    "use strict";
+    var config = require_config();
+    var cms = require_cms();
+    var { createRoute } = require_route();
+    var { readJson, sendJson: sendJson2 } = require_http();
+    var { fetchText } = require_safe_fetch();
+    var {
+      allowPrivateFor,
+      normalizeSourceList,
+      parseCmsJson,
+      ensureUpstreamOk,
+      upstreamErrorMessage
+    } = require_common();
+    async function classesOne(source, { allowPrivate, signal }) {
+      const startedAt = Date.now();
+      const response = await fetchText(cms.listUrl(source.url), {
+        timeoutMs: config.searchSourceTimeoutMs,
+        maxBytes: config.jsonMaxBytes,
+        allowPrivate,
+        signal
+      });
+      ensureUpstreamOk(response);
+      const classes = cms.parseClassList(parseCmsJson(response.text));
+      return { classes, ms: Date.now() - startedAt };
+    }
+    module2.exports = createRoute(
+      async (req, res) => {
+        const body = await readJson(req, config.bodyMaxBytes);
+        const allowPrivate = allowPrivateFor(req);
+        const sources = normalizeSourceList(body.sources, allowPrivate);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), config.searchTotalTimeoutMs);
+        const onClientGone = () => {
+          if (!res.writableEnded) controller.abort();
+        };
+        res.on("close", onClientGone);
+        try {
+          const results = await Promise.all(
+            sources.map(async (source) => {
+              const startedAt = Date.now();
+              try {
+                const result = await classesOne(source, {
+                  allowPrivate,
+                  signal: controller.signal
+                });
+                return {
+                  sourceId: source.id,
+                  sourceName: source.name,
+                  ok: true,
+                  ms: result.ms,
+                  count: result.classes.length,
+                  classes: result.classes
+                };
+              } catch (error) {
+                return {
+                  sourceId: source.id,
+                  sourceName: source.name,
+                  ok: false,
+                  ms: Date.now() - startedAt,
+                  count: 0,
+                  classes: [],
+                  timedOut: controller.signal.aborted,
+                  error: upstreamErrorMessage(error, controller.signal.aborted)
+                };
+              }
+            })
+          );
+          const total = results.reduce((sum, result) => sum + result.classes.length, 0);
+          sendJson2(res, 200, { ok: true, total, sources: results });
         } finally {
           clearTimeout(timer);
           res.removeListener("close", onClientGone);
@@ -2213,6 +2331,7 @@ var { sendJson } = require_http();
 var ROUTES = {
   "/health": require_health(),
   "/browse": require_browse(),
+  "/categories": require_categories(),
   "/search": require_search(),
   "/detail": require_detail(),
   "/source-test": require_source_test(),

@@ -258,11 +258,14 @@ export async function checkHealth(options = {}) {
 }
 
 function normalizeSourceParam(source) {
-  return {
+  const param = {
     id: String(source.id || ''),
     name: String(source.name || '').slice(0, 60),
     url: String(source.url || '')
   };
+  const typeId = String(source.typeId || '').trim();
+  if (/^\d{1,10}$/.test(typeId)) param.typeId = typeId;
+  return param;
 }
 
 export async function searchSources(payload, options = {}) {
@@ -361,6 +364,31 @@ export async function browseSources(payload, options = {}) {
     timeoutMs: Number(options.timeoutMs) || 15000,
     signal: options.signal,
     timeoutMessage: '加载片库超时'
+  });
+
+  if (!data || data.ok !== true || !Array.isArray(data.sources)) {
+    throw new RemoteError('服务返回了无法识别的数据', { code: 'BAD_RESPONSE' });
+  }
+
+  return data;
+}
+
+/* 首页分类：请求每个源的 ?ac=list，取 class 分类目录。 */
+export async function fetchCategories(payload, options = {}) {
+  const body = {
+    sources: (Array.isArray(payload.sources) ? payload.sources : []).slice(0, 8).map(normalizeSourceParam)
+  };
+
+  if (!body.sources.length) {
+    throw new RemoteError('请先添加并启用至少一个源', { code: 'INPUT' });
+  }
+
+  const data = await requestJson('/api/categories', {
+    method: 'POST',
+    body,
+    timeoutMs: Number(options.timeoutMs) || 15000,
+    signal: options.signal,
+    timeoutMessage: '加载分类超时'
   });
 
   if (!data || data.ok !== true || !Array.isArray(data.sources)) {

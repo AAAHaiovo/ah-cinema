@@ -2219,10 +2219,51 @@ body.no-tabbar .toast {
   min-height: 80px;
 }
 
-.browse-more-wrap {
+.browse-categories {
   display: flex;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 2px 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.browse-categories::-webkit-scrollbar {
+  display: none;
+}
+
+.category-chip {
+  flex: 0 0 auto;
+  padding: 7px 13px;
+  border: 1px solid var(--ah-line);
+  border-radius: 999px;
+  background: var(--ah-surface);
+  color: var(--ah-text-2);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.category-chip.is-active {
+  border-color: var(--ah-accent);
+  background: var(--ah-accent);
+  color: #fff;
+}
+
+.browse-pager {
+  display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 14px;
   margin-top: 20px;
+}
+
+.browse-page-status {
+  color: var(--ah-text-2);
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .mine-entry {
