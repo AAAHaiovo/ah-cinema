@@ -19,3 +19,6 @@ desktop.ini
 
 # Node
 node_modules/
+
+# SCF 上传包（构建产物；scf/index.js 仍提交）
+scf/*.zip

@@ -1,6 +1,6 @@
 # AH 影视
 
-个人自用的影视 PWA。前端是纯静态的原生 HTML / CSS / JavaScript，**不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。v0.5.0 起增加**可选的**源管理与多源点播搜索，需要一个自己的 Vercel / 腾讯云 EdgeOne Pages / 本地 Node 服务来转发源请求（浏览器跨域所限）。
+个人自用的影视 PWA。前端是纯静态的原生 HTML / CSS / JavaScript，**不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。v0.5.0 起增加**可选的**源管理与多源点播搜索，需要一个自己的 Vercel / 腾讯云 EdgeOne Pages / SCF / 本地 Node 服务来转发源请求（浏览器跨域所限）。
 
 **线上地址**：<https://aaahaiovo.github.io/ah-cinema/>（纯静态备用入口；iPhone 用 Safari 打开 → 分享 → 添加到主屏幕）
 
@@ -135,6 +135,8 @@ Vercel 免费 Hobby 计划不需要信用卡；静态 PWA 和 `/api/*` 在同一
 
 `*.vercel.app` 在国内常见 DNS 污染，手机蜂窝网络往往打不开。EdgeOne Pages 提供国内可访问的默认域名，并且同样能把静态 PWA 和 `/api/*` 放在同一个域名下。免费版够个人使用：Node 函数默认 30 秒超时、单次响应上限 6 MB、每月 300 万次调用。
 
+> **默认域名在中国大陆只能用「预览」链接访问，链接 3 小时过期。** 这是平台的合规限制，不是部署失败。长期使用有两条路：绑定自定义域名（选「全球可用区（不含中国大陆）」无需 ICP 备案），或改用下面的 **SCF 函数 URL** 方案（免费、不用域名）。
+
 > 首次使用需要在腾讯云完成**实名认证**（大陆节点要求）。
 
 1. 把代码推到 GitHub（`AAAHaiovo/ah-cinema`）。仓库里的 `edgeone.json` 已经写好构建配置。
@@ -175,6 +177,78 @@ Vercel 免费 Hobby 计划不需要信用卡；静态 PWA 和 `/api/*` 在同一
 - 本地可以用 `npm run dev:edgeone` 模拟 EdgeOne（静态 + `/api`，端口 4199）。
 
 > Vercel 版仍然保留，可作为备用。两个后端可以同时存在，App 的「服务地址」填哪个就用哪个。
+
+---
+
+## 部署到腾讯云 SCF（免费、无需域名）
+
+不想买域名时用这条路线：**前端继续放在 GitHub Pages，API 放到腾讯云 SCF 函数 URL**。函数 URL 的默认域名永久有效、不需要 ICP 备案，也不用绑定自定义域名。
+
+```text
+iPhone Safari
+  ├─ 应用界面：https://aaahaiovo.github.io/ah-cinema/
+  └─ API：https://<函数URL>/api/*（请求带访问口令）
+```
+
+### 1. 本地打包
+
+```bash
+npm run build:scf
+```
+
+产物：
+
+- `scf/index.js`：函数代码（已提交，便于回滚）
+- `scf/ah-cinema-scf.zip`：上传包（构建产物，不提交）
+
+### 2. 创建函数
+
+1. 打开 [SCF 控制台](https://console.cloud.tencent.com/scf/list)，地域选 **广州**（或离你近的地域）。
+2. 新建 → 从头开始：
+   - 函数名称：`ah-cinema`
+   - 运行环境：**Nodejs 20**（没有就选 Nodejs 18）
+   - 提交方法：**上传 ZIP 包**，选择 `scf/ah-cinema-scf.zip`
+   - 执行方法：`index.main_handler`
+3. 高级设置：
+   - 超时时间：**30 秒**（默认 3 秒，必须改）
+   - 内存：256 MB
+4. 环境变量（四条，值不要带引号）：
+
+   | 名称 | 值 |
+   |---|---|
+   | `AH_ENV` | `production` |
+   | `AH_API_TOKEN` | 你在 App 里要填的口令 |
+   | `AH_SIGNING_SECRET` | 另一个随机值，只放服务端 |
+   | `AH_PROXY_MAX_BYTES` | `5500000` |
+
+5. 创建函数。
+
+### 3. 开启函数 URL
+
+函数详情 → **函数 URL** → 启用 → 选择 `$LATEST`（若要求先发布版本，就先发布一个版本或别名）→ 复制公网地址：
+
+```text
+https://<app-id>-<url-id>.ap-guangzhou.tencentscf.com
+```
+
+打开 `https://<函数URL>/api/health`，确认返回 `"ok":true`、`"missingEnv":[]`、`"authRequired":true`。
+
+### 4. 在 App 里配置
+
+打开 GitHub Pages 版 App → 我的 → 源管理：
+
+- **服务地址**：填函数 URL，结尾不要带 `/`，也不要加 `/api`；
+- **访问口令**：填 `AH_API_TOKEN`；
+- 点「保存并检测」。
+
+CORS 已允许 `https://aaahaiovo.github.io`；其他域名需要在环境变量里加 `AH_ALLOWED_ORIGINS`。
+
+### 限制与维护
+
+- 单次响应上限按 **6 MB** 处理，`AH_PROXY_MAX_BYTES=5500000` 留余量；HTTP MP4 通常超限，优先 HTTPS 直链或 HLS。
+- 函数 URL 的超时以控制台配置为准（建议 30 秒）；搜索 8 秒、代理 15 秒都在时限内。
+- 多源搜索的 NDJSON 会先在函数内缓冲、再一次性返回，结果出现稍慢，但内容一致。
+- 改了 `server/` 下的代码后：运行 `npm run build:scf` → 在控制台「函数代码」重新上传新的 ZIP → 保存并测试。
 
 ---
 
@@ -230,7 +304,7 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 - **HLS `.m3u8`**：Safari / iPhone 原生播放，桌面 Chrome / Edge 通过自托管的 hls.js 播放。若源站限制跨域或防盗链，可在源管理 → 高级开启「HLS 分片走代理」（会增加流量）。MP4（H.264 + AAC）兼容性最好。
 - **源由你自己负责**：源失效、超时、地区限制、需要登录、防盗链都可能导致搜索或播放失败。App 只做 JSON 解析和转发，不会绕过这些限制；也不会推荐或代找任何源。
 - **多源搜索需要服务**：GitHub Pages 纯静态版必须先配置 Vercel / EdgeOne 地址和口令；没有配置或离线时，本地搜索仍然可用。
-- **免费服务的限制**：Vercel 函数有响应体大小、执行时长和带宽限制；EdgeOne 免费版单次响应上限 6 MB、默认 30 秒超时。签名代理默认只承载 m3u8 清单和必要的 HTTP 分片，HTTPS 分片通常直连；HTTP MP4 超过 6 MB 时在 EdgeOne 上无法代理播放。
+- **免费服务的限制**：Vercel 函数有响应体大小、执行时长和带宽限制；EdgeOne 免费版单次响应上限 6 MB、默认 30 秒超时；SCF 函数 URL 同样按 6 MB 响应上限处理，超时需在控制台调到 30 秒。签名代理默认只承载 m3u8 清单和必要的 HTTP 分片，HTTPS 分片通常直连；HTTP MP4 超过 6 MB 时无法通过代理播放。
 - **B 站嵌入依赖哔哩哔哩**：需要能访问 `player.bilibili.com`；iframe 里的清晰度、倍速、字幕由 B 站播放器提供，App 自己的这些按钮不适用于嵌入条目。上传者删除视频、改为不可播放、地区限制或登录限制都会导致画面无法加载。
 - B 站 iframe 在部分浏览器/无头测试环境里截图是黑屏，这是截图合成的限制，不代表页面结构有问题；真实 iPhone Safari 上还需人工确认能否正常起播和全屏。
 - **本机文件依赖浏览器存储**：容量受浏览器配额限制（单个文件上限 2 GB，实际可用空间可能更小）；Safari 长期不用站点后可能清理数据，重要文件请保留原始文件。
@@ -262,12 +336,17 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 ├─ server/                  # API 实现与单测（lib / handlers / tests）
 ├─ cloud-functions/         # EdgeOne Pages 云函数
 │  └─ api/[[default]].js    # 由 npm run build:edgeone 生成，勿手改
+├─ scf/                     # 腾讯云 SCF 函数 URL 方案
+│  ├─ index.js              # 由 npm run build:scf 生成，勿手改
+│  └─ ah-cinema-scf.zip     # 上传包（构建产物，已 gitignore）
 ├─ tools/
 │  ├─ serve.js              # 纯静态本地预览（支持 Range）
 │  ├─ ah-server.js          # 静态 + /api 一体化本地服务器
 │  ├─ edgeone-entry.js      # EdgeOne 函数入口（Express 适配）
 │  ├─ build-edgeone.js      # esbuild 打包成单个 CJS 文件
 │  ├─ edgeone-local.js      # 本地模拟 EdgeOne（静态 + /api）
+│  ├─ scf-entry.js          # SCF 事件函数入口（event → req/res 适配）
+│  ├─ build-scf.js          # 打包单文件并生成上传 ZIP
 │  ├─ mock-cms.js           # 合法的本地 Apple CMS 测试源（自造数据 + CC0）
 │  ├─ fixtures/             # 测试 JSON 与 CC0 短片
 │  ├─ e2e.js                # 一键启动两个服务并跑全部测试
@@ -323,7 +402,7 @@ node tools/cdp-run.js
 当前结果：界面回归 **15/15 通过**，源管理与多源搜索 **23/23 通过**（版本 v0.5.0，Service Worker `ah-cinema-v7`），无未捕获异常、无控制台错误。服务端单测另跑：
 
 ```bash
-npm test        # 39/39，含 CORS 与代理相关用例
+npm test        # 44/44，含 CORS、代理与 SCF 适配用例
 ```
 
 一次跑完界面回归和远程冒烟：
