@@ -272,6 +272,7 @@ function remoteCard(group, remote, action = 'remote-open') {
   const names = Array.from(new Set(group.sources.map((ref) => ref.sourceName).filter(Boolean)));
   const note = names.slice(0, 3).join(' · ') + (names.length > 3 ? ' 等 ' + names.length + ' 个' : '');
   const meta = [group.year, group.typeName, group.area].filter(Boolean).join(' · ');
+  const remarks = String(group.remarks || '').trim();
   const poster = /^https:\/\//i.test(group.pic || '') ? group.pic : '';
 
   return '<button type="button" class="remote-card' + (busy ? ' is-busy' : '') + '" data-action="' + action + '" data-group-key="' + escapeHtml(group.key) + '"' + (busy ? ' aria-busy="true"' : '') + '>' +
@@ -282,6 +283,7 @@ function remoteCard(group, remote, action = 'remote-open') {
     '</div>' +
     '<div class="poster-title">' + escapeHtml(group.title) + '</div>' +
     (meta ? '<div class="poster-meta">' + escapeHtml(meta) + '</div>' : '') +
+    (remarks ? '<div class="poster-meta">' + escapeHtml(remarks) + '</div>' : '') +
     (note ? '<div class="remote-card-note">' + escapeHtml(note) + '</div>' : '') +
     (busy ? '<div class="remote-card-note is-loading">正在获取详情…</div>' : '') +
     (failed ? '<div class="remote-card-note is-error">获取失败，点击重试</div>' : '') +

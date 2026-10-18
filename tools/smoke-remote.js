@@ -125,6 +125,9 @@ async function main() {
     record(results, '首页不再有粘贴链接框', !(await evaluate('Boolean(document.querySelector("#link-form"))')));
     const homeCards = await evaluate('document.querySelectorAll("#home-browse .remote-card").length');
     record(results, '首页片库有影片卡片', homeCards > 0, String(homeCards));
+    record(results, '卡片显示备注', await evaluate(
+      `Array.from(document.querySelectorAll('#home-browse .remote-card')).some((card) => /CC0 短片|更新至 2 集/.test(card.textContent))`
+    ));
 
     await evaluate('document.querySelector("#home-browse .remote-card").click()');
     if (await waitFor('Boolean(document.querySelector(".sheet [data-value]"))', 3000)) {
