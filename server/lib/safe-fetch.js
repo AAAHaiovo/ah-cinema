@@ -258,12 +258,37 @@ async function fetchBuffer(rawUrl, opts = {}) {
   }
 }
 
+/*
+ * 解编码：优先响应头 charset，其次 XML 声明。
+ * 国内部分 Apple CMS XML 会声明 gbk；Node 20 的 TextDecoder 支持它。
+ */
+function detectCharset(headers, body) {
+  const contentType = String((headers && headers['content-type']) || '');
+  const headerMatch = /charset\s*=\s*["']?([^;"'\s]+)/i.exec(contentType);
+  if (headerMatch) return headerMatch[1];
+
+  const head = body.subarray(0, 256).toString('latin1');
+  const xmlMatch = /<\?xml[^>]*encoding\s*=\s*["']([^"']+)["']/i.exec(head);
+  return xmlMatch ? xmlMatch[1] : '';
+}
+
+function decodeBody(body, headers) {
+  const charset = detectCharset(headers, body);
+  if (!charset || /^utf-?8$/i.test(charset)) return body.toString('utf8');
+
+  try {
+    return new TextDecoder(charset).decode(body);
+  } catch (error) {
+    return body.toString('utf8');
+  }
+}
+
 async function fetchText(rawUrl, opts = {}) {
   const result = await fetchBuffer(rawUrl, opts);
   return {
     status: result.status,
     headers: result.headers,
-    text: result.body.toString('utf8'),
+    text: decodeBody(result.body, result.headers),
     url: result.url
   };
 }

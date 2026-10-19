@@ -11,7 +11,7 @@ const { createProxyPath } = require('../lib/sign');
 const {
   allowPrivateFor,
   normalizeSource,
-  parseCmsJson,
+  parseCmsPayload,
   ensureUpstreamOk
 } = require('./_common');
 
@@ -33,7 +33,7 @@ module.exports = createRoute(
     });
     ensureUpstreamOk(response);
 
-    const data = parseCmsJson(response.text);
+    const data = parseCmsPayload(response.text);
     const makeProxyUrl = (target) =>
       createProxyPath(config.signingSecret, target, { ttlSeconds: config.proxyTtlSeconds });
 

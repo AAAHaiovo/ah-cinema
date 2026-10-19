@@ -380,7 +380,10 @@ function normalizeImportedUrl(value) {
     const url = new URL(String(value || '').trim());
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
     if (url.username || url.password) return '';
-    return url.toString().replace(/\/+$/, '');
+    url.hash = '';
+    const text = url.toString();
+    if (/\/at\/xml\/$/i.test(url.pathname)) return text;
+    return text.replace(/\/+$/, '');
   } catch (error) {
     return '';
   }

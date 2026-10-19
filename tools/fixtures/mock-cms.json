@@ -4,18 +4,35 @@
     "api.php/provide/vod": {
       "name": "Mock 甲",
       "classes": [
-        { "type_id": 1, "type_name": "动画", "type_pid": 0 },
-        { "type_id": 2, "type_name": "剧情", "type_pid": 0 },
-        { "type_id": 3, "type_name": "纪录", "type_pid": 0 },
-        { "type_id": 4, "type_name": "动作", "type_pid": 0 },
-        { "type_id": 9, "type_name": "伦理片", "type_pid": 0 }
+        { "type_id": 1, "type_name": "电影", "type_pid": 0 },
+        { "type_id": 2, "type_name": "电视剧", "type_pid": 0 },
+        { "type_id": 3, "type_name": "动漫", "type_pid": 0 },
+        { "type_id": 4, "type_name": "综艺", "type_pid": 0 },
+        { "type_id": 5, "type_name": "纪录片", "type_pid": 0 },
+        { "type_id": 10, "type_name": "动作", "type_pid": 1 },
+        { "type_id": 11, "type_name": "剧情", "type_pid": 1 },
+        { "type_id": 12, "type_name": "喜剧", "type_pid": 1 },
+        { "type_id": 13, "type_name": "爱情", "type_pid": 1 },
+        { "type_id": 14, "type_name": "科幻", "type_pid": 1 },
+        { "type_id": 15, "type_name": "悬疑", "type_pid": 1 },
+        { "type_id": 16, "type_name": "犯罪", "type_pid": 1 },
+        { "type_id": 17, "type_name": "惊悚", "type_pid": 1 },
+        { "type_id": 18, "type_name": "冒险", "type_pid": 1 },
+        { "type_id": 19, "type_name": "家庭", "type_pid": 1 },
+        { "type_id": 20, "type_name": "动画", "type_pid": 3 },
+        { "type_id": 30, "type_name": "国产", "type_pid": 2 },
+        { "type_id": 40, "type_name": "国产", "type_pid": 3 },
+        { "type_id": 50, "type_name": "大陆", "type_pid": 4 },
+        { "type_id": 60, "type_name": "历史", "type_pid": 5 },
+        { "type_id": 9, "type_name": "伦理片", "type_pid": 1 },
+        { "type_id": 99, "type_name": "长尾测试", "type_pid": 1 }
       ],
       "items": [
         {
           "vod_id": 101,
           "vod_name": "Big Buck Bunny",
           "vod_year": "2008",
-          "type_id": 1,
+          "type_id": 20,
           "type_name": "动画",
           "vod_area": "美国",
           "vod_lang": "英语",
@@ -29,8 +46,8 @@
           "vod_id": 102,
           "vod_name": "示例剧集",
           "vod_year": "2024",
-          "type_id": 2,
-          "type_name": "剧情",
+          "type_id": 30,
+          "type_name": "国产剧",
           "vod_area": "中国",
           "vod_remarks": "更新至 2 集",
           "vod_pic": "/poster/series.svg",
@@ -52,7 +69,7 @@
           "vod_id": 104,
           "vod_name": "动作测试 1",
           "vod_year": "2022",
-          "type_id": 4,
+          "type_id": 10,
           "type_name": "动作片",
           "vod_area": "中国",
           "vod_remarks": "动作测试 1",
@@ -64,7 +81,7 @@
           "vod_id": 105,
           "vod_name": "动作测试 2",
           "vod_year": "2022",
-          "type_id": 4,
+          "type_id": 10,
           "type_name": "动作片",
           "vod_area": "中国",
           "vod_remarks": "动作测试 2",
@@ -76,7 +93,7 @@
           "vod_id": 106,
           "vod_name": "动作测试 3",
           "vod_year": "2022",
-          "type_id": 4,
+          "type_id": 10,
           "type_name": "动作片",
           "vod_area": "中国",
           "vod_remarks": "动作测试 3",
@@ -88,7 +105,7 @@
           "vod_id": 107,
           "vod_name": "动作测试 4",
           "vod_year": "2022",
-          "type_id": 4,
+          "type_id": 10,
           "type_name": "动作片",
           "vod_area": "中国",
           "vod_remarks": "动作测试 4",
@@ -100,7 +117,7 @@
           "vod_id": 108,
           "vod_name": "动作测试 5",
           "vod_year": "2022",
-          "type_id": 4,
+          "type_id": 10,
           "type_name": "动作片",
           "vod_area": "中国",
           "vod_remarks": "动作测试 5",
@@ -112,7 +129,7 @@
           "vod_id": 109,
           "vod_name": "动作测试 6",
           "vod_year": "2022",
-          "type_id": 4,
+          "type_id": 10,
           "type_name": "动作片",
           "vod_area": "中国",
           "vod_remarks": "动作测试 6",
@@ -124,7 +141,7 @@
           "vod_id": 110,
           "vod_name": "动作测试 7",
           "vod_year": "2022",
-          "type_id": 4,
+          "type_id": 10,
           "type_name": "动作片",
           "vod_area": "中国",
           "vod_remarks": "动作测试 7",
@@ -136,7 +153,7 @@
           "vod_id": 111,
           "vod_name": "动作测试 8",
           "vod_year": "2022",
-          "type_id": 4,
+          "type_id": 10,
           "type_name": "动作片",
           "vod_area": "中国",
           "vod_remarks": "动作测试 8",
@@ -144,20 +161,33 @@
           "vod_play_from": "直连",
           "vod_play_url": "正片$/media/flower.mp4"
         }
+      ],
+      "generated": [
+        {
+          "type_id": 99,
+          "type_name": "长尾测试",
+          "count": 100,
+          "prefix": "长尾影片",
+          "year": "2021"
+        }
       ]
     },
     "api2.php/provide/vod": {
       "name": "Mock 乙",
       "classes": [
-        { "type_id": 1, "type_name": "动画", "type_pid": 0 },
-        { "type_id": 3, "type_name": "纪录", "type_pid": 0 }
+        { "type_id": 1, "type_name": "电影", "type_pid": 0 },
+        { "type_id": 2, "type_name": "电视剧", "type_pid": 0 },
+        { "type_id": 10, "type_name": "动作", "type_pid": 1 },
+        { "type_id": 20, "type_name": "动画", "type_pid": 0 },
+        { "type_id": 60, "type_name": "纪录片", "type_pid": 0 },
+        { "type_id": 61, "type_name": "自然", "type_pid": 60 }
       ],
       "items": [
         {
           "vod_id": 201,
           "vod_name": "Big Buck Bunny",
           "vod_year": "2008",
-          "type_id": 1,
+          "type_id": 20,
           "type_name": "动画",
           "vod_area": "美国",
           "vod_remarks": "双线路",
@@ -170,12 +200,49 @@
           "vod_id": 202,
           "vod_name": "另一部测试片",
           "vod_year": "2023",
-          "type_id": 3,
-          "type_name": "纪录",
+          "type_id": 61,
+          "type_name": "自然",
           "vod_area": "中国",
           "vod_remarks": "单集",
           "vod_play_from": "直连",
           "vod_play_url": "正片$/media/flower.mp4"
+        }
+      ]
+    },
+    "api3.php/provide/vod": {
+      "name": "Mock 丙 XML",
+      "format": "xml",
+      "classes": [
+        { "type_id": 1, "type_name": "电影", "type_pid": 0 },
+        { "type_id": 70, "type_name": "XML测试", "type_pid": 1 },
+        { "type_id": 71, "type_name": "科幻", "type_pid": 1 }
+      ],
+      "items": [
+        {
+          "vod_id": 301,
+          "vod_name": "XML 专属影片",
+          "vod_year": "2020",
+          "type_id": 70,
+          "type_name": "XML测试",
+          "vod_area": "中国",
+          "vod_lang": "国语",
+          "vod_remarks": "XML 接口",
+          "vod_pic": "/poster/xml.svg",
+          "vod_content": "只通过 XML 接口返回的测试影片。",
+          "vod_play_from": "XML线路",
+          "vod_play_url": "正片$/media/flower.mp4"
+        },
+        {
+          "vod_id": 302,
+          "vod_name": "XML 科幻片",
+          "vod_year": "2021",
+          "type_id": 71,
+          "type_name": "科幻",
+          "vod_area": "中国",
+          "vod_remarks": "两线路",
+          "vod_content": "用于测试 XML 详情与多线路。",
+          "vod_play_from": "线路一$$$线路二",
+          "vod_play_url": "正片$/media/flower.mp4$$$正片$/media/flower.mp4"
         }
       ]
     }

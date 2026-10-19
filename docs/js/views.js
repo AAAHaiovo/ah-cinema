@@ -54,7 +54,7 @@ import {
 import { localItems, localCount } from './local-library.js';
 import { cachedSources } from './sources.js';
 
-const APP_VERSION = '0.7.0';
+const APP_VERSION = '0.8.0';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -79,19 +79,115 @@ function thumbMedia(item) {
   return posterPlaceholder(item) + (src ? '<img src="' + escapeHtml(src) + '" alt="" loading="lazy" decoding="async">' : '');
 }
 
-function browseCategoryChip(name, active) {
-  return '<button class="category-chip' + (active ? ' is-active' : '') + '" type="button" data-action="browse-category" data-category="' + escapeHtml(name) + '">' +
-    escapeHtml(name || '全部') + '</button>';
+function browseChip(label, options = {}) {
+  const action = options.action || 'browse-sub';
+  const attr = options.attr || 'data-sub';
+  const value = options.value === undefined || options.value === null ? '' : String(options.value);
+  const classes = ['category-chip'];
+  if (options.active) classes.push('is-active');
+  if (options.more) classes.push('is-more');
+
+  return '<button class="' + classes.join(' ') + '" type="button" data-action="' + action + '" ' +
+    attr + '="' + escapeHtml(value) + '"' + (options.active ? ' aria-pressed="true"' : '') + '>' +
+    escapeHtml(label) + '</button>';
 }
 
-function browseCategoryBar(view) {
-  const categories = Array.isArray(view.categories) ? view.categories : [];
-  if (!categories.length) return '';
-  const selected = String(view.category || '');
+function browseScrollButton(direction, row) {
+  const left = direction < 0;
+  return '<button class="browse-scroll" type="button" data-action="browse-scroll" data-dir="' +
+    (left ? '-1' : '1') + '" data-row="' + row + '" aria-label="' +
+    (left ? '向左查看更多分类' : '向右查看更多分类') + '">' + (left ? '‹' : '›') + '</button>';
+}
 
-  return '<div class="browse-categories" aria-label="影片分类">' +
-    browseCategoryChip('', selected === '') +
-    categories.map((entry) => browseCategoryChip(entry.name, entry.name === selected)).join('') +
+function browseFilterMeta(view) {
+  const loading = view.status === 'loading' || view.loading;
+  const total = Math.max(0, Number(view.totalWorks) || 0);
+  const page = Math.max(1, Number(view.page) || 1);
+  const pagecount = Math.max(1, Number(view.pagecount) || 1);
+  const sourceCount = Math.max(0, Number(view.sourceCount) || 0);
+  const parts = [];
+
+  if (total > 0) {
+    parts.push('<span class="browse-count" title="各源合计，可能重复">约 ' +
+      Number(total).toLocaleString('zh-CN') + ' 部</span>');
+  }
+  if (sourceCount > 0) parts.push('<span>' + sourceCount + ' 个源</span>');
+  if (!loading && (pagecount > 1 || total > 0)) {
+    parts.push('<span>第 ' + page + ' / ' + pagecount + ' 页</span>');
+  }
+  if (loading) {
+    parts.push('<span class="browse-loading-text"><span class="loading-spinner" aria-hidden="true"></span>加载中</span>');
+  }
+  if (!parts.length) return '';
+
+  return '<div class="browse-filter-meta">' +
+    parts.join('<span class="browse-meta-dot" aria-hidden="true">·</span>') +
+    '</div>';
+}
+
+function browseFilterBar(view) {
+  const tree = view.tree && Array.isArray(view.tree.groups) ? view.tree : { groups: [] };
+  const groups = tree.groups;
+  const selectedGroup = String(view.topGroup || '');
+  const selectedSub = String(view.subCategory || '');
+  const meta = browseFilterMeta(view);
+
+  if (!groups.length) {
+    return meta ? '<div class="browse-filterbar is-meta-only">' + meta + '</div>' : '';
+  }
+
+  const group = groups.find((entry) => entry.key === selectedGroup) || null;
+  const topChips = [
+    browseChip('全部', { action: 'browse-top', attr: 'data-group', value: '', active: !selectedGroup })
+  ].concat(
+    groups.map((entry) => browseChip(entry.name, {
+      action: 'browse-top',
+      attr: 'data-group',
+      value: entry.key,
+      active: entry.key === selectedGroup
+    }))
+  );
+
+  let subRow = '';
+  if (group && Array.isArray(group.children) && group.children.length) {
+    const children = group.children;
+    const visible = children.slice(0, 9);
+    if (selectedSub && !visible.some((child) => child.name === selectedSub)) {
+      const activeChild = children.find((child) => child.name === selectedSub);
+      if (activeChild) visible.splice(Math.max(0, visible.length - 1), 1, activeChild);
+    }
+
+    const subChips = [
+      browseChip('全部', { action: 'browse-sub', attr: 'data-sub', value: '', active: !selectedSub })
+    ].concat(
+      visible.map((child) => browseChip(child.name, {
+        action: 'browse-sub',
+        attr: 'data-sub',
+        value: child.name,
+        active: child.name === selectedSub
+      }))
+    );
+    if (children.length > 9) {
+      subChips.push(browseChip('更多', { action: 'browse-more', attr: 'data-more', value: '', more: true }));
+    }
+
+    subRow = '<div class="browse-filter-row" data-row="sub">' +
+      browseScrollButton(-1, 'sub') +
+      '<div class="browse-categories" id="browse-sub-categories" aria-label="' +
+        escapeHtml(group.name) + '子分类">' + subChips.join('') + '</div>' +
+      browseScrollButton(1, 'sub') +
+      '</div>';
+  }
+
+  return '<div class="browse-filterbar">' +
+    '<div class="browse-filter-row" data-row="top">' +
+      browseScrollButton(-1, 'top') +
+      '<div class="browse-categories" id="browse-top-categories" aria-label="影片一级分类">' +
+        topChips.join('') + '</div>' +
+      browseScrollButton(1, 'top') +
+    '</div>' +
+    subRow +
+    meta +
     '</div>';
 }
 
@@ -107,14 +203,25 @@ function browsePager(view) {
     '<span class="browse-page-status">第 ' + page + ' / ' + pagecount + ' 页</span>' +
     '<button class="btn btn-secondary btn-small" type="button" data-action="browse-next"' +
       (busy || page >= pagecount ? ' disabled' : '') + '>下一页</button>' +
+    '<button class="btn btn-secondary btn-small" type="button" data-action="browse-jump" data-current="' +
+      page + '" data-total="' + pagecount + '"' + (busy ? ' disabled' : '') + '>跳转</button>' +
     '</div>';
+}
+
+function browseEmptyText(view) {
+  const group = view.tree && Array.isArray(view.tree.groups)
+    ? view.tree.groups.find((entry) => entry.key === view.topGroup)
+    : null;
+  const label = view.subCategory || (group ? group.name : '');
+  if (view.page > 1) return '这一页没有数据，可能已经到该分类末尾。';
+  return label ? '「' + escapeHtml(label) + '」分类下暂时没有影片。' : '这些源暂时没有返回影片。';
 }
 
 export function renderHomeBrowse(browse) {
   const view = browse || {};
   const groups = Array.isArray(view.groups) ? view.groups : [];
   const status = view.status || 'idle';
-  const bar = browseCategoryBar(view);
+  const bar = browseFilterBar(view);
 
   if (status === 'unconfigured') {
     return '<div class="remote-notice">' +
@@ -154,21 +261,28 @@ export function renderHomeBrowse(browse) {
     if (status === 'loading' || status === 'idle') {
       return bar + '<div class="remote-loading"><span class="loading-spinner" aria-hidden="true"></span>正在从源里加载影片…</div>';
     }
-    const emptyText = view.category
-      ? '「' + escapeHtml(view.category) + '」分类下暂时没有影片。'
-      : '这些源暂时没有返回影片。';
-    return bar + '<div class="remote-empty">' + emptyText + '</div>' + browsePager(view);
+    return bar + '<div class="remote-empty">' + browseEmptyText(view) + '</div>' + browsePager(view);
   }
 
-  const failed = (Array.isArray(view.statuses) ? view.statuses : [])
-    .filter((statusItem) => statusItem.state === 'error');
-  const chips = failed.length
-    ? '<div class="remote-status">' + failed.map(remoteStatusChip).join('') + '</div>'
+  const statuses = Array.isArray(view.statuses) ? view.statuses : [];
+  const problems = statuses.filter((statusItem) => statusItem.state === 'error' || statusItem.partial);
+  const chips = problems.length
+    ? '<div class="remote-status">' + problems.map(remoteStatusChip).join('') + '</div>'
+    : '';
+  const loading = status === 'loading' || view.loading;
+  const loadingLine = loading
+    ? '<div class="browse-loading-inline"><span class="loading-spinner" aria-hidden="true"></span>正在加载第 ' +
+      Math.max(1, Number(view.page) || 1) + ' 页…</div>'
+    : '';
+  const total = Math.max(0, Number(view.totalWorks) || 0);
+  const countNote = total > 0
+    ? '<p class="browse-count-note">约 ' + Number(total).toLocaleString('zh-CN') +
+      ' 部，各源合计，可能重复。</p>'
     : '';
 
-  return bar + chips +
+  return bar + chips + loadingLine +
     '<div class="remote-grid">' + groups.map((group) => remoteCard(group, view, 'browse-open')).join('') + '</div>' +
-    browsePager(view);
+    countNote + browsePager(view);
 }
 
 export function renderHome(route) {
@@ -283,7 +397,10 @@ function remoteStatusChip(status) {
   let tone = 'idle';
 
   if (status.state === 'pending') text = name + ' · 搜索中…';
-  else if (status.state === 'ok') {
+  else if (status.partial) {
+    text = name + ' · 部分分类失败';
+    tone = 'error';
+  } else if (status.state === 'ok') {
     text = name + ' · ' + (status.count || 0) + ' 条';
     tone = 'ok';
   } else if (status.state === 'cooling') text = name + ' · 冷却中';

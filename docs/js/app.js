@@ -86,6 +86,7 @@ import {
   recordSearchOutcome
 } from './sources.js';
 import { isConfigured, searchSources, browseSources, fetchCategories } from './remote-api.js';
+import { buildCategoryTree, findGroup, aggregateGroupTypes } from './category-tree.js';
 import {
   loadRemoteLibrary,
   groupSearchResults,
@@ -638,13 +639,14 @@ function ensureRemoteForRoute(query) {
 
 /* ---------- 首页片库 ---------- */
 
-/* 与 server/handlers/browse.js 的 MAX_PAGE 保持一致。 */
-const BROWSE_MAX_PAGE = 20;
+/* 每请求最多 32 个 type_id，与 server/handlers/_common.js 的 MAX_TYPE_IDS 对齐。 */
+const BROWSE_MAX_TYPE_IDS = 32;
 
 let browseState = emptyBrowseState();
 let browseAbort = null;
 let browseRunId = 0;
 let browseKey = '';
+let browseLastTopGroup = '';
 
 function emptyBrowseState() {
   return {
@@ -655,51 +657,63 @@ function emptyBrowseState() {
     error: '',
     page: 1,
     pagecount: 1,
+    totalWorks: 0,
+    sourceCount: 0,
     loading: false,
-    categories: [],
+    tree: { groups: [] },
     categoriesLoaded: false,
-    category: '',
+    topGroup: '',
+    subCategory: '',
     fetchingKey: '',
     failedKey: ''
   };
-}
-
-/*
- * 把各源的分类合并成一份目录：
- * [{ name: '动作', types: { 源id: 'type_id' }, count: 出现该分类的源数 }]
- */
-function buildCategoryList(data) {
-  const byName = new Map();
-
-  (data.sources || []).forEach((entry) => {
-    if (!entry.ok || !Array.isArray(entry.classes)) return;
-    entry.classes.forEach((cls) => {
-      if (!cls || !cls.id || !cls.name) return;
-      let category = byName.get(cls.name);
-      if (!category) {
-        category = { name: cls.name, types: {}, count: 0 };
-        byName.set(cls.name, category);
-      }
-      if (!category.types[entry.sourceId]) {
-        category.types[entry.sourceId] = String(cls.id);
-        category.count += 1;
-      }
-    });
-  });
-
-  return Array.from(byName.values())
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh-Hans-CN'))
-    .slice(0, 16);
 }
 
 function browseSourceKey(sources) {
   return sources.map((source) => source.id).sort().join(',');
 }
 
+function centerActiveChip(container) {
+  const chip = container.querySelector('.category-chip.is-active');
+  if (!chip) return;
+  /* 用视口坐标换算，避免 offsetParent 不是滚动容器时算错。 */
+  const chipRect = chip.getBoundingClientRect();
+  const boxRect = container.getBoundingClientRect();
+  const left = chipRect.left - boxRect.left + container.scrollLeft;
+  const right = left + chipRect.width;
+  const viewLeft = container.scrollLeft;
+  const viewRight = viewLeft + container.clientWidth;
+  if (left < viewLeft || right > viewRight) {
+    container.scrollLeft = Math.max(0, left - (container.clientWidth - chipRect.width) / 2);
+  }
+}
+
+/* 重绘时保住两行分类的横向位置；一级分类切换时子分类回到开头。 */
 function renderBrowse() {
   const section = document.getElementById('home-browse');
   if (!section) return;
+
+  const sameTop = browseState.topGroup === browseLastTopGroup;
+  const oldTop = document.getElementById('browse-top-categories');
+  const oldSub = document.getElementById('browse-sub-categories');
+  const topScroll = oldTop ? oldTop.scrollLeft : 0;
+  const subScroll = sameTop && oldSub ? oldSub.scrollLeft : 0;
+
   section.innerHTML = renderHomeBrowse(browseState);
+  browseLastTopGroup = browseState.topGroup;
+
+  window.requestAnimationFrame(() => {
+    const top = document.getElementById('browse-top-categories');
+    const sub = document.getElementById('browse-sub-categories');
+    if (top) {
+      top.scrollLeft = topScroll;
+      centerActiveChip(top);
+    }
+    if (sub) {
+      sub.scrollLeft = subScroll;
+      centerActiveChip(sub);
+    }
+  });
 }
 
 function abortBrowse() {
@@ -710,15 +724,15 @@ function abortBrowse() {
 
 async function loadCategories(runId) {
   const sources = searchableSources().ready;
-  if (!sources.length) return [];
+  if (!sources.length) return { groups: [] };
 
   try {
     const data = await fetchCategories({ sources });
-    if (runId !== browseRunId) return [];
-    return buildCategoryList(data);
+    if (runId !== browseRunId) return { groups: [] };
+    return buildCategoryTree(data);
   } catch (error) {
     /* 分类失败不阻塞片库；用户仍可看「全部」。 */
-    return [];
+    return { groups: [] };
   }
 }
 
@@ -763,17 +777,56 @@ function ensureBrowse() {
   const runId = ++browseRunId;
   browseState = emptyBrowseState();
   browseState.status = 'loading';
+  browseLastTopGroup = '';
   renderBrowse();
 
-  loadCategories(runId).then((categories) => {
+  loadCategories(runId).then((tree) => {
     if (runId !== browseRunId) return;
-    browseState.categories = categories;
+    browseState.tree = tree;
     browseState.categoriesLoaded = true;
-    loadBrowse(1, '').catch(() => {});
+    loadBrowse(1, '', '', { scroll: false }).catch(() => {});
   });
 }
 
-async function loadBrowse(page, categoryName) {
+/*
+ * 一级分类 = 聚合该组所有子类；具体子类 = 只要该子类的 type_id。
+ * 返回 { 源id: ['1', '2'] }。
+ */
+function typeMapForSelection(topGroup, subCategory) {
+  if (!topGroup) return null;
+  const group = findGroup(browseState.tree, topGroup);
+  if (!group) return {};
+
+  if (subCategory) {
+    const child = group.children.find((entry) => entry.name === subCategory);
+    return child ? child.types : {};
+  }
+  return aggregateGroupTypes(group);
+}
+
+function buildBrowseSources(ready, topGroup, subCategory) {
+  if (!topGroup) return ready.slice();
+
+  const types = typeMapForSelection(topGroup, subCategory);
+  const sources = [];
+  ready.forEach((source) => {
+    const ids = types[source.id];
+    if (!Array.isArray(ids) || !ids.length) return;
+    sources.push(Object.assign({}, source, { typeIds: ids.slice(0, BROWSE_MAX_TYPE_IDS) }));
+  });
+  return sources;
+}
+
+function scrollBrowseIntoView() {
+  const target = document.getElementById('home-browse');
+  if (!target) return;
+  /* 分类标签本来就吸顶时不要跳动；只有翻页或已滚过分类栏时才回到片库开头。 */
+  if (target.getBoundingClientRect().top >= 0) return;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+}
+
+async function loadBrowse(page, topGroup, subCategory, options = {}) {
   const ready = searchableSources().ready;
   if (!ready.length) {
     browseState.status = 'cooling';
@@ -781,31 +834,43 @@ async function loadBrowse(page, categoryName) {
     return;
   }
 
-  const category = String(categoryName || '');
-  const categoryEntry = browseState.categories.find((entry) => entry.name === category);
-  const sources = category
-    ? ready
-        .filter((source) => categoryEntry && categoryEntry.types[source.id])
-        .map((source) => Object.assign({}, source, { typeId: categoryEntry.types[source.id] }))
-    : ready;
+  const nextTop = String(topGroup || '');
+  const nextSub = nextTop ? String(subCategory || '') : '';
+  const targetPage = Math.max(1, Number(page) || 1);
+  const sameCategory = nextTop === browseState.topGroup && nextSub === browseState.subCategory;
+  const previous = browseState;
+  const sources = buildBrowseSources(ready, nextTop, nextSub);
 
   abortBrowse();
   const runId = ++browseRunId;
 
-  const categories = browseState.categories;
+  /* 同分类翻页时保留旧卡片，避免整块闪白。 */
+  const keepCards = sameCategory && !options.reset && previous.groups.length > 0;
   browseState = Object.assign(emptyBrowseState(), {
-    categories,
+    tree: previous.tree,
     categoriesLoaded: true,
-    category,
+    topGroup: nextTop,
+    subCategory: nextSub,
     status: 'loading',
-    page: Math.max(1, page)
+    page: targetPage,
+    loading: true,
+    groups: keepCards ? previous.groups : [],
+    rawItems: keepCards ? previous.rawItems : [],
+    statuses: keepCards ? previous.statuses : [],
+    pagecount: keepCards ? previous.pagecount : 1,
+    totalWorks: keepCards ? previous.totalWorks : 0,
+    sourceCount: keepCards ? previous.sourceCount : 0
   });
   renderBrowse();
 
   if (!sources.length) {
     browseState.status = 'empty';
+    browseState.loading = false;
     browseState.page = 1;
     browseState.pagecount = 1;
+    browseState.groups = [];
+    browseState.rawItems = [];
+    browseState.statuses = [];
     renderBrowse();
     return;
   }
@@ -814,32 +879,46 @@ async function loadBrowse(page, categoryName) {
   browseAbort = controller;
 
   try {
-    const data = await browseSources({ page, sources }, { signal: controller.signal });
+    const data = await browseSources({ page: targetPage, sources }, { signal: controller.signal });
     if (runId !== browseRunId) return;
 
     const items = [];
     const statuses = [];
     let pagecount = 1;
+    let fallbackTotal = 0;
+    let sourceCount = 0;
 
-    data.sources.forEach((entry) => {
+    (Array.isArray(data.sources) ? data.sources : []).forEach((entry) => {
+      const ok = Boolean(entry.ok);
       statuses.push({
         sourceId: entry.sourceId,
         sourceName: entry.sourceName,
-        state: entry.ok ? 'ok' : 'error',
+        state: ok ? 'ok' : 'error',
+        partial: Boolean(entry.partial),
         count: Math.max(0, Number(entry.count) || 0),
         ms: Math.max(0, Number(entry.ms) || 0),
-        error: entry.ok ? '' : (entry.timedOut ? '超时' : (entry.error || '失败'))
+        error: ok ? '' : (entry.timedOut ? '超时' : (entry.error || '失败'))
       });
-      if (entry.ok && Array.isArray(entry.items)) items.push(...entry.items);
-      if (entry.ok) pagecount = Math.max(pagecount, Number(entry.pagecount) || 1);
-      recordSearchOutcome(entry.sourceId, Boolean(entry.ok)).catch(() => {});
+      if (ok) {
+        sourceCount += 1;
+        if (Array.isArray(entry.items)) items.push(...entry.items);
+        pagecount = Math.max(pagecount, Number(entry.pagecount) || 1);
+        fallbackTotal += Math.max(
+          0,
+          Number(entry.total) || 0,
+          Array.isArray(entry.items) ? entry.items.length : 0
+        );
+      }
+      recordSearchOutcome(entry.sourceId, ok).catch(() => {});
     });
 
     browseState.rawItems = items;
     browseState.groups = groupSearchResults(items, cachedSources());
     browseState.statuses = statuses;
-    browseState.page = Math.min(BROWSE_MAX_PAGE, Math.max(1, Number(data.page) || page));
-    browseState.pagecount = Math.min(BROWSE_MAX_PAGE, pagecount);
+    browseState.page = Math.max(1, Number(data.page) || targetPage);
+    browseState.pagecount = Math.max(1, pagecount);
+    browseState.totalWorks = Math.max(0, Number(data.worksTotal) || 0) || fallbackTotal;
+    browseState.sourceCount = sourceCount;
     browseState.loading = false;
 
     if (!browseState.groups.length) {
@@ -855,6 +934,7 @@ async function loadBrowse(page, categoryName) {
     }
 
     renderBrowse();
+    scrollBrowseIntoView();
   } catch (error) {
     if (runId !== browseRunId) return;
     if (error && error.code === 'ABORTED') return;
@@ -869,25 +949,89 @@ async function loadBrowse(page, categoryName) {
 
 function refreshBrowse() {
   browseKey = '';
+  browseLastTopGroup = '';
   abortBrowse();
   browseState = emptyBrowseState();
   ensureBrowse();
 }
 
 function browsePrev() {
-  if (browseState.status === 'loading' || browseState.page <= 1) return;
-  loadBrowse(browseState.page - 1, browseState.category).catch(() => {});
+  if (browseState.loading || browseState.page <= 1) return;
+  loadBrowse(browseState.page - 1, browseState.topGroup, browseState.subCategory, {
+    scroll: true
+  }).catch(() => {});
 }
 
 function browseNext() {
-  if (browseState.status === 'loading' || browseState.page >= browseState.pagecount) return;
-  loadBrowse(browseState.page + 1, browseState.category).catch(() => {});
+  if (browseState.loading || browseState.page >= browseState.pagecount) return;
+  loadBrowse(browseState.page + 1, browseState.topGroup, browseState.subCategory, {
+    scroll: true
+  }).catch(() => {});
 }
 
-function selectBrowseCategory(name) {
+function selectBrowseTop(key) {
+  const next = String(key || '');
+  if (next === browseState.topGroup && !browseState.subCategory && !browseState.loading) return;
+  loadBrowse(1, next, '', { scroll: true }).catch(() => {});
+}
+
+function selectBrowseSub(name) {
+  if (!browseState.topGroup) return;
   const next = String(name || '');
-  if (next === browseState.category && browseState.status !== 'error') return;
-  loadBrowse(1, next).catch(() => {});
+  if (next === browseState.subCategory && !browseState.loading) return;
+  loadBrowse(1, browseState.topGroup, next, { scroll: true }).catch(() => {});
+}
+
+async function openBrowseMore() {
+  const group = findGroup(browseState.tree, browseState.topGroup);
+  if (!group || !group.children.length) return;
+
+  const choice = await openSheet({
+    title: group.name + ' · 全部分类',
+    options: [{ value: '', label: '全部' }].concat(
+      group.children.map((child) => ({ value: child.name, label: child.name }))
+    ),
+    value: browseState.subCategory
+  });
+  if (choice === null) return;
+  selectBrowseSub(choice);
+}
+
+async function browseJump() {
+  if (browseState.loading) return;
+  const pagecount = Math.max(1, Number(browseState.pagecount) || 1);
+  if (pagecount <= 1) return;
+  const current = Math.max(1, Number(browseState.page) || 1);
+
+  const value = await openPrompt({
+    title: '跳转到第几页',
+    description: '当前第 ' + current + ' 页，共 ' + pagecount + ' 页',
+    value: String(current),
+    confirmText: '跳转',
+    validate: (input) => {
+      const page = Number(input);
+      if (!Number.isInteger(page) || page < 1 || page > pagecount) {
+        return '请输入 1 到 ' + pagecount + ' 之间的页码';
+      }
+      return '';
+    }
+  });
+  if (value === null) return;
+
+  const page = Number(value);
+  if (page === current) return;
+  loadBrowse(page, browseState.topGroup, browseState.subCategory, { scroll: true }).catch(() => {});
+}
+
+function scrollBrowseRow(actionElement) {
+  const direction = Number(actionElement.getAttribute('data-dir')) || 1;
+  const row = actionElement.getAttribute('data-row') || 'top';
+  const container = document.getElementById(
+    row === 'sub' ? 'browse-sub-categories' : 'browse-top-categories'
+  );
+  if (!container) return;
+  const distance = Math.max(160, Math.round(container.clientWidth * 0.7));
+  container.scrollBy({ left: direction * distance, behavior: 'smooth' });
 }
 
 async function openBrowseGroup(key) {
@@ -1308,8 +1452,28 @@ async function onDocumentClick(event) {
     return;
   }
 
-  if (action === 'browse-category') {
-    selectBrowseCategory(actionElement.getAttribute('data-category') || '');
+  if (action === 'browse-top') {
+    selectBrowseTop(actionElement.getAttribute('data-group') || '');
+    return;
+  }
+
+  if (action === 'browse-sub') {
+    selectBrowseSub(actionElement.getAttribute('data-sub') || '');
+    return;
+  }
+
+  if (action === 'browse-more') {
+    await openBrowseMore();
+    return;
+  }
+
+  if (action === 'browse-jump') {
+    await browseJump();
+    return;
+  }
+
+  if (action === 'browse-scroll') {
+    scrollBrowseRow(actionElement);
     return;
   }
 

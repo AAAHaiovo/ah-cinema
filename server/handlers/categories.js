@@ -13,7 +13,7 @@ const { fetchText } = require('../lib/safe-fetch');
 const {
   allowPrivateFor,
   normalizeSourceList,
-  parseCmsJson,
+  parseCmsPayload,
   ensureUpstreamOk,
   upstreamErrorMessage
 } = require('./_common');
@@ -28,7 +28,7 @@ async function classesOne(source, { allowPrivate, signal }) {
   });
   ensureUpstreamOk(response);
 
-  const classes = cms.parseClassList(parseCmsJson(response.text));
+  const classes = cms.parseClassList(parseCmsPayload(response.text));
   return { classes, ms: Date.now() - startedAt };
 }
 

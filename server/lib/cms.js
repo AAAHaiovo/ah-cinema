@@ -6,6 +6,7 @@
  */
 
 const { cleanText, safeHttpUrl, truncate } = require('./text');
+const { parseCmsXml, looksLikeXml, XmlError } = require('./xml');
 const config = require('./config');
 
 class CmsError extends Error {
@@ -60,6 +61,50 @@ function isAdultEntry(raw) {
     .filter(Boolean)
     .join(' ');
   return isAdultText(fields);
+}
+
+function detectCmsFormat(text) {
+  const raw = String(text === undefined || text === null ? '' : text)
+    .replace(/^﻿/, '')
+    .trim();
+  if (!raw) return '';
+  if (raw[0] === '{' || raw[0] === '[') return 'json';
+  if (looksLikeXml(raw)) return 'xml';
+  return '';
+}
+
+/*
+ * Apple CMS 接口可能是 JSON，也可能是标准 XML（/at/xml/）。
+ * 按正文首字符自动识别，并统一成 JSON 接口的对象形状。
+ */
+function parseCmsPayload(text) {
+  const raw = String(text === undefined || text === null ? '' : text)
+    .replace(/^﻿/, '')
+    .trim();
+
+  if (!raw) throw new CmsError('CMS_INVALID', '源站返回了空内容');
+
+  const format = detectCmsFormat(raw);
+  if (format === 'json') {
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      throw new CmsError('CMS_INVALID', '源站返回的不是有效 JSON');
+    }
+  }
+
+  if (format === 'xml') {
+    try {
+      return parseCmsXml(raw);
+    } catch (error) {
+      if (error instanceof XmlError) {
+        throw new CmsError('CMS_INVALID', '源站返回的 XML 格式不正确：' + error.message);
+      }
+      throw error;
+    }
+  }
+
+  throw new CmsError('CMS_INVALID', '源站返回的格式无法识别（既不是 JSON，也不是 XML）');
 }
 
 /*
@@ -315,6 +360,8 @@ module.exports = {
   browseUrl,
   listUrl,
   detailUrl,
+  detectCmsFormat,
+  parseCmsPayload,
   parseSearchResponse,
   parseClassList,
   parsePlayLines,

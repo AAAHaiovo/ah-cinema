@@ -59,7 +59,7 @@ const config = {
   mode: MODE,
   isProduction: IS_PRODUCTION,
   isVercel: IS_VERCEL,
-  version: '0.7.0',
+  version: '0.8.0',
   apiVersion: 1,
 
   apiToken,
@@ -76,12 +76,15 @@ const config = {
 
   allowedOrigins,
 
-  userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AH-Cinema/0.7.0',
+  userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AH-Cinema/0.8.0',
 
   maxSources: 8,
   searchMaxPages: intEnv('AH_SEARCH_MAX_PAGES', 2, 1, 5),
   searchSourceTimeoutMs: 5000,
   searchTotalTimeoutMs: 8000,
+  browseMaxPage: 100000,
+  browseTotalTimeoutMs: 18000,
+  browseConcurrency: intEnv('AH_BROWSE_CONCURRENCY', 6, 1, 12),
   detailTimeoutMs: 6000,
   testTimeoutMs: 5000,
   subscriptionTimeoutMs: 8000,

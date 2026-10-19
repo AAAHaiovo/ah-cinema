@@ -263,8 +263,15 @@ function normalizeSourceParam(source) {
     name: String(source.name || '').slice(0, 60),
     url: String(source.url || '')
   };
-  const typeId = String(source.typeId || '').trim();
-  if (/^\d{1,10}$/.test(typeId)) param.typeId = typeId;
+
+  const rawTypeIds = Array.isArray(source.typeIds) ? source.typeIds : [source.typeId];
+  const typeIds = [];
+  rawTypeIds.forEach((value) => {
+    const id = String(value === undefined || value === null ? '' : value).trim();
+    if (!/^\d{1,10}$/.test(id) || typeIds.includes(id) || typeIds.length >= 32) return;
+    typeIds.push(id);
+  });
+  if (typeIds.length) param.typeIds = typeIds;
   return param;
 }
 

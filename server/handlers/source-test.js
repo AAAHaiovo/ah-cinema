@@ -8,8 +8,8 @@ const { createRoute } = require('../lib/route');
 const { readJson, sendJson, ApiError } = require('../lib/http');
 const { fetchText } = require('../lib/safe-fetch');
 const { validateUrlSync, SsrfError } = require('../lib/ssrf');
-const { allowPrivateFor, parseCmsJson, upstreamErrorMessage } = require('./_common');
-const { stripTrailingSlash } = require('../lib/text');
+const { allowPrivateFor, parseCmsPayload, upstreamErrorMessage } = require('./_common');
+const { normalizeSourceUrl } = require('../lib/text');
 
 function hostOf(url) {
   try {
@@ -26,7 +26,7 @@ module.exports = createRoute(
 
     let url;
     try {
-      url = stripTrailingSlash(validateUrlSync(String(body.url || ''), { allowPrivate }).toString());
+      url = normalizeSourceUrl(validateUrlSync(String(body.url || ''), { allowPrivate }).toString());
     } catch (error) {
       if (error instanceof SsrfError) {
         throw new ApiError(400, error.code, '源地址不被允许：' + error.message);
@@ -52,7 +52,7 @@ module.exports = createRoute(
         return;
       }
 
-      const data = parseCmsJson(response.text);
+      const data = parseCmsPayload(response.text);
       const parsed = cms.parseSearchResponse(data);
 
       if (!parsed.listIsArray) {
@@ -68,6 +68,7 @@ module.exports = createRoute(
         ok: true,
         ms: Date.now() - startedAt,
         count: parsed.items.length,
+        format: cms.detectCmsFormat(response.text),
         name: hostOf(url)
       });
     } catch (error) {

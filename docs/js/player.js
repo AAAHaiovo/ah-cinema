@@ -48,6 +48,95 @@ function looksLikeHls(source) {
   return /\.m3u8(?:$|[?#])/i.test(String(source.src || ''));
 }
 
+/* 代理地址里的 u= 才是真正的上游；诊断和扩展名判断都看它。 */
+function upstreamUrl(src) {
+  try {
+    const url = new URL(src, location.href);
+    if (/\/api\/proxy\/?$/.test(url.pathname)) {
+      const target = url.searchParams.get('u');
+      if (target) return target;
+    }
+    return url.href;
+  } catch (error) {
+    return String(src || '');
+  }
+}
+
+function sourcePath(src) {
+  try {
+    return new URL(upstreamUrl(src)).pathname;
+  } catch (error) {
+    return String(src || '');
+  }
+}
+
+function isStaticVideoUrl(src) {
+  return /\.(mp4|m4v|webm|mov|ogv|ogg|mkv)$/i.test(sourcePath(src));
+}
+
+function isHlsContentType(type) {
+  return /(mpegurl|x-mpegurl|vnd\.apple\.mpegurl)/i.test(String(type || ''));
+}
+
+function sourceHost(src) {
+  try {
+    return new URL(upstreamUrl(src)).host;
+  } catch (error) {
+    return '';
+  }
+}
+
+/* 失败后探测 Content-Type：用来区分“编码不支持”和“返回了网页/接口”。 */
+async function probeSource(src) {
+  if (!src) return null;
+
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(src, {
+      method: 'HEAD',
+      mode: 'cors',
+      credentials: 'omit',
+      cache: 'no-store',
+      signal: controller.signal
+    });
+    return {
+      status: response.status,
+      type: String(response.headers.get('content-type') || '').toLowerCase()
+    };
+  } catch (error) {
+    return null;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+function mediaErrorMessage(code, src, info) {
+  const host = sourceHost(src);
+  const where = host ? '（' + host + '）' : '';
+
+  if (code === 2) return '网络错误：视频没有加载成功。请检查网络，或换一个线路。' + where;
+  if (code === 3) return '视频解码失败：文件可能损坏，或当前设备不支持它的编码。请换一个线路。' + where;
+
+  if (code === 4) {
+    const type = info ? String(info.type || '') : '';
+    const status = info ? Number(info.status) || 0 : 0;
+
+    if (status >= 400) {
+      return '源站拒绝了请求（HTTP ' + status + '），可能是防盗链、链接过期或需要网站解析。请换一个线路。' + where;
+    }
+    if (/text\/html|application\/(json|xml)|text\/plain/i.test(type)) {
+      return '这个地址返回的是网页或接口数据，不是视频流。这类线路需要网页解析或防盗链，App 不支持。请换一个线路。' + where;
+    }
+    if (/^video\//i.test(type)) {
+      return '这个视频的编码当前浏览器无法播放（常见于 H.265/HEVC 或 MKV）。请换一个 H.264 线路，或在 iPhone/iPad 的 Safari 里打开。' + where;
+    }
+    return '这个地址不是浏览器能直接播放的视频流，可能是 H.265/HEVC、MKV、防盗链或网页解析线路。请换一个线路，或在 iPhone/iPad 的 Safari 里打开。' + where;
+  }
+
+  return '片源加载失败，请检查网络后重试。';
+}
+
 function formatRate(rate) {
   return String(Number(rate) || 1) + '×';
 }
@@ -156,7 +245,7 @@ export function playerPage(item, episode) {
         '<p id="player-error-text">请检查网络连接后重试。影片本身仍在片库中，稍后可以再试。</p>' +
         '<div class="player-error-actions">' +
           '<button class="pbtn-text" type="button" data-paction="retry">重试</button>' +
-          '<button class="pbtn-text" type="button" data-paction="quality">换清晰度</button>' +
+          '<button class="pbtn-text" type="button" data-paction="quality">换线路</button>' +
           '<button class="pbtn-text" type="button" data-paction="back">返回</button>' +
         '</div>' +
       '</div>' +
@@ -249,6 +338,8 @@ export function mountPlayer(item, episode) {
   let mediaSessionCleanup = null;
   let hls = null;
   let attachSeq = 0;
+  let hlsFallbackTried = false;
+  let expectingMedia = false;
 
   function destroyHls() {
     if (!hls) return;
@@ -258,6 +349,91 @@ export function mountPlayer(item, episode) {
       /* 忽略。 */
     }
     hls = null;
+  }
+
+  function hlsFatalMessage(Hls, data) {
+    const details = String((data && data.details) || '');
+
+    if (data && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+      if (details === 'manifestParsingError') {
+        return '这个线路返回的不是有效的 HLS 清单（常见于网页解析线路）。请换一个线路。';
+      }
+      if (details === 'manifestLoadError' || details === 'manifestLoadTimeOut') {
+        return 'HLS 清单加载失败：源站可能限制跨域、需要防盗链，或链接已失效。可尝试在源管理开启“HLS 分片走代理”，或换一个线路。';
+      }
+      if (details === 'fragLoadError' || details === 'fragLoadTimeOut') {
+        return 'HLS 分片加载失败：源站可能限制跨域或防盗链。可尝试开启“HLS 分片走代理”，或换一个线路。';
+      }
+      return 'HLS 网络加载失败。请稍后重试或换一个线路。';
+    }
+
+    if (data && data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+      if (details === 'bufferAddCodecError' || details === 'manifestIncompatibleCodecsError') {
+        return '这个线路的视频编码浏览器不支持（常见于 H.265/HEVC）。请换一个线路，或用 iPhone/iPad 的 Safari 打开。';
+      }
+      return 'HLS 解码失败，请换一个线路。';
+    }
+
+    return 'HLS 播放失败，请稍后重试或换一个线路。';
+  }
+
+  /* HLS 装载统一入口；失败时自己给出提示并返回 false。 */
+  async function attachHlsSource(src, seq) {
+    let Hls = null;
+    try {
+      Hls = await loadHls();
+    } catch (error) {
+      if (seq !== attachSeq) return false;
+      hideBuffering();
+      showError('hls.js 加载失败，无法播放 HLS。请检查网络后重试。');
+      return false;
+    }
+
+    if (seq !== attachSeq) return false;
+
+    if (!Hls || !Hls.isSupported()) {
+      hideBuffering();
+      showError('当前浏览器无法播放 HLS。请换一个线路，或改用 Safari / 系统播放器打开。');
+      return false;
+    }
+
+    hls = new Hls({ enableWorker: true });
+    expectingMedia = true;
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+      if (seq !== attachSeq || !hls) return;
+      hls.loadSource(src);
+    });
+    hls.on(Hls.Events.ERROR, (event, data) => {
+      if (seq !== attachSeq || !hls || !data || !data.fatal) return;
+      showError(hlsFatalMessage(Hls, data));
+    });
+
+    return true;
+  }
+
+  /*
+   * 直链报“格式不支持”时再判断一次：
+   * 没有扩展名的地址可能其实是 HLS；返回 text/html/JSON 则是网页解析线路。
+   */
+  async function handleUnsupportedSource(url, code) {
+    const seq = attachSeq;
+    expectingMedia = false;
+    const info = await probeSource(url);
+    if (seq !== attachSeq) return;
+
+    const type = info ? String(info.type || '') : '';
+    const ambiguous = !info || !type || /octet-stream/i.test(type);
+    const hlsHint = isHlsContentType(type) || (ambiguous && !isStaticVideoUrl(url));
+
+    if (hlsHint) {
+      showBuffering();
+      await attachHlsSource(url, seq);
+      return;
+    }
+
+    hideBuffering();
+    showError(mediaErrorMessage(code, url, info) + '（错误 ' + code + '）');
   }
 
   /*
@@ -272,6 +448,8 @@ export function mountPlayer(item, episode) {
     destroyHls();
     hideError();
     showBuffering();
+    hlsFallbackTried = false;
+    expectingMedia = false;
 
     try {
       video.removeAttribute('src');
@@ -305,46 +483,17 @@ export function mountPlayer(item, episode) {
     if (looksLikeHls(source)) {
       const nativeHls = video.canPlayType && video.canPlayType('application/vnd.apple.mpegurl');
       if (nativeHls) {
+        expectingMedia = true;
         video.src = src;
         video.load();
         return;
       }
 
-      let Hls = null;
-      try {
-        Hls = await loadHls();
-      } catch (error) {
-        if (seq !== attachSeq) return;
-        hideBuffering();
-        showError('hls.js 加载失败，无法播放 HLS。请检查网络后重试。');
-        return;
-      }
-      if (seq !== attachSeq) return;
-
-      if (!Hls || !Hls.isSupported()) {
-        showError('当前浏览器无法播放 HLS。可以试试 Safari，或者换一个片源。');
-        return;
-      }
-
-      hls = new Hls({ enableWorker: true });
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-        if (seq !== attachSeq || !hls) return;
-        hls.loadSource(src);
-      });
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        if (seq !== attachSeq || !hls || !data || !data.fatal) return;
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          showError('HLS 加载失败：源站可能限制跨域或需要代理。可在源管理 → 高级开启“HLS 分片走代理”，或换一个片源。');
-        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-          showError('HLS 解码失败，请换一个清晰度或片源。');
-        } else {
-          showError('HLS 播放失败，请稍后重试或换一个片源。');
-        }
-      });
+      await attachHlsSource(src, seq);
       return;
     }
 
+    expectingMedia = true;
     video.src = src;
     video.load();
   }
@@ -631,7 +780,7 @@ export function mountPlayer(item, episode) {
     }
 
     const value = await openSheet({
-      title: '清晰度',
+      title: '清晰度 / 线路',
       value: String(sourceIndex),
       options: sources.map((source, index) => ({
         value: String(index),
@@ -904,6 +1053,7 @@ export function mountPlayer(item, episode) {
     saveNow(video.ended);
     destroyHls();
     attachSeq += 1;
+    expectingMedia = false;
     try {
       video.pause();
     } catch (error) {
@@ -1029,18 +1179,24 @@ export function mountPlayer(item, episode) {
 
   video.addEventListener('error', () => {
     /* HLS.js 会给出更具体的原因，避免重复弹错误。 */
-    if (hls) return;
+    if (hls || !expectingMedia) return;
+
+    const code = video.error ? video.error.code : 0;
+    if (!code) return;
 
     hideBuffering();
-    const code = video.error ? video.error.code : 0;
-    let message = '片源加载失败，请检查网络后重试。';
+    const failedSrc = video.currentSrc || video.src || resolveSourceUrl(currentSource && currentSource.src);
 
-    if (code === 1) message = '播放被中断，请再试一次。';
-    else if (code === 2) message = '网络错误：视频没有加载成功。请检查网络，或者换一个清晰度。';
-    else if (code === 3) message = '视频解码失败。这个文件可能已损坏，或者当前设备不支持它的编码。';
-    else if (code === 4) message = '当前浏览器不支持这个视频格式。HLS 链接在桌面 Chrome 需要 hls.js；仍然失败时请换一个片源。';
+    if (code === 4 && !hlsFallbackTried) {
+      hlsFallbackTried = true;
+      handleUnsupportedSource(failedSrc, code).catch(() => {
+        hideBuffering();
+        showError(mediaErrorMessage(code, failedSrc, null) + '（错误 ' + code + '）');
+      });
+      return;
+    }
 
-    showError(message + '（错误 ' + code + '）');
+    showError(mediaErrorMessage(code, failedSrc, null) + '（错误 ' + code + '）');
   }, { signal });
 
   scrub.addEventListener('input', () => {

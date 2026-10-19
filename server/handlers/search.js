@@ -10,7 +10,7 @@ const { fetchText } = require('../lib/safe-fetch');
 const {
   allowPrivateFor,
   normalizeSource,
-  parseCmsJson,
+  parseCmsPayload,
   ensureUpstreamOk,
   upstreamErrorMessage
 } = require('./_common');
@@ -58,7 +58,7 @@ async function searchOne(source, query, { allowPrivate, signal, flags }) {
     });
     ensureUpstreamOk(response);
 
-    const parsed = cms.parseSearchResponse(parseCmsJson(response.text));
+    const parsed = cms.parseSearchResponse(parseCmsPayload(response.text));
     parsed.items.forEach((entry) => {
       items.push(Object.assign({}, entry, { sourceId: source.id, sourceName: source.name }));
     });

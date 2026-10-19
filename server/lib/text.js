@@ -91,11 +91,22 @@ function stripTrailingSlash(value) {
   return String(value || '').replace(/\/+$/, '');
 }
 
-/* 源地址归一化：http(s)、无账号密码、去掉尾部斜杠。 */
+/*
+ * 源地址归一化：http(s)、无账号密码、去掉尾部斜杠。
+ * Apple CMS 的 XML 接口通常是 /at/xml/ 目录，末尾斜杠有路由意义，必须保留。
+ */
 function normalizeSourceUrl(value) {
   const safe = safeHttpUrl(value);
   if (!safe) return '';
-  return stripTrailingSlash(safe);
+  try {
+    const url = new URL(safe);
+    url.hash = '';
+    const text = url.toString();
+    if (/\/at\/xml\/$/i.test(url.pathname)) return text;
+    return stripTrailingSlash(text);
+  } catch (error) {
+    return stripTrailingSlash(safe);
+  }
 }
 
 function normalizeTitle(value) {

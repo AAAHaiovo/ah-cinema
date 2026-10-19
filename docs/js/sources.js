@@ -38,7 +38,10 @@ export function normalizeSourceUrl(value) {
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
     if (url.username || url.password) return '';
     url.hash = '';
-    return url.toString().replace(/\/+$/, '');
+    const text = url.toString();
+    /* /at/xml/ 是目录式 XML 接口，末尾斜杠不能丢。 */
+    if (/\/at\/xml\/$/i.test(url.pathname)) return text;
+    return text.replace(/\/+$/, '');
   } catch (error) {
     return '';
   }

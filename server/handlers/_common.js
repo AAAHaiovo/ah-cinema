@@ -8,8 +8,10 @@ const { ApiError } = require('../lib/http');
 const { validateUrlSync, SsrfError } = require('../lib/ssrf');
 const { isLoopbackRequest } = require('../lib/auth');
 const { FetchError } = require('../lib/safe-fetch');
-const { CmsError } = require('../lib/cms');
-const { cleanText, stripTrailingSlash } = require('../lib/text');
+const { CmsError, parseCmsPayload } = require('../lib/cms');
+const { cleanText, normalizeSourceUrl } = require('../lib/text');
+
+const MAX_TYPE_IDS = 32;
 
 function allowPrivateFor(req) {
   return config.devAllowPrivate && isLoopbackRequest(req);
@@ -30,7 +32,7 @@ function normalizeSource(raw, allowPrivate) {
     throw error;
   }
 
-  const normalizedUrl = stripTrailingSlash(url.toString());
+  const normalizedUrl = normalizeSourceUrl(url.toString());
   let fallbackName = '';
   try {
     fallbackName = new URL(normalizedUrl).host;
@@ -51,8 +53,30 @@ function normalizeSource(raw, allowPrivate) {
 }
 
 /*
+ * 分类筛选参数：兼容旧的 raw.typeId 与新的 raw.typeIds。
+ * Apple CMS 一次只接受一个 t；多个 type_id 由 handler 分别请求后合并。
+ */
+function normalizeTypeIds(raw) {
+  const values = [];
+  if (raw && typeof raw === 'object') {
+    if (Array.isArray(raw.typeIds)) values.push(...raw.typeIds);
+    if (raw.typeId !== undefined) values.push(raw.typeId);
+  }
+
+  const seen = new Set();
+  const ids = [];
+  values.forEach((value) => {
+    const id = String(value === undefined || value === null ? '' : value).trim();
+    if (!/^\d{1,10}$/.test(id) || seen.has(id)) return;
+    seen.add(id);
+    if (ids.length < MAX_TYPE_IDS) ids.push(id);
+  });
+  return ids;
+}
+
+/*
  * 校验并去重请求里的源列表。
- * raw.typeId 可选，用于按分类筛选（Apple CMS 的 t 参数）。
+ * raw.typeId / raw.typeIds 可选，用于按分类筛选（Apple CMS 的 t 参数）。
  */
 function normalizeSourceList(rawList, allowPrivate, options = {}) {
   const max = Number(options.max) || config.maxSources;
@@ -70,8 +94,8 @@ function normalizeSourceList(rawList, allowPrivate, options = {}) {
     if (seen.has(source.url)) return;
     seen.add(source.url);
 
-    const typeId = raw && typeof raw === 'object' ? String(raw.typeId || '').trim() : '';
-    if (/^\d{1,10}$/.test(typeId)) source.typeId = typeId;
+    const typeIds = normalizeTypeIds(raw);
+    if (typeIds.length) source.typeIds = typeIds;
     sources.push(source);
   });
 
@@ -134,7 +158,9 @@ module.exports = {
   allowPrivateFor,
   normalizeSource,
   normalizeSourceList,
+  normalizeTypeIds,
   parseCmsJson,
+  parseCmsPayload,
   ensureUpstreamOk,
   upstreamErrorMessage
 };

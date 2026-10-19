@@ -117,6 +117,10 @@ async function main() {
     record(results, '添加源 B', await waitFor(`document.querySelectorAll('[data-source-row]').length === ${before + 2}`));
     await wait(1200);
 
+    await addSource('源C XML', CMS + '/api3.php/provide/vod/at/xml/');
+    record(results, '添加 XML 源 C', await waitFor(`document.querySelectorAll('[data-source-row]').length === ${before + 3}`));
+    await wait(1200);
+
     const statusText = await evaluate('document.querySelector("[data-source-status]")?.innerText || ""');
     record(results, '源测活显示结果', /可用|条|失败|错误/.test(statusText), statusText);
 
@@ -129,26 +133,38 @@ async function main() {
       `Array.from(document.querySelectorAll('#home-browse .remote-card')).some((card) => /CC0 短片|更新至 2 集/.test(card.textContent))`
     ));
 
-    record(results, '首页显示分类标签', await waitFor(
-      'document.querySelectorAll("#home-browse .category-chip").length >= 3',
+    record(results, '首页显示一级分类', await waitFor(
+      'document.querySelectorAll("#browse-top-categories .category-chip").length >= 4',
       10000
     ));
-    const categoryNames = await evaluate(
-      `JSON.stringify(Array.from(document.querySelectorAll('#home-browse .category-chip')).map((chip) => chip.textContent.trim()))`
+    const topCategories = await evaluate(
+      `JSON.stringify(Array.from(document.querySelectorAll('#browse-top-categories .category-chip')).map((chip) => chip.textContent.trim()))`
     );
-    record(results, '分类目录含动作', JSON.parse(categoryNames).includes('动作'), categoryNames);
-    record(results, '分类不含成人分类', !JSON.parse(categoryNames).includes('伦理片'), categoryNames);
+    const topNames = JSON.parse(topCategories);
+    record(results, '一级分类含电影/电视剧/动漫/综艺/纪录片',
+      ['电影', '电视剧', '动漫', '综艺', '纪录片'].every((name) => topNames.includes(name)),
+      topCategories);
+    record(results, '分类不含成人分类', !topNames.includes('伦理片') && !topCategories.includes('伦理片'), topCategories);
+
+    record(results, '首页显示约数与页码', await waitFor(
+      `Boolean(document.querySelector('#home-browse .browse-count')) &&
+       Boolean(document.querySelector('#home-browse .browse-filter-meta'))`,
+      10000
+    ));
+    const countText = await evaluate('document.querySelector("#home-browse .browse-count")?.textContent || ""');
+    record(results, '显示约 N 部', /约\s*[\d,]+\s*部/.test(countText), countText);
 
     record(results, '首页显示分页器', await waitFor(
       'Boolean(document.querySelector("#home-browse .browse-pager"))',
       10000
     ));
     const firstPage = await evaluate('document.querySelector("#home-browse .browse-page-status")?.textContent || ""');
-    record(results, '默认第 1 页', /第 1 \/ [2-9] 页/.test(firstPage), firstPage);
+    record(results, '默认第 1 页', /第 1 \/ \d+ 页/.test(firstPage), firstPage);
+    record(results, '页数不再固定 20 页', /第 1 \/ (2[1-9]|[3-9]\d|\d{3,}) 页/.test(firstPage), firstPage);
 
     await evaluate('document.querySelector("#home-browse [data-action=browse-next]").click()');
     record(results, '翻到第 2 页', await waitFor(
-      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 2 /')`,
+      `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 2 /')`,
       10000
     ));
     const secondPageCards = await evaluate('document.querySelectorAll("#home-browse .remote-card").length');
@@ -156,12 +172,28 @@ async function main() {
 
     await evaluate('document.querySelector("#home-browse [data-action=browse-prev]").click()');
     record(results, '回到第 1 页', await waitFor(
-      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 1 /')`,
+      `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 1 /')`,
       10000
     ));
 
     await evaluate(
-      `Array.from(document.querySelectorAll('#home-browse .category-chip')).find((chip) => chip.textContent.trim() === '动作').click()`
+      `Array.from(document.querySelectorAll('#browse-top-categories .category-chip')).find((chip) => chip.textContent.trim() === '电影').click()`
+    );
+    record(results, '打开电影显示子分类', await waitFor(
+      'Boolean(document.querySelector("#browse-sub-categories"))',
+      10000
+    ));
+    const subCategories = await evaluate(
+      `JSON.stringify(Array.from(document.querySelectorAll('#browse-sub-categories .category-chip')).map((chip) => chip.textContent.trim()))`
+    );
+    const subNames = JSON.parse(subCategories);
+    record(results, '电影子分类含动作', subNames.includes('动作'), subCategories);
+    record(results, '超长分类有更多按钮', await evaluate(
+      `Boolean(document.querySelector('#browse-sub-categories [data-action=browse-more]'))`
+    ), subCategories);
+
+    await evaluate(
+      `Array.from(document.querySelectorAll('#browse-sub-categories .category-chip')).find((chip) => chip.textContent.trim() === '动作').click()`
     );
     record(results, '动作分类首屏 4 部', await waitFor(
       'document.querySelectorAll("#home-browse .remote-card").length === 4',
@@ -172,7 +204,7 @@ async function main() {
 
     await evaluate('document.querySelector("#home-browse [data-action=browse-next]").click()');
     record(results, '动作分类翻到第 2 页', await waitFor(
-      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 2 / 2 页')`,
+      `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 2 / 2 页')`,
       10000
     ));
     const actionSecond = await evaluate(
@@ -180,11 +212,45 @@ async function main() {
     );
     record(results, '动作分类第 2 页仍是动作片', JSON.parse(actionSecond).length === 4 && /动作测试/.test(actionSecond), actionSecond.slice(0, 120));
 
+    await evaluate('document.querySelector("#browse-sub-categories [data-action=browse-more]").click()');
+    record(results, '更多抽屉打开', await waitFor('Boolean(document.querySelector(".sheet [data-value]"))', 5000));
     await evaluate(
-      `Array.from(document.querySelectorAll('#home-browse .category-chip')).find((chip) => chip.textContent.trim() === '全部').click()`
+      `Array.from(document.querySelectorAll('.sheet [data-value]')).find((option) => option.textContent.trim().startsWith('长尾测试')).click()`
+    );
+    record(results, '长尾分类共 25 页', await waitFor(
+      `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 1 / 25 页')`,
+      10000
+    ));
+
+    await evaluate('document.querySelector("#home-browse [data-action=browse-jump]").click()');
+    record(results, '跳转对话框打开', await waitFor('Boolean(document.querySelector(".dialog input"))', 5000));
+    await evaluate(
+      `document.querySelector('.dialog input').value = '21'; document.querySelector('.dialog').requestSubmit();`
+    );
+    record(results, '跳转到第 21 页', await waitFor(
+      `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 21 / 25 页') && document.querySelector('#home-browse .remote-grid')?.textContent.includes('长尾影片 81')`,
+      10000
+    ));
+    const longTail = await evaluate(
+      `JSON.stringify(Array.from(document.querySelectorAll('#home-browse .remote-card')).map((card) => card.textContent))`
+    );
+    record(results, '第 21 页是长尾影片', /长尾影片 8[1-4]/.test(longTail), longTail.slice(0, 160));
+
+    await evaluate('document.querySelector("#browse-sub-categories [data-action=browse-more]").click()');
+    await waitFor('Boolean(document.querySelector(".sheet [data-value]"))', 5000);
+    await evaluate(
+      `Array.from(document.querySelectorAll('.sheet [data-value]')).find((option) => option.textContent.trim().startsWith('XML测试')).click()`
+    );
+    record(results, 'XML 源分类可浏览', await waitFor(
+      `Array.from(document.querySelectorAll('#home-browse .remote-card')).some((card) => card.textContent.includes('XML 专属影片'))`,
+      10000
+    ));
+
+    await evaluate(
+      `Array.from(document.querySelectorAll('#browse-top-categories .category-chip')).find((chip) => chip.textContent.trim() === '全部').click()`
     );
     record(results, '切回全部恢复第 1 页', await waitFor(
-      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 1 /')`,
+      `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 1 /')`,
       10000
     ));
 
@@ -200,7 +266,7 @@ async function main() {
     const groups = await evaluate('document.querySelectorAll(".remote-card").length');
     const chips = await evaluate('document.querySelectorAll(".remote-chip").length');
     const badge = await evaluate('document.querySelector(".remote-card .poster-badge")?.textContent || ""');
-    record(results, '两个源按标题合并为一组', groups === 1 && chips === 2, `卡片 ${groups} / 状态 ${chips}`);
+    record(results, '多个源按标题合并为一组', groups === 1 && chips === 3, `卡片 ${groups} / 状态 ${chips}`);
     record(results, '显示多来源数量', badge.includes('2 个来源'), badge);
 
     await evaluate('document.querySelector(".remote-card").click()');
@@ -242,6 +308,21 @@ async function main() {
     await evaluate('document.querySelector("#player-quality").click()');
     record(results, '多线路可选', await waitFor('document.querySelectorAll(".sheet [data-value]").length === 2'));
     await evaluate('document.querySelector(".sheet [data-cancel]").click()');
+
+    await send('Page.navigate', { url: BASE + '#/search?q=XML' });
+    record(results, 'XML 搜索出结果', await waitFor('Boolean(document.querySelector(".remote-card"))', 20000));
+    const xmlCards = await evaluate(
+      `JSON.stringify(Array.from(document.querySelectorAll('.remote-card')).map((card) => card.textContent))`
+    );
+    record(results, 'XML 搜索返回两部', JSON.parse(xmlCards).length === 2, xmlCards.slice(0, 160));
+
+    await evaluate('document.querySelector(".remote-card").click()');
+    record(results, 'XML 详情页打开', await waitFor('Boolean(document.querySelector(".detail-page"))', 20000));
+    const xmlTitle = await evaluate('document.querySelector(".detail-title")?.textContent || ""');
+    record(results, 'XML 详情标题正确', xmlTitle.includes('XML'), xmlTitle);
+    record(results, 'XML 详情解析简介', await evaluate(
+      `Boolean(document.querySelector(".detail-page .synopsis"))`
+    ));
 
     await send('Page.navigate', { url: BASE + '#/search?q=不应出现' });
     await wait(3000);

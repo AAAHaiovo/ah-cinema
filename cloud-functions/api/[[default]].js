@@ -23033,7 +23033,7 @@ var require_config = __commonJS({
       mode: MODE,
       isProduction: IS_PRODUCTION,
       isVercel: IS_VERCEL,
-      version: "0.7.0",
+      version: "0.8.0",
       apiVersion: 1,
       apiToken,
       signingSecret: signingSecret || devSigningSecret,
@@ -23045,11 +23045,14 @@ var require_config = __commonJS({
       missingEnv,
       configured: missingEnv.length === 0,
       allowedOrigins,
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AH-Cinema/0.7.0",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AH-Cinema/0.8.0",
       maxSources: 8,
       searchMaxPages: intEnv("AH_SEARCH_MAX_PAGES", 2, 1, 5),
       searchSourceTimeoutMs: 5e3,
       searchTotalTimeoutMs: 8e3,
+      browseMaxPage: 1e5,
+      browseTotalTimeoutMs: 18e3,
+      browseConcurrency: intEnv("AH_BROWSE_CONCURRENCY", 6, 1, 12),
       detailTimeoutMs: 6e3,
       testTimeoutMs: 5e3,
       subscriptionTimeoutMs: 8e3,
@@ -23676,7 +23679,15 @@ var require_text2 = __commonJS({
     function normalizeSourceUrl(value) {
       const safe = safeHttpUrl(value);
       if (!safe) return "";
-      return stripTrailingSlash(safe);
+      try {
+        const url = new URL(safe);
+        url.hash = "";
+        const text = url.toString();
+        if (/\/at\/xml\/$/i.test(url.pathname)) return text;
+        return stripTrailingSlash(text);
+      } catch (error) {
+        return stripTrailingSlash(safe);
+      }
     }
     function normalizeTitle(value) {
       return String(value || "").toLowerCase().replace(/[\s　]+/g, "").replace(/[·・:：\-—_.,，。!！?？'"“”‘’()（）\[\]【】]/g, "");
@@ -23694,11 +23705,227 @@ var require_text2 = __commonJS({
   }
 });
 
+// server/lib/xml.js
+var require_xml = __commonJS({
+  "server/lib/xml.js"(exports2, module2) {
+    "use strict";
+    var { decodeEntities } = require_text2();
+    var XmlError = class extends Error {
+      constructor(message, code = "XML_INVALID") {
+        super(message || "XML \u683C\u5F0F\u4E0D\u6B63\u786E");
+        this.name = "XmlError";
+        this.code = code;
+      }
+    };
+    var MAX_DEPTH = 64;
+    var MAX_ELEMENTS = 2e5;
+    var TOKEN_RE = /<!\[CDATA\[([\s\S]*?)\]\]>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<\s*(\/?)\s*([A-Za-z_][\w:.-]*)((?:\s+[A-Za-z_][\w:.-]*\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)\s*>/g;
+    var ATTR_RE = /([A-Za-z_][\w:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
+    function localName(name) {
+      return String(name || "").split(":").pop().toLowerCase();
+    }
+    function parseAttrs(source) {
+      const attrs = {};
+      ATTR_RE.lastIndex = 0;
+      let match;
+      while (match = ATTR_RE.exec(String(source || ""))) {
+        attrs[localName(match[1])] = decodeEntities(match[2] !== void 0 ? match[2] : match[3]);
+      }
+      return attrs;
+    }
+    function createElement(name, attrs) {
+      return { name, attrs: attrs || {}, children: [], text: "" };
+    }
+    function appendText(element, value, cdata) {
+      if (!value) return;
+      element.text += cdata ? value : decodeEntities(value);
+    }
+    function parseXml(source) {
+      const raw = String(source === void 0 || source === null ? "" : source).replace(/^﻿/, "");
+      if (!raw.trim()) throw new XmlError("XML \u5185\u5BB9\u4E3A\u7A7A");
+      const declarations = raw.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, "").replace(/<!--[\s\S]*?-->/g, "");
+      if (declarations.includes("<!")) {
+        throw new XmlError("\u4E0D\u652F\u6301 DOCTYPE \u6216\u5B9E\u4F53\u58F0\u660E", "XML_UNSAFE");
+      }
+      const documentRoot = createElement("#document");
+      const stack = [documentRoot];
+      let lastIndex = 0;
+      let elementCount = 0;
+      TOKEN_RE.lastIndex = 0;
+      let match;
+      while (match = TOKEN_RE.exec(raw)) {
+        const between = raw.slice(lastIndex, match.index);
+        if (between) appendText(stack[stack.length - 1], between, false);
+        lastIndex = TOKEN_RE.lastIndex;
+        if (match[1] !== void 0) {
+          appendText(stack[stack.length - 1], match[1], true);
+          continue;
+        }
+        if (match[2] === void 0) continue;
+        const closing = match[2] === "/";
+        const tagName = match[3];
+        const attrsText = match[4] || "";
+        const selfClosing = match[5] === "/";
+        if (closing) {
+          if (stack.length <= 1) throw new XmlError("\u51FA\u73B0\u591A\u4F59\u7684\u7ED3\u675F\u6807\u7B7E\uFF1A" + tagName);
+          const current = stack.pop();
+          if (localName(current.name) !== localName(tagName)) {
+            throw new XmlError("\u6807\u7B7E\u672A\u6B63\u786E\u95ED\u5408\uFF1A" + current.name + " / " + tagName);
+          }
+          continue;
+        }
+        elementCount += 1;
+        if (elementCount > MAX_ELEMENTS) throw new XmlError("XML \u5143\u7D20\u8FC7\u591A");
+        const element = createElement(tagName, parseAttrs(attrsText));
+        stack[stack.length - 1].children.push(element);
+        if (!selfClosing) {
+          if (stack.length >= MAX_DEPTH) throw new XmlError("XML \u5D4C\u5957\u8FC7\u6DF1");
+          stack.push(element);
+        }
+      }
+      const tail = raw.slice(lastIndex);
+      if (tail) appendText(stack[stack.length - 1], tail, false);
+      if (stack.length !== 1) {
+        throw new XmlError("XML \u6807\u7B7E\u672A\u95ED\u5408\uFF1A" + stack[stack.length - 1].name);
+      }
+      if (!documentRoot.children.length) throw new XmlError("XML \u6CA1\u6709\u6839\u5143\u7D20");
+      const preferred = documentRoot.children.find(
+        (element) => ["rss", "root", "xml", "response"].includes(localName(element.name))
+      );
+      return preferred || documentRoot.children[0];
+    }
+    function childrenNamed(element, names) {
+      const wanted = new Set(names.map(localName));
+      return element.children.filter((child) => wanted.has(localName(child.name)));
+    }
+    function childNamed(element, names) {
+      return childrenNamed(element, names)[0] || null;
+    }
+    function attrNamed(element, names) {
+      for (const name of names) {
+        const key = localName(name);
+        if (element.attrs[key] !== void 0 && element.attrs[key] !== null) {
+          return String(element.attrs[key]);
+        }
+      }
+      return "";
+    }
+    function textNamed(element, names) {
+      const child = childNamed(element, names);
+      return child ? String(child.text || "").trim() : "";
+    }
+    function valueNamed(element, names) {
+      const fromAttr = attrNamed(element, names);
+      if (fromAttr) return fromAttr;
+      return textNamed(element, names);
+    }
+    function intValue(value, fallback) {
+      const number = Number.parseInt(String(value === void 0 || value === null ? "" : value), 10);
+      return Number.isFinite(number) ? number : fallback;
+    }
+    function extractPlay(element) {
+      const groups = [];
+      const sources = childrenNamed(element, ["dl", "play", "plays", "playlist"]);
+      const entries = [];
+      sources.forEach((container) => {
+        entries.push(...childrenNamed(container, ["dd", "url", "episode"]));
+      });
+      if (!entries.length) entries.push(...childrenNamed(element, ["dd"]));
+      entries.forEach((entry, index) => {
+        const from = attrNamed(entry, ["flag", "from", "name", "line"]) || "\u7EBF\u8DEF " + (index + 1);
+        const text = String(entry.text || "").trim();
+        if (text) groups.push({ from, text });
+      });
+      if (groups.length) {
+        return {
+          from: groups.map((group) => group.from).join("$$$"),
+          url: groups.map((group) => group.text).join("$$$")
+        };
+      }
+      return {
+        from: valueNamed(element, ["vod_play_from", "play_from", "from"]),
+        url: valueNamed(element, ["vod_play_url", "play_url", "url"])
+      };
+    }
+    function videoToCms(element) {
+      const vodId = valueNamed(element, ["id", "vod_id", "vid"]);
+      const name = valueNamed(element, ["name", "vod_name", "title"]);
+      if (!vodId || !name) return null;
+      const typeName = valueNamed(element, ["type", "type_name", "class", "vod_class"]);
+      const play = extractPlay(element);
+      return {
+        vod_id: vodId,
+        vod_name: name,
+        vod_pic: valueNamed(element, ["pic", "vod_pic", "poster", "img"]),
+        vod_year: valueNamed(element, ["year", "vod_year"]),
+        type_id: valueNamed(element, ["tid", "type_id", "typeid"]),
+        type_name: typeName,
+        vod_class: typeName,
+        vod_area: valueNamed(element, ["area", "vod_area"]),
+        vod_lang: valueNamed(element, ["lang", "vod_lang", "language"]),
+        vod_remarks: valueNamed(element, ["note", "remarks", "vod_remarks"]),
+        vod_actor: valueNamed(element, ["actor", "vod_actor", "stars"]),
+        vod_director: valueNamed(element, ["director", "vod_director"]),
+        vod_content: valueNamed(element, ["des", "content", "vod_content", "blurb", "vod_blurb", "intro", "description"]),
+        vod_play_from: play.from,
+        vod_play_url: play.url
+      };
+    }
+    function xmlToCms(root) {
+      if (!root) throw new XmlError("XML \u6CA1\u6709\u6839\u5143\u7D20");
+      const classContainer = childNamed(root, ["class", "classes", "types"]);
+      const tyElements = classContainer ? childrenNamed(classContainer, ["ty", "type", "class", "item"]) : childrenNamed(root, ["ty", "type"]);
+      const classList = [];
+      tyElements.forEach((element) => {
+        const id = valueNamed(element, ["id", "type_id", "tid"]);
+        const name = (String(element.text || "").trim() || textNamed(element, ["name", "type_name"])).trim();
+        if (!id || !name) return;
+        const parent = valueNamed(element, ["pid", "parent", "type_pid"]);
+        classList.push({
+          type_id: id,
+          type_name: name,
+          type_pid: parent || "0"
+        });
+      });
+      const listElement = childNamed(root, ["list", "videolist", "videos"]);
+      let list = null;
+      let page = 1;
+      let pagecount = 0;
+      let total = 0;
+      if (listElement) {
+        page = intValue(valueNamed(listElement, ["page"]), 1);
+        pagecount = intValue(valueNamed(listElement, ["pagecount", "page_count", "pages"]), 0);
+        total = intValue(valueNamed(listElement, ["recordcount", "total", "count"]), 0);
+        const videoElements = childrenNamed(listElement, ["video", "vod", "item", "movie"]);
+        list = videoElements.map(videoToCms).filter(Boolean);
+        if (!total) total = list.length;
+        if (!pagecount && list.length) pagecount = 1;
+      }
+      return { class: classList, list, page, pagecount, total };
+    }
+    function parseCmsXml(source) {
+      return xmlToCms(parseXml(source));
+    }
+    function looksLikeXml(source) {
+      const text = String(source || "").replace(/^﻿/, "").trimStart();
+      return text.startsWith("<");
+    }
+    module2.exports = {
+      XmlError,
+      parseXml,
+      xmlToCms,
+      parseCmsXml,
+      looksLikeXml
+    };
+  }
+});
+
 // server/lib/cms.js
 var require_cms = __commonJS({
   "server/lib/cms.js"(exports2, module2) {
     "use strict";
     var { cleanText, safeHttpUrl, truncate } = require_text2();
+    var { parseCmsXml, looksLikeXml, XmlError } = require_xml();
     var config = require_config();
     var CmsError = class extends Error {
       constructor(code, message, status = 502) {
@@ -23740,6 +23967,36 @@ var require_cms = __commonJS({
     function isAdultEntry(raw) {
       const fields = [raw.type_name, raw.vod_class, raw.vod_sub, raw.vod_area, raw.vod_lang].filter(Boolean).join(" ");
       return isAdultText(fields);
+    }
+    function detectCmsFormat(text) {
+      const raw = String(text === void 0 || text === null ? "" : text).replace(/^﻿/, "").trim();
+      if (!raw) return "";
+      if (raw[0] === "{" || raw[0] === "[") return "json";
+      if (looksLikeXml(raw)) return "xml";
+      return "";
+    }
+    function parseCmsPayload(text) {
+      const raw = String(text === void 0 || text === null ? "" : text).replace(/^﻿/, "").trim();
+      if (!raw) throw new CmsError("CMS_INVALID", "\u6E90\u7AD9\u8FD4\u56DE\u4E86\u7A7A\u5185\u5BB9");
+      const format = detectCmsFormat(raw);
+      if (format === "json") {
+        try {
+          return JSON.parse(raw);
+        } catch (error) {
+          throw new CmsError("CMS_INVALID", "\u6E90\u7AD9\u8FD4\u56DE\u7684\u4E0D\u662F\u6709\u6548 JSON");
+        }
+      }
+      if (format === "xml") {
+        try {
+          return parseCmsXml(raw);
+        } catch (error) {
+          if (error instanceof XmlError) {
+            throw new CmsError("CMS_INVALID", "\u6E90\u7AD9\u8FD4\u56DE\u7684 XML \u683C\u5F0F\u4E0D\u6B63\u786E\uFF1A" + error.message);
+          }
+          throw error;
+        }
+      }
+      throw new CmsError("CMS_INVALID", "\u6E90\u7AD9\u8FD4\u56DE\u7684\u683C\u5F0F\u65E0\u6CD5\u8BC6\u522B\uFF08\u65E2\u4E0D\u662F JSON\uFF0C\u4E5F\u4E0D\u662F XML\uFF09");
     }
     function parseClassList(data) {
       if (!data || typeof data !== "object" || Array.isArray(data)) {
@@ -23931,6 +24188,8 @@ var require_cms = __commonJS({
       browseUrl,
       listUrl,
       detailUrl,
+      detectCmsFormat,
+      parseCmsPayload,
       parseSearchResponse,
       parseClassList,
       parsePlayLines,
@@ -24156,12 +24415,29 @@ var require_safe_fetch = __commonJS({
         throw error;
       }
     }
+    function detectCharset(headers, body) {
+      const contentType = String(headers && headers["content-type"] || "");
+      const headerMatch = /charset\s*=\s*["']?([^;"'\s]+)/i.exec(contentType);
+      if (headerMatch) return headerMatch[1];
+      const head = body.subarray(0, 256).toString("latin1");
+      const xmlMatch = /<\?xml[^>]*encoding\s*=\s*["']([^"']+)["']/i.exec(head);
+      return xmlMatch ? xmlMatch[1] : "";
+    }
+    function decodeBody(body, headers) {
+      const charset = detectCharset(headers, body);
+      if (!charset || /^utf-?8$/i.test(charset)) return body.toString("utf8");
+      try {
+        return new TextDecoder(charset).decode(body);
+      } catch (error) {
+        return body.toString("utf8");
+      }
+    }
     async function fetchText(rawUrl, opts = {}) {
       const result = await fetchBuffer(rawUrl, opts);
       return {
         status: result.status,
         headers: result.headers,
-        text: result.body.toString("utf8"),
+        text: decodeBody(result.body, result.headers),
         url: result.url
       };
     }
@@ -24185,8 +24461,9 @@ var require_common = __commonJS({
     var { validateUrlSync, SsrfError } = require_ssrf();
     var { isLoopbackRequest } = require_auth();
     var { FetchError } = require_safe_fetch();
-    var { CmsError } = require_cms();
-    var { cleanText, stripTrailingSlash } = require_text2();
+    var { CmsError, parseCmsPayload } = require_cms();
+    var { cleanText, normalizeSourceUrl } = require_text2();
+    var MAX_TYPE_IDS = 32;
     function allowPrivateFor(req) {
       return config.devAllowPrivate && isLoopbackRequest(req);
     }
@@ -24203,7 +24480,7 @@ var require_common = __commonJS({
         }
         throw error;
       }
-      const normalizedUrl = stripTrailingSlash(url.toString());
+      const normalizedUrl = normalizeSourceUrl(url.toString());
       let fallbackName = "";
       try {
         fallbackName = new URL(normalizedUrl).host;
@@ -24217,6 +24494,22 @@ var require_common = __commonJS({
         name: cleanText(raw.name, 60) || fallbackName,
         url: normalizedUrl
       };
+    }
+    function normalizeTypeIds(raw) {
+      const values = [];
+      if (raw && typeof raw === "object") {
+        if (Array.isArray(raw.typeIds)) values.push(...raw.typeIds);
+        if (raw.typeId !== void 0) values.push(raw.typeId);
+      }
+      const seen = /* @__PURE__ */ new Set();
+      const ids = [];
+      values.forEach((value) => {
+        const id = String(value === void 0 || value === null ? "" : value).trim();
+        if (!/^\d{1,10}$/.test(id) || seen.has(id)) return;
+        seen.add(id);
+        if (ids.length < MAX_TYPE_IDS) ids.push(id);
+      });
+      return ids;
     }
     function normalizeSourceList(rawList, allowPrivate, options = {}) {
       const max = Number(options.max) || config.maxSources;
@@ -24232,8 +24525,8 @@ var require_common = __commonJS({
         const source = normalizeSource(raw, allowPrivate);
         if (seen.has(source.url)) return;
         seen.add(source.url);
-        const typeId = raw && typeof raw === "object" ? String(raw.typeId || "").trim() : "";
-        if (/^\d{1,10}$/.test(typeId)) source.typeId = typeId;
+        const typeIds = normalizeTypeIds(raw);
+        if (typeIds.length) source.typeIds = typeIds;
         sources.push(source);
       });
       if (!sources.length) {
@@ -24290,7 +24583,9 @@ var require_common = __commonJS({
       allowPrivateFor,
       normalizeSource,
       normalizeSourceList,
+      normalizeTypeIds,
       parseCmsJson,
+      parseCmsPayload,
       ensureUpstreamOk,
       upstreamErrorMessage
     };
@@ -24309,78 +24604,159 @@ var require_browse = __commonJS({
     var {
       allowPrivateFor,
       normalizeSourceList,
-      parseCmsJson,
+      parseCmsPayload,
       ensureUpstreamOk,
       upstreamErrorMessage
     } = require_common();
-    var MAX_PAGE = 20;
-    async function browseOne(source, page, { allowPrivate, signal }) {
+    async function fetchType(source, page, typeId, { allowPrivate, signal }) {
       const startedAt = Date.now();
-      const response = await fetchText(cms.browseUrl(source.url, page, source.typeId), {
+      const response = await fetchText(cms.browseUrl(source.url, page, typeId), {
         timeoutMs: config.searchSourceTimeoutMs,
         maxBytes: config.jsonMaxBytes,
         allowPrivate,
         signal
       });
       ensureUpstreamOk(response);
-      const parsed = cms.parseSearchResponse(parseCmsJson(response.text));
-      return {
-        items: parsed.items.map(
-          (entry) => Object.assign({}, entry, { sourceId: source.id, sourceName: source.name })
-        ),
-        pagecount: parsed.pagecount,
-        ms: Date.now() - startedAt
-      };
+      const parsed = cms.parseSearchResponse(parseCmsPayload(response.text));
+      return { parsed, ms: Date.now() - startedAt };
+    }
+    async function mapLimit(items, limit, worker) {
+      const results = new Array(items.length);
+      let cursor = 0;
+      const size = Math.min(Math.max(1, Number(limit) || 1), items.length || 1);
+      await Promise.all(
+        Array.from({ length: size }, async () => {
+          for (; ; ) {
+            const index = cursor;
+            cursor += 1;
+            if (index >= items.length) return;
+            results[index] = await worker(items[index], index);
+          }
+        })
+      );
+      return results;
     }
     module2.exports = createRoute(
       async (req, res) => {
         const body = await readJson(req, config.bodyMaxBytes);
-        const page = Math.min(Math.max(1, Number.parseInt(body.page, 10) || 1), MAX_PAGE);
+        const requestedPage = Number.parseInt(body.page, 10);
+        const page = Number.isFinite(requestedPage) ? Math.min(Math.max(1, requestedPage), config.browseMaxPage) : 1;
         const allowPrivate = allowPrivateFor(req);
         const sources = normalizeSourceList(body.sources, allowPrivate);
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), config.searchTotalTimeoutMs);
+        const timer = setTimeout(() => controller.abort(), config.browseTotalTimeoutMs);
         const onClientGone = () => {
           if (!res.writableEnded) controller.abort();
         };
         res.on("close", onClientGone);
         try {
-          const results = await Promise.all(
-            sources.map(async (source) => {
-              const startedAt = Date.now();
-              try {
-                const result = await browseOne(source, page, {
-                  allowPrivate,
-                  signal: controller.signal
-                });
-                return {
-                  sourceId: source.id,
-                  sourceName: source.name,
-                  ok: true,
-                  page,
-                  pagecount: result.pagecount,
-                  ms: result.ms,
-                  count: result.items.length,
-                  items: result.items
-                };
-              } catch (error) {
-                return {
-                  sourceId: source.id,
-                  sourceName: source.name,
-                  ok: false,
-                  page,
-                  pagecount: 0,
-                  ms: Date.now() - startedAt,
-                  count: 0,
-                  items: [],
-                  timedOut: controller.signal.aborted,
-                  error: upstreamErrorMessage(error, controller.signal.aborted)
-                };
-              }
-            })
-          );
+          const tasks = [];
+          sources.forEach((source) => {
+            const typeIds = Array.isArray(source.typeIds) && source.typeIds.length ? source.typeIds : [""];
+            typeIds.forEach((typeId) => tasks.push({ source, typeId }));
+          });
+          const taskResults = await mapLimit(tasks, config.browseConcurrency, async (task) => {
+            try {
+              const result = await fetchType(task.source, page, task.typeId, {
+                allowPrivate,
+                signal: controller.signal
+              });
+              return {
+                ok: true,
+                source: task.source,
+                typeId: task.typeId,
+                parsed: result.parsed,
+                ms: result.ms
+              };
+            } catch (error) {
+              return {
+                ok: false,
+                source: task.source,
+                typeId: task.typeId,
+                error,
+                timedOut: controller.signal.aborted,
+                ms: 0
+              };
+            }
+          });
+          const bySource = /* @__PURE__ */ new Map();
+          sources.forEach((source) => {
+            bySource.set(source.id, {
+              sourceId: source.id,
+              sourceName: source.name,
+              ok: false,
+              page,
+              pagecount: 0,
+              total: 0,
+              count: 0,
+              items: [],
+              typeCount: 0,
+              okTypes: 0,
+              failedTypes: 0,
+              partial: false,
+              ms: 0,
+              timedOut: false,
+              error: ""
+            });
+          });
+          taskResults.forEach((result) => {
+            const entry = bySource.get(result.source.id);
+            if (!entry) return;
+            entry.typeCount += 1;
+            entry.ms = Math.max(entry.ms, Number(result.ms) || 0);
+            if (result.ok) {
+              entry.okTypes += 1;
+              entry.pagecount = Math.max(entry.pagecount, Number(result.parsed.pagecount) || 0);
+              entry.total += Math.max(
+                0,
+                Number(result.parsed.total) || 0,
+                result.parsed.items.length
+              );
+              result.parsed.items.forEach((item) => {
+                entry.items.push(
+                  Object.assign({}, item, { sourceId: entry.sourceId, sourceName: entry.sourceName })
+                );
+              });
+              return;
+            }
+            entry.failedTypes += 1;
+            if (result.timedOut) entry.timedOut = true;
+            if (!entry.error) {
+              entry.error = upstreamErrorMessage(
+                result.error,
+                result.timedOut || controller.signal.aborted
+              );
+            }
+          });
+          const results = sources.map((source) => {
+            const entry = bySource.get(source.id);
+            const seen = /* @__PURE__ */ new Set();
+            entry.items = entry.items.filter((item) => {
+              if (!item.vodId || seen.has(item.vodId)) return false;
+              seen.add(item.vodId);
+              return true;
+            });
+            entry.count = entry.items.length;
+            entry.ok = entry.okTypes > 0;
+            entry.partial = entry.okTypes > 0 && entry.failedTypes > 0;
+            entry.pagecount = entry.ok ? Math.max(1, entry.pagecount) : 0;
+            entry.total = entry.ok ? entry.total : 0;
+            entry.error = entry.error || (entry.partial ? "\u90E8\u5206\u5206\u7C7B\u52A0\u8F7D\u5931\u8D25" : "");
+            if (!entry.ok) {
+              entry.items = [];
+              entry.count = 0;
+              entry.pagecount = 0;
+              entry.total = 0;
+              entry.error = entry.error || (entry.timedOut ? "\u8BF7\u6C42\u8D85\u65F6" : "\u52A0\u8F7D\u5931\u8D25");
+            }
+            return entry;
+          });
           const total = results.reduce((sum, result) => sum + result.items.length, 0);
-          sendJson2(res, 200, { ok: true, page, total, sources: results });
+          const worksTotal = results.reduce(
+            (sum, result) => sum + (result.ok ? result.total : 0),
+            0
+          );
+          sendJson2(res, 200, { ok: true, page, total, worksTotal, sources: results });
         } finally {
           clearTimeout(timer);
           res.removeListener("close", onClientGone);
@@ -24403,7 +24779,7 @@ var require_categories = __commonJS({
     var {
       allowPrivateFor,
       normalizeSourceList,
-      parseCmsJson,
+      parseCmsPayload,
       ensureUpstreamOk,
       upstreamErrorMessage
     } = require_common();
@@ -24416,7 +24792,7 @@ var require_categories = __commonJS({
         signal
       });
       ensureUpstreamOk(response);
-      const classes = cms.parseClassList(parseCmsJson(response.text));
+      const classes = cms.parseClassList(parseCmsPayload(response.text));
       return { classes, ms: Date.now() - startedAt };
     }
     module2.exports = createRoute(
@@ -24485,7 +24861,7 @@ var require_search = __commonJS({
     var {
       allowPrivateFor,
       normalizeSource,
-      parseCmsJson,
+      parseCmsPayload,
       ensureUpstreamOk,
       upstreamErrorMessage
     } = require_common();
@@ -24526,7 +24902,7 @@ var require_search = __commonJS({
           signal
         });
         ensureUpstreamOk(response);
-        const parsed = cms.parseSearchResponse(parseCmsJson(response.text));
+        const parsed = cms.parseSearchResponse(parseCmsPayload(response.text));
         parsed.items.forEach((entry) => {
           items.push(Object.assign({}, entry, { sourceId: source.id, sourceName: source.name }));
         });
@@ -24732,7 +25108,7 @@ var require_detail = __commonJS({
     var {
       allowPrivateFor,
       normalizeSource,
-      parseCmsJson,
+      parseCmsPayload,
       ensureUpstreamOk
     } = require_common();
     module2.exports = createRoute(
@@ -24750,7 +25126,7 @@ var require_detail = __commonJS({
           allowPrivate
         });
         ensureUpstreamOk(response);
-        const data = parseCmsJson(response.text);
+        const data = parseCmsPayload(response.text);
         const makeProxyUrl = (target) => createProxyPath(config.signingSecret, target, { ttlSeconds: config.proxyTtlSeconds });
         const item = cms.buildDetailItem(data, { source, vodId, proxyUrl: makeProxyUrl });
         sendJson2(res, 200, {
@@ -24774,8 +25150,8 @@ var require_source_test = __commonJS({
     var { readJson, sendJson: sendJson2, ApiError } = require_http();
     var { fetchText } = require_safe_fetch();
     var { validateUrlSync, SsrfError } = require_ssrf();
-    var { allowPrivateFor, parseCmsJson, upstreamErrorMessage } = require_common();
-    var { stripTrailingSlash } = require_text2();
+    var { allowPrivateFor, parseCmsPayload, upstreamErrorMessage } = require_common();
+    var { normalizeSourceUrl } = require_text2();
     function hostOf(url) {
       try {
         return new URL(url).host;
@@ -24789,7 +25165,7 @@ var require_source_test = __commonJS({
         const allowPrivate = allowPrivateFor(req);
         let url;
         try {
-          url = stripTrailingSlash(validateUrlSync(String(body.url || ""), { allowPrivate }).toString());
+          url = normalizeSourceUrl(validateUrlSync(String(body.url || ""), { allowPrivate }).toString());
         } catch (error) {
           if (error instanceof SsrfError) {
             throw new ApiError(400, error.code, "\u6E90\u5730\u5740\u4E0D\u88AB\u5141\u8BB8\uFF1A" + error.message);
@@ -24811,7 +25187,7 @@ var require_source_test = __commonJS({
             });
             return;
           }
-          const data = parseCmsJson(response.text);
+          const data = parseCmsPayload(response.text);
           const parsed = cms.parseSearchResponse(data);
           if (!parsed.listIsArray) {
             sendJson2(res, 200, {
@@ -24825,6 +25201,7 @@ var require_source_test = __commonJS({
             ok: true,
             ms: Date.now() - startedAt,
             count: parsed.items.length,
+            format: cms.detectCmsFormat(response.text),
             name: hostOf(url)
           });
         } catch (error) {
