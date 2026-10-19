@@ -664,6 +664,7 @@ function emptyBrowseState() {
     categoriesLoaded: false,
     topGroup: '',
     subCategory: '',
+    expanded: false,
     fetchingKey: '',
     failedKey: ''
   };
@@ -851,6 +852,8 @@ async function loadBrowse(page, topGroup, subCategory, options = {}) {
     categoriesLoaded: true,
     topGroup: nextTop,
     subCategory: nextSub,
+    /* 只有同一一级分类内才保留展开状态；换成电影/电视剧时自动收起。 */
+    expanded: nextTop === previous.topGroup ? previous.expanded : false,
     status: 'loading',
     page: targetPage,
     loading: true,
@@ -978,23 +981,18 @@ function selectBrowseTop(key) {
 function selectBrowseSub(name) {
   if (!browseState.topGroup) return;
   const next = String(name || '');
-  if (next === browseState.subCategory && !browseState.loading) return;
+  if (next === browseState.subCategory && !browseState.loading && !browseState.expanded) return;
+  /* 点选后收起分类网格，把位置留给影片列表。 */
+  browseState.expanded = false;
   loadBrowse(1, browseState.topGroup, next, { scroll: true }).catch(() => {});
 }
 
-async function openBrowseMore() {
+/* iOS 风格的「展开 / 收起」：在分类栏内展开全部子分类网格，不用弹层。 */
+function toggleBrowseExpand() {
   const group = findGroup(browseState.tree, browseState.topGroup);
   if (!group || !group.children.length) return;
-
-  const choice = await openSheet({
-    title: group.name + ' · 全部分类',
-    options: [{ value: '', label: '全部' }].concat(
-      group.children.map((child) => ({ value: child.name, label: child.name }))
-    ),
-    value: browseState.subCategory
-  });
-  if (choice === null) return;
-  selectBrowseSub(choice);
+  browseState.expanded = !browseState.expanded;
+  renderBrowse();
 }
 
 async function browseJump() {
@@ -1462,8 +1460,8 @@ async function onDocumentClick(event) {
     return;
   }
 
-  if (action === 'browse-more') {
-    await openBrowseMore();
+  if (action === 'browse-expand') {
+    toggleBrowseExpand();
     return;
   }
 

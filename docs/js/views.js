@@ -54,7 +54,7 @@ import {
 import { localItems, localCount } from './local-library.js';
 import { cachedSources } from './sources.js';
 
-const APP_VERSION = '0.8.0';
+const APP_VERSION = '0.8.1';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -83,13 +83,42 @@ function browseChip(label, options = {}) {
   const action = options.action || 'browse-sub';
   const attr = options.attr || 'data-sub';
   const value = options.value === undefined || options.value === null ? '' : String(options.value);
-  const classes = ['category-chip'];
+  const classes = [options.cell ? 'category-cell' : 'category-chip'];
   if (options.active) classes.push('is-active');
-  if (options.more) classes.push('is-more');
 
   return '<button class="' + classes.join(' ') + '" type="button" data-action="' + action + '" ' +
     attr + '="' + escapeHtml(value) + '"' + (options.active ? ' aria-pressed="true"' : '') + '>' +
     escapeHtml(label) + '</button>';
+}
+
+function browseExpandButton(expanded) {
+  return '<button class="browse-expand' + (expanded ? ' is-open' : '') + '" type="button" ' +
+    'data-action="browse-expand" aria-expanded="' + (expanded ? 'true' : 'false') + '" ' +
+    'aria-controls="browse-category-panel">' +
+    '<span>' + (expanded ? '收起' : '展开') + '</span>' +
+    icon('chevronDown', 'browse-expand-icon') +
+    '</button>';
+}
+
+/* iOS「查看全部」式面板：在吸顶分类栏内展开网格，不弹层、不依赖列表滚动。 */
+function browseCategoryPanel(group, selectedSub) {
+  const cells = [
+    browseChip('全部', { value: '', active: !selectedSub, cell: true })
+  ].concat(
+    group.children.map((child) => browseChip(child.name, {
+      value: child.name,
+      active: child.name === selectedSub,
+      cell: true
+    }))
+  );
+
+  return '<div class="browse-category-panel" id="browse-category-panel">' +
+    '<div class="browse-category-head">' +
+      '<span>' + escapeHtml(group.name) + '全部分类</span>' +
+      '<span class="browse-category-total">' + group.children.length + ' 个类型</span>' +
+    '</div>' +
+    '<div class="browse-category-grid">' + cells.join('') + '</div>' +
+  '</div>';
 }
 
 function browseScrollButton(direction, row) {
@@ -149,12 +178,14 @@ function browseFilterBar(view) {
   );
 
   let subRow = '';
+  let categoryPanel = '';
   if (group && Array.isArray(group.children) && group.children.length) {
     const children = group.children;
+    const expanded = Boolean(view.expanded);
     const visible = children.slice(0, 9);
     if (selectedSub && !visible.some((child) => child.name === selectedSub)) {
       const activeChild = children.find((child) => child.name === selectedSub);
-      if (activeChild) visible.splice(Math.max(0, visible.length - 1), 1, activeChild);
+      if (activeChild) visible.push(activeChild);
     }
 
     const subChips = [
@@ -167,16 +198,16 @@ function browseFilterBar(view) {
         active: child.name === selectedSub
       }))
     );
-    if (children.length > 9) {
-      subChips.push(browseChip('更多', { action: 'browse-more', attr: 'data-more', value: '', more: true }));
-    }
 
     subRow = '<div class="browse-filter-row" data-row="sub">' +
       browseScrollButton(-1, 'sub') +
       '<div class="browse-categories" id="browse-sub-categories" aria-label="' +
         escapeHtml(group.name) + '子分类">' + subChips.join('') + '</div>' +
       browseScrollButton(1, 'sub') +
+      (children.length > 9 ? browseExpandButton(expanded) : '') +
       '</div>';
+
+    if (expanded) categoryPanel = browseCategoryPanel(group, selectedSub);
   }
 
   return '<div class="browse-filterbar">' +
@@ -187,6 +218,7 @@ function browseFilterBar(view) {
       browseScrollButton(1, 'top') +
     '</div>' +
     subRow +
+    categoryPanel +
     meta +
     '</div>';
 }

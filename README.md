@@ -1,6 +1,6 @@
 # AH 影视
 
-个人自用的影视 PWA。前端是纯静态的原生 HTML / CSS / JavaScript，**不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。v0.5.0 起增加**可选的**源管理与多源点播搜索，需要一个自己的 Vercel / 腾讯云 EdgeOne Pages / SCF / 本地 Node 服务来转发源请求（浏览器跨域所限）。v0.6.0 起首页直接显示已启用源的最新影片；v0.7.0 起支持按源分类筛选和上一页 / 下一页翻页；v0.8.0 改进播放失败的诊断与 HLS 自动兜底；v0.8.0 把分类整理成「电影 / 电视剧 / 动漫 / 综艺 / 纪录片 + 子类型」，翻页按源站真实页数显示并支持跳页，同时支持源站的 Apple CMS XML 接口（`/at/xml/`）；粘贴链接的入口在「我的视频」。
+个人自用的影视 PWA。前端是纯静态的原生 HTML / CSS / JavaScript，**不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。v0.5.0 起增加**可选的**源管理与多源点播搜索，需要一个自己的 Vercel / 腾讯云 EdgeOne Pages / SCF / 本地 Node 服务来转发源请求（浏览器跨域所限）。v0.6.0 起首页直接显示已启用源的最新影片；v0.7.0 起支持按源分类筛选和上一页 / 下一页翻页；v0.8.0 改进播放失败的诊断与 HLS 自动兜底；v0.8.0 把分类整理成「电影 / 电视剧 / 动漫 / 综艺 / 纪录片 + 子类型」，翻页按源站真实页数显示并支持跳页，同时支持源站的 Apple CMS XML 接口（`/at/xml/`）；v0.8.1 把「更多」改成 iOS 风格的内嵌展开网格，并给桌面 / 主屏图标加上超椭圆圆角；粘贴链接的入口在「我的视频」。
 
 **线上地址**：<https://aaahaiovo.github.io/ah-cinema/>（纯静态备用入口；iPhone 用 Safari 打开 → 分享 → 添加到主屏幕）
 
@@ -10,17 +10,17 @@
 
 ## 现在能做什么
 
-### 首页片库（v0.6.0，v0.8.0 重做分类与翻页）
+### 首页片库（v0.6.0，v0.8.0 重做分类与翻页，v0.8.1 改进分类展开）
 
 配置好源之后，首页「最新影片」会自动拉取所有已启用源的最新入库列表，以海报墙显示；两个源里的同一部影片会合并成一张卡片。
 
 顶部是固定在页面顶部的两级分类栏：
 
 - 第一行：**全部** + **电影 / 电视剧 / 动漫 / 综艺 / 纪录片**；只显示源里确实存在的组。
-- 第二行：选中一级分类后出现子类型，例如电影下的剧情 / 喜剧 / 爱情 / 动作 / 科幻 / …。先显示 9 个，其余收进「更多」抽屉；当前选中的类型即使排在后面也会留在可见行里。
+- 第二行：选中一级分类后出现子类型，例如电影下的剧情 / 喜剧 / 爱情 / 动作 / 科幻 / …。先显示 9 个；超过 9 个时行尾出现「展开」，点开后分类栏内直接铺开全部类型网格（可上下滚动），再点「收起」返回；当前选中的类型即使排在后面也会留在可见行里。
 - 分类优先按源站的 `type_pid` 父子关系整理；源站没有父子关系时按分类名推断。不同源对同一分类的 `type_id` 可能不同，App 会按「分类名 → 各源 type_id」映射后分别带 `t` 参数请求。
 - 「电影 → 全部」会聚合该组所有子类型的 `type_id`，某次请求失败只标记为「部分分类失败」。
-- 两行都可以横向滑动；桌面端还会显示左右箭头。
+- 两行都可以横向滑动（触屏直接拖动，桌面端还会显示左右箭头）；展开网格时不会弹层，也不影响横向滑动。
 - 分类栏下方显示约数（各源合计，可能重复）、可用源数和当前页 / 总页数。
 
 分页器的总页数来自源站返回的 `pagecount`，不再固定为 20 页；底部有「上一页 / 下一页 / 跳转」，跳转页码会校验范围。切换一级分类或子类型都会回到第 1 页。右上「刷新」重新加载；某个源失败时只显示失败提示，不影响其他源。没配置源时，首页会提示去「我的 → 源管理」添加。
@@ -280,7 +280,7 @@ GitHub Pages 免费版需要 **public（公开）仓库**。代码会公开；�
 ```bash
 git init
 git add .
-git commit -m "AH 影视 v0.8.0"
+git commit -m "AH 影视 v0.8.1"
 git branch -M main
 git remote add origin https://github.com/<你的用户名>/ah-cinema.git
 git push -u origin main
@@ -300,7 +300,9 @@ https://<你的用户名>.github.io/ah-cinema/
 
 App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也能正常工作；`docs/.nojekyll` 已放好，GitHub Pages 不会用 Jekyll 处理这些文件。
 
-> **更新后还是旧版本？** Service Worker 会缓存应用壳。新版本部署后，iPhone 上先从主屏幕完全退出 App，再用 Safari 打开线上地址刷新一次；Windows 上按 `Ctrl + Shift + R`。缓存版本变化（`ah-cinema-v11`）后会自动清理旧缓存。
+> **更新后还是旧版本？** Service Worker 会缓存应用壳。新版本部署后，iPhone 上先从主屏幕完全退出 App，再用 Safari 打开线上地址刷新一次；Windows 上按 `Ctrl + Shift + R`。缓存版本变化（`ah-cinema-v12`）后会自动清理旧缓存。
+>
+> **主屏图标还是旧样式？** iOS 会按 URL 缓存 `apple-touch-icon`。v0.8.1 已给图标地址加上 `?v=081`；如果主屏仍是直角旧图标，删除旧图标后重新「添加到主屏幕」即可。
 
 ---
 
@@ -340,7 +342,7 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 ├─ docs/                    # App 本体；GitHub Pages / Vercel / EdgeOne 静态输出都指向这里
 │  ├─ index.html
 │  ├─ manifest.webmanifest
-│  ├─ sw.js                 # Service Worker（缓存版本 ah-cinema-v11）
+│  ├─ sw.js                 # Service Worker（缓存版本 ah-cinema-v12）
 │  ├─ css/                  # tokens.css / app.css / player.css
 │  ├─ js/                   # app / router / store / catalog / views / player / ui / db
 │  │                        # local-library / sources / sources-view / sources-controller
@@ -372,7 +374,8 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 │  ├─ smoke-remote.js       # 源管理 + 首页片库 + 多源搜索 + 详情 + 播放冒烟测试
 │  ├─ cdp-test.js           # 启动诊断
 │  ├─ recolor-icon.ps1      # 生成品牌红 + 白 AH 图标（含 maskable）
-│  └─ resize-icons.ps1      # 重新生成 192 / 180 图标
+│  ├─ resize-icons.ps1      # 重新生成 192 / 180 图标
+│  └─ round-icons.ps1       # 给 any / apple-touch 图标加 iOS 超椭圆圆角
 ├─ vercel.json              # Output Directory = docs
 ├─ edgeone.json             # EdgeOne Pages 构建配置（输出 docs，Node 20）
 ├─ package.json             # express / esbuild；本地测试与 EdgeOne 打包
@@ -409,20 +412,20 @@ node tools/cdp-run.js
 - 粘贴 B 站视频页，官方嵌入式 iframe 地址与尺寸
 - 无效链接拒绝、网页链接需确认且取消后不添加
 - 分页（27 条 / 每页 24 条）与跳页校验
-- Service Worker、缓存版本 `ah-cinema-v11`、manifest 图标
+- Service Worker、缓存版本 `ah-cinema-v12`、manifest 图标
 - 断网重载仍能打开应用壳
 - 本机文件：写入 IndexedDB 的 blob、刷新后恢复、删除后清空
 - 手机横屏与桌面布局
 - 源管理空状态、添加三个 mock 源（含 `/at/xml/`）、测活结果
 - 首页片库：显示源影片、无粘贴框、卡片数量、备注、点击进入详情
-- 两级分类：一级分类加载、成人分类过滤、电影子分类、更多抽屉、XML 分类
-- 分类与翻页：约数显示、真实页数（28 页，超过旧上限）、下一页 / 上一页、动作分类两页、跳转到第 21 页、切回全部
+- 两级分类：一级分类加载、成人分类过滤、电影子分类、展开 / 收起分类网格、XML 分类
+- 分类与翻页：约数显示、真实页数（25 页，超过旧上限）、下一页 / 上一页、动作分类两页、跳转到第 21 页、分类行手机宽度可横滑、切回全部
 - 服务端单测：`browseUrl` 的 `t` 参数、`listUrl`、`parseClassList` 的过滤与去重、JSON / XML 自动识别与安全限制
 - 多源搜索：按「标题 + 年份」合并为一组、显示来源数量
 - XML 源：搜索、详情、简介与多线路解析
 - 选源 → 远程详情 → 刷新片源入口 → 播放 → 拿到签名代理地址
 
-当前结果：界面回归 **15/15 通过**，源管理与多源搜索 **55/55 通过**（版本 v0.8.0，Service Worker `ah-cinema-v11`），无未捕获异常、无控制台错误。服务端单测另跑：
+当前结果：界面回归 **15/15 通过**，源管理与多源搜索 **60/60 通过**（版本 v0.8.1，Service Worker `ah-cinema-v12`），无未捕获异常、无控制台错误。服务端单测另跑：
 
 ```bash
 npm test        # 58/58，含 CORS、代理、SCF、XML 解析与片库 URL 用例

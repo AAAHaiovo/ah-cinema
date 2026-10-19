@@ -188,9 +188,26 @@ async function main() {
     );
     const subNames = JSON.parse(subCategories);
     record(results, '电影子分类含动作', subNames.includes('动作'), subCategories);
-    record(results, '超长分类有更多按钮', await evaluate(
-      `Boolean(document.querySelector('#browse-sub-categories [data-action=browse-more]'))`
+    record(results, '超长分类有展开按钮', await evaluate(
+      `Boolean(document.querySelector('.browse-filter-row[data-row=sub] [data-action=browse-expand]'))`
     ), subCategories);
+
+    /* 用手机宽度检查分类行是否真的产生横向滚动，而不是被裁掉。 */
+    await send('Emulation.setDeviceMetricsOverride', {
+      width: 390, height: 844, deviceScaleFactor: 2, mobile: true
+    });
+    await wait(300);
+    const subMetrics = await evaluate(`(() => {
+      const row = document.querySelector('#browse-sub-categories');
+      const start = row.scrollLeft;
+      row.scrollLeft = 100000;
+      const max = row.scrollLeft;
+      row.scrollLeft = start;
+      return JSON.stringify({ scrollWidth: row.scrollWidth, clientWidth: row.clientWidth, max });
+    })()`);
+    await send('Emulation.clearDeviceMetricsOverride');
+    const subScroll = JSON.parse(subMetrics);
+    record(results, '子分类行可横向滑动', subScroll.scrollWidth > subScroll.clientWidth && subScroll.max > 0, subMetrics);
 
     await evaluate(
       `Array.from(document.querySelectorAll('#browse-sub-categories .category-chip')).find((chip) => chip.textContent.trim() === '动作').click()`
@@ -212,10 +229,10 @@ async function main() {
     );
     record(results, '动作分类第 2 页仍是动作片', JSON.parse(actionSecond).length === 4 && /动作测试/.test(actionSecond), actionSecond.slice(0, 120));
 
-    await evaluate('document.querySelector("#browse-sub-categories [data-action=browse-more]").click()');
-    record(results, '更多抽屉打开', await waitFor('Boolean(document.querySelector(".sheet [data-value]"))', 5000));
+    await evaluate('document.querySelector(".browse-filter-row[data-row=sub] [data-action=browse-expand]").click()');
+    record(results, '展开全部分类网格', await waitFor('Boolean(document.querySelector("#browse-category-panel .category-cell"))', 5000));
     await evaluate(
-      `Array.from(document.querySelectorAll('.sheet [data-value]')).find((option) => option.textContent.trim().startsWith('长尾测试')).click()`
+      `Array.from(document.querySelectorAll('#browse-category-panel .category-cell')).find((option) => option.textContent.trim().startsWith('长尾测试')).click()`
     );
     record(results, '长尾分类共 25 页', await waitFor(
       `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 1 / 25 页')`,
@@ -236,10 +253,10 @@ async function main() {
     );
     record(results, '第 21 页是长尾影片', /长尾影片 8[1-4]/.test(longTail), longTail.slice(0, 160));
 
-    await evaluate('document.querySelector("#browse-sub-categories [data-action=browse-more]").click()');
-    await waitFor('Boolean(document.querySelector(".sheet [data-value]"))', 5000);
+    await evaluate('document.querySelector(".browse-filter-row[data-row=sub] [data-action=browse-expand]").click()');
+    await waitFor('Boolean(document.querySelector("#browse-category-panel .category-cell"))', 5000);
     await evaluate(
-      `Array.from(document.querySelectorAll('.sheet [data-value]')).find((option) => option.textContent.trim().startsWith('XML测试')).click()`
+      `Array.from(document.querySelectorAll('#browse-category-panel .category-cell')).find((option) => option.textContent.trim().startsWith('XML测试')).click()`
     );
     record(results, 'XML 源分类可浏览', await waitFor(
       `Array.from(document.querySelectorAll('#home-browse .remote-card')).some((card) => card.textContent.includes('XML 专属影片'))`,

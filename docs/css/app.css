@@ -2228,10 +2228,8 @@ body.no-tabbar .toast {
   margin: 0 calc(var(--ah-page-pad) * -1) 14px;
   padding: 7px var(--ah-page-pad) 9px;
   border-bottom: 1px solid var(--ah-line);
+  /* 实色背景：iOS Safari 上 backdrop-filter + 横向滚动容易吞掉滑动手势。 */
   background: var(--ah-bg);
-  background: color-mix(in srgb, var(--ah-bg) 92%, transparent);
-  -webkit-backdrop-filter: var(--ah-blur);
-  backdrop-filter: var(--ah-blur);
 }
 
 .browse-filterbar.is-meta-only {
@@ -2244,6 +2242,7 @@ body.no-tabbar .toast {
   align-items: center;
   gap: 4px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .browse-filter-row + .browse-filter-row {
@@ -2300,6 +2299,8 @@ body.no-tabbar .toast {
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .category-chip.is-active {
@@ -2308,9 +2309,86 @@ body.no-tabbar .toast {
   color: #fff;
 }
 
-.category-chip.is-more {
-  border-style: dashed;
+/* 行尾固定的「展开」胶囊，类似 iOS 的展开指示器。 */
+.browse-expand {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  height: 30px;
+  padding: 0 8px 0 10px;
+  border: 0;
+  border-radius: var(--ah-radius-pill);
+  background: var(--ah-surface-2);
   color: var(--ah-accent);
+  font-size: 12px;
+  font-weight: 700;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.browse-expand-icon {
+  width: 15px;
+  height: 15px;
+  transition: transform 200ms var(--ah-ease);
+}
+
+.browse-expand.is-open .browse-expand-icon {
+  transform: rotate(180deg);
+}
+
+/* 展开后的全部分类：iOS「查看全部」式网格。 */
+.browse-category-panel {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ah-line);
+}
+
+.browse-category-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--ah-text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.browse-category-total {
+  color: var(--ah-text-3, var(--ah-text-2));
+  font-weight: 500;
+}
+
+.browse-category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 6px;
+  max-height: min(44vh, 360px);
+  padding-bottom: 2px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.category-cell {
+  min-height: 38px;
+  padding: 6px 4px;
+  border: 1px solid transparent;
+  border-radius: var(--ah-radius-sm);
+  background: var(--ah-surface);
+  color: var(--ah-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.category-cell.is-active {
+  border-color: var(--ah-accent);
+  background: var(--ah-accent);
+  color: #fff;
 }
 
 .browse-filter-meta {
