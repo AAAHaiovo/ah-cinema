@@ -245,6 +245,74 @@
           "vod_play_url": "正片$/media/flower.mp4$$$正片$/media/flower.mp4"
         }
       ]
+    },
+    "api4.php/provide/vod": {
+      "name": "Mock 丁 忽略分类",
+      "ignoreType": true,
+      "classes": [
+        { "type_id": 1, "type_name": "电影", "type_pid": 0 },
+        { "type_id": 2, "type_name": "电视剧", "type_pid": 0 },
+        { "type_id": 3, "type_name": "动漫", "type_pid": 0 },
+        { "type_id": 5, "type_name": "纪录片", "type_pid": 0 },
+        { "type_id": 12, "type_name": "喜剧", "type_pid": 1 },
+        { "type_id": 20, "type_name": "动画", "type_pid": 3 },
+        { "type_id": 30, "type_name": "国产", "type_pid": 2 },
+        { "type_id": 60, "type_name": "历史", "type_pid": 5 }
+      ],
+      "items": [
+        {
+          "vod_id": 401,
+          "vod_name": "D电影",
+          "vod_year": "2022",
+          "type_id": 12,
+          "type_name": "喜剧",
+          "vod_area": "中国",
+          "vod_remarks": "忽略分类测试",
+          "vod_pic": "/poster/movie-d.svg",
+          "vod_content": "源站忽略 t 参数时，服务端应按 type_id 过滤。",
+          "vod_play_from": "直连",
+          "vod_play_url": "正片$/media/flower.mp4"
+        },
+        {
+          "vod_id": 402,
+          "vod_name": "D动漫",
+          "vod_year": "2022",
+          "type_id": 20,
+          "type_name": "动画",
+          "vod_area": "中国",
+          "vod_remarks": "忽略分类测试",
+          "vod_pic": "/poster/anime-d.svg",
+          "vod_content": "点动漫时不应混入电影或电视剧。",
+          "vod_play_from": "直连",
+          "vod_play_url": "正片$/media/flower.mp4"
+        },
+        {
+          "vod_id": 403,
+          "vod_name": "D剧集",
+          "vod_year": "2022",
+          "type_id": 30,
+          "type_name": "国产",
+          "vod_area": "中国",
+          "vod_remarks": "忽略分类测试",
+          "vod_pic": "/poster/series-d.svg",
+          "vod_content": "点电影时不应混入电视剧。",
+          "vod_play_from": "直连",
+          "vod_play_url": "正片$/media/flower.mp4"
+        },
+        {
+          "vod_id": 404,
+          "vod_name": "D纪录",
+          "vod_year": "2022",
+          "type_id": 60,
+          "type_name": "历史",
+          "vod_area": "中国",
+          "vod_remarks": "忽略分类测试",
+          "vod_pic": "/poster/doc-d.svg",
+          "vod_content": "点动漫时不应混入纪录片。",
+          "vod_play_from": "直连",
+          "vod_play_url": "正片$/media/flower.mp4"
+        }
+      ]
     }
   }
 }

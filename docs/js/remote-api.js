@@ -89,13 +89,14 @@ export function apiLabel() {
 }
 
 /* 服务端返回的 /api/proxy 路径要拼到 API origin；必要时追加分片代理。 */
-export function resolveSourceUrl(src) {
+export function resolveSourceUrl(src, options = {}) {
   const value = String(src || '').trim();
   if (!value) return '';
 
   if (value.startsWith('/api/')) {
     let url = (apiOrigin() || '') + value;
-    if (state.settings.hlsProxySegments && /^\/api\/proxy\?/.test(value)) {
+    const segProxy = Boolean(options.forceSegProxy) || Boolean(state.settings.hlsProxySegments);
+    if (segProxy && /^\/api\/proxy\?/.test(value)) {
       if (!/[?&]seg=proxy(&|$)/.test(value)) url += '&seg=proxy';
     }
     return url;
@@ -268,7 +269,7 @@ function normalizeSourceParam(source) {
   const typeIds = [];
   rawTypeIds.forEach((value) => {
     const id = String(value === undefined || value === null ? '' : value).trim();
-    if (!/^\d{1,10}$/.test(id) || typeIds.includes(id) || typeIds.length >= 32) return;
+    if (!/^\d{1,10}$/.test(id) || typeIds.includes(id) || typeIds.length >= 64) return;
     typeIds.push(id);
   });
   if (typeIds.length) param.typeIds = typeIds;

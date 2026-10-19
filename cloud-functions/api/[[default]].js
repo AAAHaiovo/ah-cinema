@@ -23033,7 +23033,7 @@ var require_config = __commonJS({
       mode: MODE,
       isProduction: IS_PRODUCTION,
       isVercel: IS_VERCEL,
-      version: "0.8.1",
+      version: "0.8.2",
       apiVersion: 1,
       apiToken,
       signingSecret: signingSecret || devSigningSecret,
@@ -23045,7 +23045,7 @@ var require_config = __commonJS({
       missingEnv,
       configured: missingEnv.length === 0,
       allowedOrigins,
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AH-Cinema/0.8.1",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AH-Cinema/0.8.2",
       maxSources: 8,
       searchMaxPages: intEnv("AH_SEARCH_MAX_PAGES", 2, 1, 5),
       searchSourceTimeoutMs: 5e3,
@@ -24030,6 +24030,9 @@ var require_cms = __commonJS({
         name,
         pic: /^https:\/\//i.test(String(raw.vod_pic || "")) ? safeHttpUrl(raw.vod_pic) : "",
         year: intOr(raw.vod_year, null),
+        /* 保留源站的真实分类 id，供服务端校验源站是否真的按 t 过滤。 */
+        typeId: cleanText(raw.type_id !== void 0 ? raw.type_id : raw.typeId, 20),
+        typePid: cleanText(raw.type_pid !== void 0 ? raw.type_pid : raw.typePid, 20),
         typeName: cleanText(raw.type_name, 40),
         area: cleanText(raw.vod_area, 40),
         remarks: cleanText(raw.vod_remarks, 60)
@@ -24100,10 +24103,12 @@ var require_cms = __commonJS({
     }
     function makeSource(lineName, url, proxyUrl) {
       const isHls = isHlsLine(lineName, url);
-      const needsProxy = isHls || /^http:\/\//i.test(url);
-      const src = needsProxy && typeof proxyUrl === "function" ? proxyUrl(url) : url;
+      const needsProxy = /^http:\/\//i.test(url);
+      const proxy = typeof proxyUrl === "function" ? proxyUrl(url) : url;
+      const src = needsProxy ? proxy : url;
       return {
         src,
+        proxySrc: proxy,
         quality: lineName,
         label: lineName,
         isHls
@@ -24199,6 +24204,21 @@ var require_cms = __commonJS({
       buildDetailItem,
       guessKind
     };
+  }
+});
+
+// server/lib/type-filter.js
+var require_type_filter = __commonJS({
+  "server/lib/type-filter.js"(exports2, module2) {
+    "use strict";
+    function filterByRequestedTypes(items, typeIds) {
+      const list = Array.isArray(items) ? items : [];
+      const allowed = new Set((Array.isArray(typeIds) ? typeIds : []).map(String));
+      if (!allowed.size) return list;
+      const matched = list.filter((item) => !item.typeId || allowed.has(String(item.typeId)));
+      return matched.length ? matched : list;
+    }
+    module2.exports = { filterByRequestedTypes };
   }
 });
 
@@ -24463,7 +24483,7 @@ var require_common = __commonJS({
     var { FetchError } = require_safe_fetch();
     var { CmsError, parseCmsPayload } = require_cms();
     var { cleanText, normalizeSourceUrl } = require_text2();
-    var MAX_TYPE_IDS = 32;
+    var MAX_TYPE_IDS = 64;
     function allowPrivateFor(req) {
       return config.devAllowPrivate && isLoopbackRequest(req);
     }
@@ -24598,6 +24618,7 @@ var require_browse = __commonJS({
     "use strict";
     var config = require_config();
     var cms = require_cms();
+    var { filterByRequestedTypes } = require_type_filter();
     var { createRoute } = require_route2();
     var { readJson, sendJson: sendJson2 } = require_http();
     var { fetchText } = require_safe_fetch();
@@ -24712,7 +24733,7 @@ var require_browse = __commonJS({
                 Number(result.parsed.total) || 0,
                 result.parsed.items.length
               );
-              result.parsed.items.forEach((item) => {
+              filterByRequestedTypes(result.parsed.items, result.source.typeIds).forEach((item) => {
                 entry.items.push(
                   Object.assign({}, item, { sourceId: entry.sourceId, sourceName: entry.sourceName })
                 );

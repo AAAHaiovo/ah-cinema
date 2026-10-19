@@ -339,6 +339,7 @@ export function mountPlayer(item, episode) {
   let hls = null;
   let attachSeq = 0;
   let hlsFallbackTried = false;
+  let proxyFallbackTried = false;
   let expectingMedia = false;
 
   function destroyHls() {
@@ -377,6 +378,24 @@ export function mountPlayer(item, episode) {
     return 'HLS 播放失败，请稍后重试或换一个线路。';
   }
 
+  /* 直连与代理确实是两个不同地址时，才值得重试。 */
+  function proxyFallbackUrl(source) {
+    if (!source || !source.proxySrc) return '';
+    const direct = resolveSourceUrl(source.src);
+    const proxy = resolveSourceUrl(source.proxySrc);
+    return proxy && proxy !== direct ? proxy : '';
+  }
+
+  /* 直连被跨域 / 防盗链挡住时，自动改用签名代理；只重试一次。 */
+  function retryWithProxy() {
+    if (proxyFallbackTried || !proxyFallbackUrl(currentSource)) return false;
+    proxyFallbackTried = true;
+    const seekTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+    showToast('直连不稳定，改用代理线路…', 2400);
+    attachCurrentSource({ useProxy: true, seekTime, autoplay: true }).catch(() => {});
+    return true;
+  }
+
   /* HLS 装载统一入口；失败时自己给出提示并返回 false。 */
   async function attachHlsSource(src, seq) {
     let Hls = null;
@@ -406,6 +425,8 @@ export function mountPlayer(item, episode) {
     });
     hls.on(Hls.Events.ERROR, (event, data) => {
       if (seq !== attachSeq || !hls || !data || !data.fatal) return;
+      /* 直连失败（跨域 / 防盗链）时自动退回签名代理，只重试一次。 */
+      if (data.type === Hls.ErrorTypes.NETWORK_ERROR && retryWithProxy()) return;
       showError(hlsFatalMessage(Hls, data));
     });
 
@@ -449,6 +470,7 @@ export function mountPlayer(item, episode) {
     hideError();
     showBuffering();
     hlsFallbackTried = false;
+    if (!options.useProxy) proxyFallbackTried = false;
     expectingMedia = false;
 
     try {
@@ -458,7 +480,13 @@ export function mountPlayer(item, episode) {
       /* 忽略。 */
     }
 
-    const src = resolveSourceUrl(source.src);
+    /*
+     * 默认直连 HTTPS（分片不再逐个穿过函数，播放明显更快）。
+     * 只有用户开启「HLS 分片走代理」，或直连失败后自动重试时才用 proxySrc。
+     */
+    const useProxy = Boolean(options.useProxy) || Boolean(state.settings && state.settings.hlsProxySegments);
+    const chosen = useProxy && source.proxySrc ? source.proxySrc : source.src;
+    const src = resolveSourceUrl(chosen, { forceSegProxy: useProxy });
     const rate = Number(options.rate) || video.playbackRate || initialRate;
     const seekTime = Number(options.seekTime) || 0;
     const autoplay = Boolean(options.autoplay);
@@ -1195,6 +1223,9 @@ export function mountPlayer(item, episode) {
       });
       return;
     }
+
+    /* Safari 原生 HLS 直连失败：退回代理再试一次。 */
+    if (code === 2 && currentSource && currentSource.isHls && retryWithProxy()) return;
 
     showError(mediaErrorMessage(code, failedSrc, null) + '（错误 ' + code + '）');
   }, { signal });

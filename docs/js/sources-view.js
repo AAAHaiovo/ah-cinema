@@ -22,7 +22,7 @@ import {
   SOURCE_LIMIT
 } from './sources.js';
 
-const APP_VERSION = '0.8.1';
+const APP_VERSION = '0.8.2';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +

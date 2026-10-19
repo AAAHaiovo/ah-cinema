@@ -640,7 +640,7 @@ function ensureRemoteForRoute(query) {
 /* ---------- 首页片库 ---------- */
 
 /* 每请求最多 32 个 type_id，与 server/handlers/_common.js 的 MAX_TYPE_IDS 对齐。 */
-const BROWSE_MAX_TYPE_IDS = 32;
+const BROWSE_MAX_TYPE_IDS = 64;
 
 let browseState = emptyBrowseState();
 let browseAbort = null;

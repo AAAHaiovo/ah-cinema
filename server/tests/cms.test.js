@@ -62,7 +62,7 @@ test('parseSearchResponse：正常列表与字段缺失', () => {
     pagecount: 2,
     total: 3,
     list: [
-      { vod_id: 10, vod_name: 'Big Buck Bunny', vod_year: '2008', type_name: '动画', vod_pic: 'https://cdn.example/p.jpg' },
+      { vod_id: 10, vod_name: 'Big Buck Bunny', vod_year: '2008', type_id: 20, type_pid: 3, type_name: '动画', vod_pic: 'https://cdn.example/p.jpg' },
       { vod_id: null, vod_name: '' },
       { vod_id: 11, vod_name: 12345 }
     ]
@@ -73,6 +73,8 @@ test('parseSearchResponse：正常列表与字段缺失', () => {
   assert.equal(result.items.length, 2);
   assert.equal(result.items[0].vodId, '10');
   assert.equal(result.items[0].year, 2008);
+  assert.equal(result.items[0].typeId, '20');
+  assert.equal(result.items[0].typePid, '3');
   assert.equal(result.items[1].name, '12345');
 });
 
@@ -143,8 +145,12 @@ test('buildDetailItem：电影多线路进入 item.sources', () => {
   assert.equal(item.synopsis, 'Hello & world');
   assert.equal(item.sources.length, 2);
   assert.ok(item.sources[0].isHls);
-  assert.ok(item.sources[0].src.startsWith('/api/proxy?'));
+  /* HTTPS HLS 默认直连，代理只作为兜底。 */
+  assert.equal(item.sources[0].src, 'https://a.example/movie.m3u8');
+  assert.ok(item.sources[0].proxySrc.startsWith('/api/proxy?'));
+  /* HTTP 在 HTTPS 页面会被拦截，仍然走代理。 */
   assert.ok(item.sources[1].src.startsWith('/api/proxy?'));
+  assert.equal(item.sources[1].src, item.sources[1].proxySrc);
   assert.equal(item.episodes.length, 0);
   assert.equal(item.remote, true);
 });
@@ -168,7 +174,8 @@ test('buildDetailItem：多集多线路按集对齐', () => {
   assert.equal(item.kind, 'series');
   assert.equal(item.episodes.length, 2);
   assert.equal(item.episodes[0].sources.length, 2);
-  assert.ok(item.episodes[0].sources[0].src.startsWith('/api/proxy?'));
+  assert.equal(item.episodes[0].sources[0].src, 'https://a.example/1.m3u8');
+  assert.ok(item.episodes[0].sources[0].proxySrc.startsWith('/api/proxy?'));
   assert.equal(item.episodes[0].sources[1].src, 'https://b.example/1.mp4');
   assert.equal(item.episodes[1].id, 'ep2');
   assert.equal(item.episodes[1].episode, 2);

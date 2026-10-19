@@ -148,6 +148,9 @@ function normalizeSearchItem(raw) {
     name,
     pic: /^https:\/\//i.test(String(raw.vod_pic || '')) ? safeHttpUrl(raw.vod_pic) : '',
     year: intOr(raw.vod_year, null),
+    /* 保留源站的真实分类 id，供服务端校验源站是否真的按 t 过滤。 */
+    typeId: cleanText(raw.type_id !== undefined ? raw.type_id : raw.typeId, 20),
+    typePid: cleanText(raw.type_pid !== undefined ? raw.type_pid : raw.typePid, 20),
     typeName: cleanText(raw.type_name, 40),
     area: cleanText(raw.vod_area, 40),
     remarks: cleanText(raw.vod_remarks, 60)
@@ -247,17 +250,19 @@ function hostOf(url) {
 
 /*
  * 把上游播放地址转成客户端可用的 source：
- * - HLS 与 http:// 一律走签名代理；
- * - https:// 直链保持上游地址；
- * - quality / label 使用线路名。
+ * - HTTPS 一律优先直连，避免 HLS 分片逐个穿过函数代理导致卡顿；
+ * - HTTP（HTTPS 页面会拦截）继续走签名代理；
+ * - proxySrc 始终附带，作为跨域 / 防盗链失败时的兜底。
  */
 function makeSource(lineName, url, proxyUrl) {
   const isHls = isHlsLine(lineName, url);
-  const needsProxy = isHls || /^http:\/\//i.test(url);
-  const src = needsProxy && typeof proxyUrl === 'function' ? proxyUrl(url) : url;
+  const needsProxy = /^http:\/\//i.test(url);
+  const proxy = typeof proxyUrl === 'function' ? proxyUrl(url) : url;
+  const src = needsProxy ? proxy : url;
 
   return {
     src,
+    proxySrc: proxy,
     quality: lineName,
     label: lineName,
     isHls

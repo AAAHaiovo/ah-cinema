@@ -141,7 +141,30 @@ export function groupFromName(value) {
   return '';
 }
 
+/*
+ * 只认明确的组名，不用「片$」这种泛匹配。
+ * 有些源的 type_pid 填错，把「动漫」「国产剧」挂在「电影」下面；
+ * 这时自己的组名比 parent 更可信。而「动作」「剧情」这类类型名仍交给 parent 判断。
+ */
+function strongGroupFromName(value) {
+  const name = normalizeCategoryName(value);
+  if (!name) return '';
+
+  if (/纪录片|记录片|专题片|纪录|记录/.test(name)) return 'documentary';
+  if (/综艺|真人秀|选秀|脱口秀|访谈/.test(name)) return 'variety';
+  if (/动漫|动画|番剧|剧场版/.test(name)) return 'anime';
+  if (/电视剧|连续剧|短剧|国产剧|港台剧|日韩剧|欧美剧|海外剧|美剧|日剧|韩剧|泰剧|台剧|港剧/.test(name)) {
+    return 'tv';
+  }
+  if (/电影|影片/.test(name)) return 'movie';
+  return '';
+}
+
 export function classifyClass(name, parentName) {
+  /* 自己的名字已经明确说了类型时优先，纠正错误的 type_pid。 */
+  const strongOwn = strongGroupFromName(name);
+  if (strongOwn) return strongOwn;
+
   const parentGroup = groupFromName(parentName);
   if (parentGroup) return parentGroup;
 

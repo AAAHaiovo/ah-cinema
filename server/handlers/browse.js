@@ -10,6 +10,7 @@
 
 const config = require('../lib/config');
 const cms = require('../lib/cms');
+const { filterByRequestedTypes } = require('../lib/type-filter');
 const { createRoute } = require('../lib/route');
 const { readJson, sendJson } = require('../lib/http');
 const { fetchText } = require('../lib/safe-fetch');
@@ -142,7 +143,7 @@ module.exports = createRoute(
             Number(result.parsed.total) || 0,
             result.parsed.items.length
           );
-          result.parsed.items.forEach((item) => {
+          filterByRequestedTypes(result.parsed.items, result.source.typeIds).forEach((item) => {
             entry.items.push(
               Object.assign({}, item, { sourceId: entry.sourceId, sourceName: entry.sourceName })
             );

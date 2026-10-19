@@ -98,8 +98,10 @@ function searchPayload(sourceKey, query, page, typeId, origin) {
 
   const text = String(query || '').trim().toLowerCase();
   const type = String(typeId || '').trim();
+  /* ignoreType 模拟不实现 t 参数的源：无论 t 是什么都返回全部影片。 */
+  const ignoreType = Boolean(source.ignoreType);
   const matches = sourceItems(source, origin).filter((item) => {
-    if (type && String(item.type_id) !== type) return false;
+    if (type && !ignoreType && String(item.type_id) !== type) return false;
     return !text || String(item.vod_name).toLowerCase().includes(text);
   });
   /* 故意把每页压到 4 条，方便测试翻页。 */

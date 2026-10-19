@@ -121,6 +121,10 @@ async function main() {
     record(results, '添加 XML 源 C', await waitFor(`document.querySelectorAll('[data-source-row]').length === ${before + 3}`));
     await wait(1200);
 
+    await addSource('源D 忽略分类', CMS + '/api4.php/provide/vod');
+    record(results, '添加忽略分类源 D', await waitFor(`document.querySelectorAll('[data-source-row]').length === ${before + 4}`));
+    await wait(1200);
+
     const statusText = await evaluate('document.querySelector("[data-source-status]")?.innerText || ""');
     record(results, '源测活显示结果', /可用|条|失败|错误/.test(statusText), statusText);
 
@@ -271,6 +275,33 @@ async function main() {
       10000
     ));
 
+    /* 源 D 故意忽略 t 参数：服务端必须按 type_id 再过滤一次。 */
+    await evaluate(
+      `Array.from(document.querySelectorAll('#browse-top-categories .category-chip')).find((chip) => chip.textContent.trim() === '动漫').click()`
+    );
+    record(results, '动漫分类不含电影/电视剧', await waitFor(`(() => {
+      const meta = document.querySelector('#home-browse .browse-filter-meta')?.textContent || '';
+      const text = document.querySelector('#home-browse .remote-grid')?.textContent || '';
+      return meta.includes('第 1 /') && text.includes('D动漫') && !text.includes('D电影') && !text.includes('D剧集');
+    })()`, 10000));
+
+    await evaluate(
+      `Array.from(document.querySelectorAll('#browse-top-categories .category-chip')).find((chip) => chip.textContent.trim() === '电影').click()`
+    );
+    record(results, '电影分类不含动漫/电视剧', await waitFor(`(() => {
+      const meta = document.querySelector('#home-browse .browse-filter-meta')?.textContent || '';
+      const text = document.querySelector('#home-browse .remote-grid')?.textContent || '';
+      return meta.includes('第 1 /') && text.includes('D电影') && !text.includes('D动漫') && !text.includes('D剧集');
+    })()`, 10000));
+
+    await evaluate(
+      `Array.from(document.querySelectorAll('#browse-top-categories .category-chip')).find((chip) => chip.textContent.trim() === '全部').click()`
+    );
+    await waitFor(
+      `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 1 /') && Boolean(document.querySelector('#home-browse .remote-card'))`,
+      10000
+    );
+
     await evaluate('document.querySelector("#home-browse .remote-card").click()');
     if (await waitFor('Boolean(document.querySelector(".sheet [data-value]"))', 3000)) {
       await evaluate('document.querySelector(".sheet [data-value]").click()');
@@ -283,7 +314,7 @@ async function main() {
     const groups = await evaluate('document.querySelectorAll(".remote-card").length');
     const chips = await evaluate('document.querySelectorAll(".remote-chip").length');
     const badge = await evaluate('document.querySelector(".remote-card .poster-badge")?.textContent || ""');
-    record(results, '多个源按标题合并为一组', groups === 1 && chips === 3, `卡片 ${groups} / 状态 ${chips}`);
+    record(results, '多个源按标题合并为一组', groups === 1 && chips === 4, `卡片 ${groups} / 状态 ${chips}`);
     record(results, '显示多来源数量', badge.includes('2 个来源'), badge);
 
     await evaluate('document.querySelector(".remote-card").click()');

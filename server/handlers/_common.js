@@ -11,7 +11,7 @@ const { FetchError } = require('../lib/safe-fetch');
 const { CmsError, parseCmsPayload } = require('../lib/cms');
 const { cleanText, normalizeSourceUrl } = require('../lib/text');
 
-const MAX_TYPE_IDS = 32;
+const MAX_TYPE_IDS = 64;
 
 function allowPrivateFor(req) {
   return config.devAllowPrivate && isLoopbackRequest(req);
