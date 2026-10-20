@@ -1,10 +1,19 @@
-/* AH 影视 · 播放器 */
+/* AH 影视 · 播放器
+   布局：底部横向进度条 + 居中竖排播放组 + 右侧竖向音量条 +
+   右上角关闭/投屏 + 左下角菜单组。
+   视觉：iOS 18 风格深色半透明材质，只用 backdrop-filter 模糊，
+   不加明显边框、颗粒或厚重阴影。 */
 
 .player-page {
-  /* 播放 / 暂停键直径；缓冲转圈直接复用这个值，保证两者一样大。 */
-  --ah-play-size: 74px;
-  /* 播放器始终是黑底，用黑夜主题的强调红，和 App 保持一致。 */
-  --ah-player-accent: #E05A5F;
+  /* 播放键直径与它里面的图标尺寸；缓冲转圈严格等于图标尺寸。 */
+  --ah-play-size: 78px;
+  --ah-play-icon-size: 38px;
+  /* 播放器统一白色控件，不再混用 App 红。 */
+  --ah-player-accent: #ffffff;
+  --ah-glass: rgba(26, 26, 28, 0.38);
+  --ah-glass-strong: rgba(30, 30, 32, 0.48);
+  --ah-glass-blur: blur(18px) saturate(1.6);
+  --ah-glass-shadow: 0 2px 12px rgba(0, 0, 0, 0.16);
   position: fixed;
   inset: 0;
   z-index: 60;
@@ -63,6 +72,26 @@
   --ah-safe-left: env(safe-area-inset-top, 0px);
 }
 
+/* 强制横屏时整层控件跟着画面转 90°：
+   把关闭 / 投屏放到旋转后的物理右上角，菜单组靠到物理左下角。 */
+.player-page.is-landscape .player-top {
+  flex-direction: row-reverse;
+}
+
+.player-page.is-landscape .player-top-actions {
+  flex-direction: row-reverse;
+}
+
+.player-page.is-landscape .player-menu {
+  justify-content: flex-end;
+}
+
+/* 强制横屏时画面实际只有 100vw 高，按钮整体收小，避免上下控制区打架。 */
+.player-page.is-landscape {
+  --ah-play-size: 68px;
+  --ah-play-icon-size: 34px;
+}
+
 .player-video {
   display: block;
   width: 100%;
@@ -89,12 +118,13 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  /* 只留极淡的明暗过渡，帮助白字在亮画面上可读，不做厚重遮罩。 */
   background: linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0.66) 0%,
-    rgba(0, 0, 0, 0.14) 22%,
-    rgba(0, 0, 0, 0.04) 52%,
-    rgba(0, 0, 0, 0.82) 100%
+    rgba(0, 0, 0, 0.34) 0%,
+    rgba(0, 0, 0, 0.06) 18%,
+    rgba(0, 0, 0, 0) 55%,
+    rgba(0, 0, 0, 0.38) 100%
   );
   opacity: 1;
   transition: opacity 200ms var(--ah-ease);
@@ -105,11 +135,19 @@
   pointer-events: none;
 }
 
+/* 覆盖层淡出后，里面的圆钮也不能再拦截点击。 */
+.player-overlay.is-hidden .pbtn,
+.player-overlay.is-hidden .player-volume-track {
+  pointer-events: none;
+}
+
+/* ---------- 顶部：标题 + 关闭 / 投屏 ---------- */
+
 .player-top {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: calc(var(--ah-safe-top) + 6px) calc(var(--ah-safe-right) + 10px) 10px calc(var(--ah-safe-left) + 10px);
+  align-items: flex-start;
+  gap: 12px;
+  padding: calc(var(--ah-safe-top) + 12px) calc(var(--ah-safe-right) + 12px) 10px calc(var(--ah-safe-left) + 14px);
   transition: transform 220ms var(--ah-ease), opacity 220ms var(--ah-ease);
 }
 
@@ -121,7 +159,7 @@
 .player-headings {
   flex: 1;
   min-width: 0;
-  padding: 0 4px;
+  padding-top: 3px;
 }
 
 .player-title {
@@ -131,57 +169,52 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
 }
 
 .player-subtitle {
-  margin-top: 2px;
-  color: rgba(255, 255, 255, 0.66);
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.6);
   font-size: 11px;
   line-height: 1.3;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
 }
 
 .player-top-actions {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
-/* ---------- 播放器按钮 ---------- */
+/* ---------- 通用玻璃圆钮 ---------- */
 
-/* 参考 iOS 播放器：深色半透明圆形按钮 + 高斯模糊。 */
 .pbtn {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   flex: 0 0 auto;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.13);
+  border: 0;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: rgba(20, 20, 23, 0.46);
+  background: var(--ah-glass);
   color: #fff;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
-  -webkit-backdrop-filter: blur(6px) saturate(1.15);
-  backdrop-filter: blur(6px) saturate(1.15);
-  transition: background-color 150ms var(--ah-ease), transform 120ms var(--ah-ease), color 150ms var(--ah-ease);
-}
-
-.pbtn:hover {
-  background: rgba(52, 52, 58, 0.62);
-}
-
-.pbtn:active {
-  transform: scale(0.93);
+  box-shadow: var(--ah-glass-shadow);
+  -webkit-backdrop-filter: var(--ah-glass-blur);
+  backdrop-filter: var(--ah-glass-blur);
+  transition: background-color 160ms var(--ah-ease), transform 120ms var(--ah-ease),
+    color 160ms var(--ah-ease);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .pbtn .icon {
-  width: 27px;
-  height: 27px;
-  stroke-width: 2.3;
+  width: 24px;
+  height: 24px;
+  stroke-width: 2;
   transition: opacity 180ms var(--ah-ease), transform 220ms var(--ah-ease);
   animation: control-pop 200ms var(--ah-ease);
 }
@@ -191,18 +224,44 @@
   to { opacity: 1; transform: scale(1); }
 }
 
-.pbtn.is-active {
-  color: #E05A5F;
+.pbtn:active {
+  transform: scale(0.93);
+  background: var(--ah-glass-strong);
 }
 
-/* 绝对居中：和缓冲转圈共用同一个画面中心。 */
+.pbtn.is-active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.pbtn:focus-visible,
+.player-volume-track:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 2px;
+}
+
+.pbtn-close .icon {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.2;
+}
+
+.pbtn-cast .icon {
+  width: 24px;
+  height: 24px;
+  stroke-width: 1.9;
+}
+
+/* ---------- 画面中央：后退 / 播放 / 前进 ---------- */
+
 .player-center {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: clamp(26px, 13vw, 120px);
+  gap: 22px;
   pointer-events: none;
   transition: opacity 220ms var(--ah-ease), transform 220ms var(--ah-ease);
 }
@@ -217,29 +276,31 @@
 }
 
 .pbtn-seek {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
 }
 
 .pbtn-seek .icon {
-  width: 33px;
-  height: 33px;
-  stroke-width: 2.5;
+  width: 32px;
+  height: 32px;
 }
 
 .pbtn-play {
   width: var(--ah-play-size);
   height: var(--ah-play-size);
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(32, 32, 36, 0.5);
-  box-shadow: 0 6px 26px rgba(0, 0, 0, 0.3);
+  background: var(--ah-glass-strong);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22);
   transition: background-color 180ms var(--ah-ease), transform 180ms var(--ah-ease),
     box-shadow 180ms var(--ah-ease);
 }
 
-/* 缓冲时暂停图标和按钮底都淡出，只留下与按钮同尺寸的转圈。 */
+.pbtn-play .icon {
+  width: var(--ah-play-icon-size);
+  height: var(--ah-play-icon-size);
+}
+
+/* 缓冲时暂停图标和按钮底都淡出，只留下与图标同尺寸的转圈。 */
 .player-stage.is-buffering .pbtn-play {
-  border-color: transparent;
   background: transparent;
   box-shadow: none;
 }
@@ -250,26 +311,85 @@
   animation: none;
 }
 
-.pbtn-play:hover {
-  background: rgba(58, 58, 64, 0.64);
+/* ---------- 右侧竖向音量 ---------- */
+
+.player-volume {
+  position: absolute;
+  top: 50%;
+  right: calc(var(--ah-safe-right) + 12px);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  transform: translateY(-50%);
+  transition: opacity 220ms var(--ah-ease), transform 220ms var(--ah-ease);
 }
 
-.pbtn-play .icon {
-  width: 40px;
-  height: 40px;
-  stroke-width: 2.3;
+.player-overlay.is-hidden .player-volume {
+  opacity: 0;
 }
 
-.pbtn-close .icon {
-  width: 23px;
-  height: 23px;
-  stroke-width: 2.5;
+.player-volume-track {
+  position: relative;
+  width: 36px;
+  height: clamp(108px, 22vh, 172px);
+  border-radius: 999px;
+  background: var(--ah-glass);
+  box-shadow: var(--ah-glass-shadow);
+  -webkit-backdrop-filter: var(--ah-glass-blur);
+  backdrop-filter: var(--ah-glass-blur);
+  cursor: pointer;
+  touch-action: none;
 }
 
-/* ---------- 底部控制区 ---------- */
+.player-volume-rail {
+  position: absolute;
+  top: 13px;
+  bottom: 13px;
+  left: 50%;
+  width: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateX(-50%);
+}
+
+.player-volume-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.player-volume-thumb {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+  transform: translate(-50%, 50%);
+}
+
+.pbtn-volume {
+  width: 38px;
+  height: 38px;
+}
+
+.pbtn-volume .icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* ---------- 底部：菜单组 + 横向进度条 ---------- */
 
 .player-bottom {
-  padding: 6px calc(var(--ah-safe-right) + 10px) calc(var(--ah-safe-bottom) + 5px) calc(var(--ah-safe-left) + 10px);
+  padding: 4px calc(var(--ah-safe-right) + 12px) calc(var(--ah-safe-bottom) + 10px) calc(var(--ah-safe-left) + 12px);
   transition: transform 220ms var(--ah-ease), opacity 220ms var(--ah-ease);
 }
 
@@ -278,27 +398,89 @@
   transform: translateY(10px);
 }
 
-/* 进度条做成 iOS 风格的深色胶囊，左侧已播放、右侧剩余时间。
-   不用高斯模糊：实心深色底 + 应用同款红色进度，和 App 其余部件一致。 */
+/* 左下角菜单组；横向放不下时可滚动，不换行。 */
+.player-menu {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.player-menu::-webkit-scrollbar {
+  display: none;
+}
+
+.player-menu .pbtn {
+  flex: 0 0 auto;
+}
+
+.pbtn-label {
+  width: auto;
+  min-width: 52px;
+  height: 34px;
+  margin: 0;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.pbtn-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+}
+
+.pbtn-line .icon {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
+}
+
+.pbtn-menu-icon {
+  width: 36px;
+  height: 36px;
+}
+
+.pbtn-menu-icon .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.pbtn-display.is-active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.24);
+}
+
+/* 底部胶囊：左当前时间、右剩余时长。 */
 .player-scrub-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 42px;
-  padding: 3px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-height: 44px;
+  padding: 4px 16px;
   border-radius: 999px;
-  background: rgba(28, 28, 30, 0.92);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.24);
+  background: var(--ah-glass);
+  box-shadow: var(--ah-glass-shadow);
+  -webkit-backdrop-filter: var(--ah-glass-blur);
+  backdrop-filter: var(--ah-glass-blur);
 }
 
 .player-time {
-  min-width: 40px;
-  color: rgba(255, 255, 255, 0.68);
+  min-width: 42px;
+  color: rgba(255, 255, 255, 0.76);
   font-size: 12px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 .player-time:first-child {
@@ -313,7 +495,7 @@
   --progress: 0%;
   flex: 1;
   width: 100%;
-  height: 26px;
+  height: 28px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -330,21 +512,21 @@
   border-radius: 999px;
   background: linear-gradient(
     to right,
-    var(--ah-player-accent) 0%,
-    var(--ah-player-accent) var(--progress),
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.95) var(--progress),
     rgba(255, 255, 255, 0.22) var(--progress),
     rgba(255, 255, 255, 0.22) 100%
   );
 }
 
 .player-scrub::-webkit-slider-thumb {
-  width: 13px;
-  height: 13px;
-  margin-top: -4.5px;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
   border: 0;
   border-radius: 50%;
-  background: var(--ah-player-accent);
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+  background: #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
   -webkit-appearance: none;
   appearance: none;
 }
@@ -354,67 +536,28 @@
   height: 4px;
   border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .player-scrub::-moz-range-progress {
   height: 4px;
   border-radius: 999px;
-  background: var(--ah-player-accent);
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .player-scrub::-moz-range-thumb {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   border: 0;
   border-radius: 50%;
-  background: var(--ah-player-accent);
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+  background: #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
 }
 
 .player-scrub:focus-visible {
   outline: 2px solid #fff;
   outline-offset: 2px;
   border-radius: 4px;
-}
-
-.player-controls {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 3px;
-}
-
-.player-spacer {
-  flex: 1;
-}
-
-.player-controls .pbtn:not(.pbtn-label) {
-  width: 34px;
-  height: 34px;
-}
-
-.player-controls .pbtn:not(.pbtn-label) .icon {
-  width: 21px;
-  height: 21px;
-}
-
-/* 清晰度 / 倍速用胶囊形，保留文字但和圆形按钮同一套玻璃质感。 */
-.pbtn-label {
-  width: auto;
-  min-width: 54px;
-  height: 34px;
-  margin: 0;
-  padding: 0 13px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.1px;
-  font-variant-numeric: tabular-nums;
-}
-
-.pbtn-label.is-active {
-  color: #E05A5F;
 }
 
 /* ---------- 缓冲 / 错误 ---------- */
@@ -428,11 +571,17 @@
   pointer-events: none;
 }
 
+.player-buffering[hidden],
+.player-error[hidden] {
+  display: none;
+}
+
+/* 转圈与播放键里的图标同尺寸。 */
 .player-spinner {
-  width: var(--ah-play-size);
-  height: var(--ah-play-size);
-  border: 3px solid rgba(255, 255, 255, 0.18);
-  border-top-color: var(--ah-player-accent);
+  width: var(--ah-play-icon-size);
+  height: var(--ah-play-icon-size);
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
   border-radius: 50%;
   animation: spin 760ms linear infinite, spinner-in 180ms var(--ah-ease);
 }
@@ -492,7 +641,7 @@
   min-width: 84px;
   height: 40px;
   padding: 0 18px;
-  border-radius: 10px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.14);
   font-size: 14px;
   font-weight: 600;
@@ -521,7 +670,7 @@
   inset: 0;
   padding: 0;
   border: 0;
-  background: rgba(0, 0, 0, 0.46);
+  background: rgba(0, 0, 0, 0.4);
   opacity: 0;
   transition: opacity 240ms var(--ah-ease);
 }
@@ -537,11 +686,9 @@
   display: flex;
   flex-direction: column;
   padding: calc(var(--ah-safe-top) + 14px) 12px calc(var(--ah-safe-bottom) + 12px) 14px;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(20, 20, 22, 0.9);
-  -webkit-backdrop-filter: blur(14px) saturate(1.25);
-  backdrop-filter: blur(14px) saturate(1.25);
-  box-shadow: -14px 0 44px rgba(0, 0, 0, 0.45);
+  background: rgba(22, 22, 24, 0.78);
+  -webkit-backdrop-filter: blur(26px) saturate(1.6);
+  backdrop-filter: blur(26px) saturate(1.6);
   transform: translateX(102%);
   transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
   will-change: transform;
@@ -558,7 +705,7 @@
   justify-content: space-between;
   gap: 10px;
   padding: 0 0 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .player-drawer-title {
@@ -571,7 +718,7 @@
 
 .player-drawer-meta {
   margin: 3px 0 0;
-  color: rgba(255, 255, 255, 0.52);
+  color: rgba(255, 255, 255, 0.5);
   font-size: 12px;
 }
 
@@ -579,13 +726,12 @@
   width: 38px;
   height: 38px;
   margin: -4px -4px 0 0;
-  background: rgba(255, 255, 255, 0.1);
 }
 
 .player-drawer-close .icon {
   width: 18px;
   height: 18px;
-  stroke-width: 2.4;
+  stroke-width: 2.2;
 }
 
 .player-episode-list {
@@ -614,9 +760,9 @@
   min-height: 48px;
   padding: 8px 12px;
   border: 0;
-  border-radius: 15px;
+  border-radius: 16px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.82);
   font-size: 14px;
   font-weight: 500;
   line-height: 1.35;
@@ -655,26 +801,29 @@
   flex: 0 0 auto;
   padding: 2px 7px;
   border-radius: var(--ah-radius-pill);
-  background: rgba(224, 90, 95, 0.2);
-  color: #F0797D;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
   font-size: 10px;
   font-weight: 600;
 }
 
 .player-episode.is-current {
-  background: rgba(224, 90, 95, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(224, 90, 95, 0.32);
+  background: rgba(255, 255, 255, 0.14);
   color: #fff;
 }
 
 .player-episode.is-current .player-episode-index {
-  color: #E05A5F;
+  color: #fff;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .player-drawer-scrim,
   .player-drawer-panel,
-  .player-episode {
+  .player-episode,
+  .pbtn,
+  .player-center,
+  .player-top,
+  .player-bottom {
     transition: none;
   }
 }
@@ -684,12 +833,12 @@
 .player-toast {
   position: absolute;
   left: 50%;
-  bottom: calc(var(--ah-safe-bottom) + 118px);
+  bottom: calc(var(--ah-safe-bottom) + 132px);
   z-index: 6;
   max-width: calc(100vw - 40px);
-  padding: 9px 14px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.74);
+  padding: 9px 15px;
+  border-radius: 12px;
+  background: rgba(28, 28, 30, 0.72);
   color: #fff;
   font-size: 12px;
   line-height: 1.45;
@@ -698,8 +847,8 @@
   pointer-events: none;
   transform: translate(-50%, 8px);
   transition: opacity 180ms var(--ah-ease), transform 180ms var(--ah-ease);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
 }
 
 .player-toast.is-visible {
@@ -707,31 +856,102 @@
   transform: translate(-50%, 0);
 }
 
+/* ---------- 矮屏（物理横屏 / 小屏） ---------- */
+
+@media (max-height: 480px) {
+  .player-page {
+    --ah-play-size: 66px;
+    --ah-play-icon-size: 33px;
+  }
+
+  .player-top {
+    padding-top: calc(var(--ah-safe-top) + 8px);
+  }
+
+  .player-subtitle {
+    display: none;
+  }
+
+  .player-center {
+    gap: 14px;
+  }
+
+  .pbtn-seek {
+    width: 42px;
+    height: 42px;
+  }
+
+  .pbtn-seek .icon {
+    width: 29px;
+    height: 29px;
+  }
+
+  .player-volume-track {
+    height: clamp(92px, 26vh, 138px);
+  }
+
+  .player-bottom {
+    padding-bottom: calc(var(--ah-safe-bottom) + 8px);
+  }
+
+  .player-menu {
+    padding-bottom: 8px;
+  }
+}
+
+.player-page.is-landscape .player-center {
+  gap: 14px;
+}
+
+.player-page.is-landscape .pbtn-seek {
+  width: 42px;
+  height: 42px;
+}
+
+.player-page.is-landscape .pbtn-seek .icon {
+  width: 29px;
+  height: 29px;
+}
+
+.player-page.is-landscape .player-volume-track {
+  height: clamp(92px, 26vh, 138px);
+}
+
 /* ---------- 桌面 ---------- */
 
 @media (min-width: 900px) {
   .player-page {
-    --ah-play-size: 84px;
+    --ah-play-size: 88px;
+    --ah-play-icon-size: 42px;
   }
 
   .player-center {
-    gap: 120px;
-  }
-
-  .pbtn-play .icon {
-    width: 46px;
-    height: 46px;
+    gap: 26px;
   }
 
   .player-top {
     padding-right: calc(var(--ah-safe-right) + 22px);
-    padding-left: calc(var(--ah-safe-left) + 22px);
+    padding-left: calc(var(--ah-safe-left) + 24px);
   }
 
   .player-bottom {
     padding-right: calc(var(--ah-safe-right) + 24px);
-    padding-bottom: calc(var(--ah-safe-bottom) + 14px);
+    padding-bottom: calc(var(--ah-safe-bottom) + 16px);
     padding-left: calc(var(--ah-safe-left) + 24px);
+  }
+
+  .player-volume {
+    right: calc(var(--ah-safe-right) + 22px);
+  }
+
+  .player-volume-track {
+    height: clamp(140px, 26vh, 200px);
+  }
+
+  @media (hover: hover) {
+    .pbtn:hover {
+      background: var(--ah-glass-strong);
+    }
   }
 }
 

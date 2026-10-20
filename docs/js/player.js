@@ -259,44 +259,57 @@ export function playerPage(item, episode) {
         '<p id="player-error-text">请检查网络连接后重试。影片本身仍在片库中，稍后可以再试。</p>' +
         '<div class="player-error-actions">' +
           '<button class="pbtn-text" type="button" data-paction="retry">重试</button>' +
-          '<button class="pbtn-text" type="button" data-paction="quality">换线路</button>' +
+          '<button class="pbtn-text" type="button" data-paction="line">换线路</button>' +
           '<button class="pbtn-text" type="button" data-paction="back">返回</button>' +
         '</div>' +
       '</div>' +
 
       '<div class="player-overlay" id="player-overlay">' +
         '<div class="player-top">' +
-          '<button class="pbtn pbtn-close" type="button" data-paction="back" aria-label="关闭播放器">' + icon('close') + '</button>' +
           '<div class="player-headings">' +
             '<div class="player-title">' + escapeHtml(item.title) + '</div>' +
             '<div class="player-subtitle">' + escapeHtml(subtitle) + '</div>' +
           '</div>' +
+          /* 右上角：投屏 + 关闭。 */
           '<div class="player-top-actions">' +
-            (item.episodes && item.episodes.length ? '<button class="pbtn" type="button" data-paction="episodes" aria-label="选集">' + icon('list') + '</button>' : '') +
+            '<button class="pbtn pbtn-cast" type="button" data-paction="cast" id="player-cast" aria-label="投屏">' + icon('cast') + '</button>' +
+            '<button class="pbtn pbtn-close" type="button" data-paction="back" aria-label="关闭播放器">' + icon('close') + '</button>' +
           '</div>' +
         '</div>' +
 
+        /* 画面居中：后退 / 播放暂停 / 前进，竖向排列。 */
         '<div class="player-center">' +
           '<button class="pbtn pbtn-seek" type="button" data-paction="rewind" aria-label="后退 10 秒">' + icon('rewind') + '</button>' +
           '<button class="pbtn pbtn-play" type="button" data-paction="toggle" id="player-play" aria-label="播放">' + icon('play') + '</button>' +
           '<button class="pbtn pbtn-seek" type="button" data-paction="forward" aria-label="前进 10 秒">' + icon('forward') + '</button>' +
         '</div>' +
 
+        /* 右侧竖向音量条，底部扬声器键同时是静音键。 */
+        '<div class="player-volume" id="player-volume" aria-label="音量">' +
+          '<div class="player-volume-track" id="player-volume-track" role="slider" tabindex="0" aria-label="音量" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">' +
+            '<div class="player-volume-rail">' +
+              '<span class="player-volume-fill" id="player-volume-fill"></span>' +
+              '<span class="player-volume-thumb" id="player-volume-thumb"></span>' +
+            '</div>' +
+          '</div>' +
+          '<button class="pbtn pbtn-volume" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
+        '</div>' +
+
         '<div class="player-bottom">' +
+          /* 左下角菜单组：线路 / 清晰度 / 倍速 / 字幕 / 选集 / 横竖屏。 */
+          '<div class="player-menu" id="player-menu">' +
+            '<button class="pbtn pbtn-label pbtn-line" type="button" data-paction="line" id="player-line" aria-label="切换线路">' + icon('line') + '<span>线路</span></button>' +
+            '<button class="pbtn pbtn-label" type="button" data-paction="quality" id="player-quality" aria-label="清晰度">' + escapeHtml(quality) + '</button>' +
+            '<button class="pbtn pbtn-label" type="button" data-paction="speed" id="player-speed" aria-label="倍速">' + escapeHtml(formatRate(initialRate)) + '</button>' +
+            (subtitles.length ? '<button class="pbtn pbtn-menu-icon" type="button" data-paction="cc" id="player-cc" aria-label="字幕">' + icon('cc') + '</button>' : '') +
+            (item.episodes && item.episodes.length ? '<button class="pbtn pbtn-menu-icon" type="button" data-paction="episodes" aria-label="选集">' + icon('list') + '</button>' : '') +
+            '<button class="pbtn pbtn-menu-icon pbtn-display" type="button" data-paction="display" id="player-rotate" aria-label="横屏播放" aria-pressed="false">' + icon('rotate') + '</button>' +
+          '</div>' +
+          /* 底部横向进度条：左当前时间，右剩余时长。 */
           '<div class="player-scrub-row">' +
             '<span class="player-time" id="player-current">0:00</span>' +
             '<input class="player-scrub" id="player-scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度">' +
             '<span class="player-time" id="player-duration">-0:00</span>' +
-          '</div>' +
-          '<div class="player-controls">' +
-            /* 静音放左下角，跟清晰度 / 倍速同一行。 */
-            '<button class="pbtn" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
-            '<div class="player-spacer"></div>' +
-            '<button class="pbtn pbtn-label" type="button" data-paction="quality" id="player-quality" aria-label="清晰度">' + escapeHtml(quality) + '</button>' +
-            '<button class="pbtn pbtn-label" type="button" data-paction="speed" id="player-speed" aria-label="倍速">' + escapeHtml(formatRate(initialRate)) + '</button>' +
-            (subtitles.length ? '<button class="pbtn" type="button" data-paction="cc" id="player-cc" aria-label="字幕">' + icon('cc') + '</button>' : '') +
-            /* 显示模式按钮回到控件行，随其他按钮一起出现 / 消失。 */
-            '<button class="pbtn pbtn-display" type="button" data-paction="display" id="player-rotate" aria-label="横屏播放" aria-pressed="false">' + icon('rotate') + '</button>' +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -349,8 +362,13 @@ export function mountPlayer(item, episode) {
   const durationLabel = document.getElementById('player-duration');
   const qualityButton = document.getElementById('player-quality');
   const speedButton = document.getElementById('player-speed');
+  const lineButton = document.getElementById('player-line');
+  const castButton = document.getElementById('player-cast');
   const muteButton = document.getElementById('player-mute');
   const displayButton = document.getElementById('player-rotate');
+  const volumeTrack = document.getElementById('player-volume-track');
+  const volumeFill = document.getElementById('player-volume-fill');
+  const volumeThumb = document.getElementById('player-volume-thumb');
   const buffering = document.getElementById('player-buffering');
   const errorBox = document.getElementById('player-error');
   const errorText = document.getElementById('player-error-text');
@@ -368,7 +386,11 @@ export function mountPlayer(item, episode) {
   const initialRate = state.settings.defaultRate;
   const statusBarMeta = document.getElementById('meta-status-bar');
   const previousStatusBar = statusBarMeta ? statusBarMeta.getAttribute('content') : null;
+  const themeMeta = document.getElementById('meta-theme-color');
+  const previousThemeColor = themeMeta ? themeMeta.getAttribute('content') : null;
+  /* 播放页始终黑底：状态栏跟随播放器，离开时恢复。 */
   if (statusBarMeta) statusBarMeta.setAttribute('content', 'black-translucent');
+  if (themeMeta) themeMeta.setAttribute('content', '#000');
 
   let sourceIndex = 0;
   let currentSource = sources[0] || null;
@@ -387,6 +409,9 @@ export function mountPlayer(item, episode) {
   let hlsFallbackTried = false;
   let proxyFallbackTried = false;
   let expectingMedia = false;
+  let volumeLevel = 1;
+  let draggingVolume = false;
+  let wasLandscapeViewport = isLandscapeViewport();
 
   function destroyHls() {
     if (!hls) return;
@@ -728,11 +753,96 @@ export function mountPlayer(item, episode) {
     showToast(delta < 0 ? '已后退 10 秒' : '已前进 10 秒', 1200);
   }
 
+  /* 音量条是自绘的：iOS 不允许网页控制媒体音量，界面仍按用户拖动显示。 */
+  function updateVolumeUI() {
+    const level = video.muted ? 0 : volumeLevel;
+    const percent = Math.max(0, Math.min(100, Math.round(level * 100)));
+    if (volumeFill) volumeFill.style.height = percent + '%';
+    if (volumeThumb) volumeThumb.style.bottom = percent + '%';
+    if (volumeTrack) {
+      volumeTrack.setAttribute('aria-valuenow', String(percent));
+      volumeTrack.setAttribute('aria-valuetext', percent + '%');
+    }
+  }
+
   function updateMuteButton() {
-    if (!muteButton) return;
-    muteButton.innerHTML = icon(video.muted ? 'volumeMute' : 'volume');
-    muteButton.setAttribute('aria-label', video.muted ? '取消静音' : '静音');
-    muteButton.classList.toggle('is-active', video.muted);
+    if (muteButton) {
+      muteButton.innerHTML = icon(video.muted || volumeLevel <= 0 ? 'volumeMute' : 'volume');
+      muteButton.setAttribute('aria-label', video.muted ? '取消静音' : '静音');
+      muteButton.classList.toggle('is-active', video.muted || volumeLevel <= 0);
+    }
+    updateVolumeUI();
+  }
+
+  function setVolume(level) {
+    const next = Math.max(0, Math.min(1, level));
+    volumeLevel = next;
+    try {
+      video.volume = next;
+    } catch (error) {
+      /* iOS 会忽略音量写入，界面照样更新。 */
+    }
+    video.muted = next === 0;
+    updateMuteButton();
+  }
+
+  function volumeLevelFromEvent(event) {
+    if (!volumeTrack) return volumeLevel;
+    const rect = volumeTrack.getBoundingClientRect();
+    if (!rect.height) return volumeLevel;
+    return Math.max(0, Math.min(1, (rect.bottom - event.clientY) / rect.height));
+  }
+
+  function onVolumePointerDown(event) {
+    if (event.button !== undefined && event.button !== 0) return;
+    draggingVolume = true;
+    showControls(false);
+    try {
+      volumeTrack.setPointerCapture(event.pointerId);
+    } catch (error) {
+      /* 合成事件没有真实 pointerId。 */
+    }
+    setVolume(volumeLevelFromEvent(event));
+    event.preventDefault();
+  }
+
+  function onVolumePointerMove(event) {
+    if (!draggingVolume) return;
+    setVolume(volumeLevelFromEvent(event));
+    event.preventDefault();
+  }
+
+  function onVolumePointerUp() {
+    if (!draggingVolume) return;
+    draggingVolume = false;
+    showControls();
+    showToast('音量 ' + Math.round(volumeLevel * 100) + '%', 1000);
+  }
+
+  function onVolumeKeydown(event) {
+    const handled = ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'Home', 'End'];
+    if (!handled.includes(event.key)) return;
+    /* 阻止冒泡到播放器的全局快捷键，否则一次按键会调整两次音量。 */
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
+      setVolume(volumeLevel + 0.05);
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
+      setVolume(volumeLevel - 0.05);
+    } else if (event.key === 'Home') {
+      setVolume(0);
+    } else {
+      setVolume(1);
+    }
+  }
+
+  function onVolumeChange() {
+    /* iOS 的 volume 恒为 1，不能拿它覆盖用户拖出来的界面值。 */
+    if (!draggingVolume && !isIOS() && !video.muted) {
+      volumeLevel = Number.isFinite(video.volume) ? video.volume : volumeLevel;
+    }
+    updateMuteButton();
   }
 
   function updateSpeedLabel() {
@@ -777,19 +887,22 @@ export function mountPlayer(item, episode) {
   }
 
   function toggleDisplayMode() {
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
+    /* 强制横屏时一次点击同时退出全屏和旋转，避免剩一个“看不见的横屏”。 */
+    if (forcedLandscape) {
+      exitAutoFullscreen();
+      setForcedLandscape(false);
       return;
     }
     if (isNativeFullscreen()) {
       exitNativeFullscreen();
       return;
     }
-    if (forcedLandscape) {
-      setForcedLandscape(false);
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
       return;
     }
     if (!isLandscapeViewport()) {
+      /* 切到横屏的同时进入全屏；桌面/安卓可用，iOS 会自动退回 CSS 横屏。 */
       setForcedLandscape(true);
       return;
     }
@@ -797,9 +910,21 @@ export function mountPlayer(item, episode) {
   }
 
   function toggleMute() {
-    video.muted = !video.muted;
+    if (video.muted || volumeLevel <= 0) {
+      if (volumeLevel <= 0) volumeLevel = 1;
+      try {
+        video.volume = volumeLevel;
+      } catch (error) {
+        /* 忽略。 */
+      }
+      video.muted = false;
+      updateMuteButton();
+      showToast('已取消静音');
+      return;
+    }
+    video.muted = true;
     updateMuteButton();
-    showToast(video.muted ? '已静音' : '已取消静音');
+    showToast('已静音');
   }
 
   function exitNativeFullscreen() {
@@ -847,8 +972,9 @@ export function mountPlayer(item, episode) {
       return;
     }
 
-    if (typeof page.requestFullscreen === 'function') {
-      const request = page.requestFullscreen({ navigationUI: 'hide' });
+    if (typeof document.documentElement.requestFullscreen === 'function') {
+      /* 全屏根元素，dialog-root 里的线路 / 倍速浮卡在全屏中依然可见。 */
+      const request = document.documentElement.requestFullscreen({ navigationUI: 'hide' });
       Promise.resolve(request).catch(fallbackNativeFullscreen);
       return;
     }
@@ -856,9 +982,78 @@ export function mountPlayer(item, episode) {
     fallbackNativeFullscreen();
   }
 
+  /* 投屏：优先 Remote Playback，iOS 退回 AirPlay 选择器。 */
+  function openCast() {
+    showControls();
+    if (video.remote && typeof video.remote.prompt === 'function') {
+      try {
+        Promise.resolve(video.remote.prompt()).catch(() => {
+          showToast('没有找到可投屏的设备');
+        });
+        return;
+      } catch (error) {
+        /* 个别浏览器会同步抛错，继续尝试 iOS 的 AirPlay。 */
+      }
+    }
+    if (isIOS() && typeof video.webkitShowPlaybackTargetPicker === 'function') {
+      try {
+        video.webkitShowPlaybackTargetPicker();
+        return;
+      } catch (error) {
+        /* 继续给提示。 */
+      }
+    }
+    showToast('当前设备不支持投屏');
+  }
+
   function isLandscapeViewport() {
     if (window.matchMedia) return window.matchMedia('(orientation: landscape)').matches;
     return window.innerWidth > window.innerHeight;
+  }
+
+  function setStatusBar(style) {
+    if (statusBarMeta) statusBarMeta.setAttribute('content', style);
+  }
+
+  /* 横屏全屏时用透明状态栏；回到竖屏恢复原生黑底状态栏。 */
+  function updateOrientationState() {
+    const landscape = isLandscapeViewport();
+    page.classList.toggle('is-landscape-viewport', landscape);
+    const immersive = landscape || forcedLandscape || Boolean(document.fullscreenElement);
+    setStatusBar(immersive ? 'black-translucent' : 'black');
+    updateDisplayButton();
+  }
+
+  /*
+   * 切到横屏时尝试进入全屏。浏览器通常要求用户手势，
+   * 旋转手机触发的 resize 可能被拒绝，失败就静默保持 CSS 横屏。
+   */
+  function requestAutoFullscreen() {
+    if (isIOS()) return;
+    if (document.fullscreenElement || isNativeFullscreen()) return;
+    if (typeof document.documentElement.requestFullscreen !== 'function') return;
+
+    const request = document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    Promise.resolve(request).then(() => {
+      if (screen.orientation && typeof screen.orientation.lock === 'function') {
+        screen.orientation.lock('landscape').catch(() => {});
+      }
+    }).catch(() => {});
+  }
+
+  function exitAutoFullscreen() {
+    try {
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    } catch (error) {
+      /* 忽略。 */
+    }
+    if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+      try {
+        screen.orientation.unlock();
+      } catch (error) {
+        /* 未锁定过会抛错。 */
+      }
+    }
   }
 
   function setForcedLandscape(next, options) {
@@ -868,7 +1063,10 @@ export function mountPlayer(item, episode) {
     page.classList.toggle('is-landscape', enabled);
     /* 选集等弹层在 dialog-root 里，需要跟着一起转，才能和画面方向一致。 */
     document.body.classList.toggle('player-forced-landscape', enabled);
-    updateDisplayButton();
+    updateOrientationState();
+
+    if (enabled) requestAutoFullscreen();
+    else if (!opts.keepFullscreen) exitAutoFullscreen();
 
     if (opts.toast !== false) {
       showToast(enabled ? '横屏播放，向左转手机观看' : '已恢复竖屏');
@@ -892,25 +1090,35 @@ export function mountPlayer(item, episode) {
   }
 
   function onViewportResize() {
-    if (forcedLandscape && isLandscapeViewport()) {
-      setForcedLandscape(false, { toast: false });
+    const landscape = isLandscapeViewport();
+
+    if (forcedLandscape && landscape) {
+      /* 手机真的转到横屏了，撤掉 CSS 旋转，改用原生横屏；
+         不退出刚进入的全屏，否则自动全屏会被立刻撤销。 */
+      setForcedLandscape(false, { toast: false, keepFullscreen: true });
       showToast('已切换为横屏', 1400);
+    } else if (landscape && !wasLandscapeViewport) {
+      /* 物理转到横屏：尽量进入全屏（没有用户手势时浏览器会拒绝）。 */
+      requestAutoFullscreen();
+      setStatusBar('black-translucent');
+    } else if (!landscape && wasLandscapeViewport) {
+      exitAutoFullscreen();
+      setStatusBar('black');
     }
-    updateDisplayButton();
+
+    wasLandscapeViewport = landscape;
+    updateOrientationState();
   }
 
   /* 新进入播放页时清掉上一次的横屏 / 全屏状态，避免沿用上次的朝向。 */
   function resetOrientation() {
     forcedLandscape = false;
     page.classList.remove('is-landscape');
+    page.classList.remove('is-landscape-viewport');
     document.body.classList.remove('player-forced-landscape');
-    updateDisplayButton();
-
-    try {
-      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    } catch (error) {
-      /* 忽略。 */
-    }
+    exitAutoFullscreen();
+    wasLandscapeViewport = isLandscapeViewport();
+    updateOrientationState();
 
     if (video.webkitDisplayingFullscreen && video.webkitExitFullscreen) {
       try {
@@ -919,6 +1127,35 @@ export function mountPlayer(item, episode) {
         /* 忽略。 */
       }
     }
+  }
+
+  async function openLines() {
+    if (!sources.length) {
+      showToast('没有可用线路');
+      return;
+    }
+
+    if (hideTimer) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+
+    const value = await openSheet({
+      title: '线路',
+      className: 'sheet-side',
+      value: String(sourceIndex),
+      options: sources.map((source, index) => ({
+        value: String(index),
+        label: '线路 ' + (index + 1) + ' · ' + (source.label || qualityOf(source))
+      }))
+    });
+
+    showControls();
+
+    if (value === null) return;
+    const nextIndex = Number(value);
+    if (!Number.isInteger(nextIndex) || nextIndex === sourceIndex) return;
+    switchSource(nextIndex);
   }
 
   async function openQuality() {
@@ -932,22 +1169,28 @@ export function mountPlayer(item, episode) {
       hideTimer = null;
     }
 
+    const qualities = [];
+    sources.forEach((source) => {
+      const quality = qualityOf(source);
+      if (!qualities.includes(quality)) qualities.push(quality);
+    });
+
+    const currentQuality = currentSource ? qualityOf(currentSource) : (qualities[0] || '');
     const value = await openSheet({
-      title: '清晰度 / 线路',
+      title: '清晰度',
       className: 'sheet-side',
-      value: String(sourceIndex),
-      options: sources.map((source, index) => ({
-        value: String(index),
-        label: source.label || qualityOf(source)
+      value: currentQuality,
+      options: qualities.map((quality) => ({
+        value: quality,
+        label: quality
       }))
     });
 
     showControls();
 
-    if (value === null) return;
-    const nextIndex = Number(value);
-    if (!Number.isInteger(nextIndex) || nextIndex === sourceIndex) return;
-    switchSource(nextIndex);
+    if (value === null || value === currentQuality) return;
+    const nextIndex = sources.findIndex((source) => qualityOf(source) === value);
+    if (nextIndex >= 0) switchSource(nextIndex);
   }
 
   async function openSpeed() {
@@ -1132,12 +1375,14 @@ export function mountPlayer(item, episode) {
       else if (action === 'toggle') togglePlay();
       else if (action === 'rewind') seekBy(-10);
       else if (action === 'forward') seekBy(10);
+      else if (action === 'line') openLines();
       else if (action === 'quality') openQuality();
       else if (action === 'speed') openSpeed();
       else if (action === 'episodes') openEpisodes();
       else if (action === 'close-episodes') closeEpisodes();
       else if (action === 'cc') toggleCC();
       else if (action === 'mute') toggleMute();
+      else if (action === 'cast') openCast();
       else if (action === 'display') toggleDisplayMode();
       else if (action === 'rotate') toggleForcedLandscape();
       else if (action === 'fullscreen') toggleFullscreen();
@@ -1147,7 +1392,7 @@ export function mountPlayer(item, episode) {
 
     if (event.target.closest('.player-error')) return;
 
-    if (event.target.closest('.player-drawer, .pbtn, input, button, .sheet, .dialog')) return;
+    if (event.target.closest('.player-volume, .player-drawer, .pbtn, input, button, .sheet, .dialog')) return;
 
     toggleControls();
   }
@@ -1182,15 +1427,12 @@ export function mountPlayer(item, episode) {
       seekBy(10);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      video.volume = Math.min(1, video.volume + 0.1);
-      video.muted = false;
-      updateMuteButton();
-      showToast('音量 ' + Math.round(video.volume * 100) + '%');
+      setVolume(volumeLevel + 0.1);
+      showToast('音量 ' + Math.round(volumeLevel * 100) + '%');
     } else if (event.key === 'ArrowDown') {
       event.preventDefault();
-      video.volume = Math.max(0, video.volume - 0.1);
-      updateMuteButton();
-      showToast('音量 ' + Math.round(video.volume * 100) + '%');
+      setVolume(volumeLevel - 0.1);
+      showToast('音量 ' + Math.round(volumeLevel * 100) + '%');
     } else if (event.key === 'f' || event.key === 'F') {
       toggleFullscreen();
     } else if (event.key === 'r' || event.key === 'R') {
@@ -1292,9 +1534,8 @@ export function mountPlayer(item, episode) {
     if (drawerTimer) clearTimeout(drawerTimer);
     drawerOpen = false;
 
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-    }
+    draggingVolume = false;
+    exitAutoFullscreen();
     exitNativeFullscreen();
 
     if (mediaSessionCleanup) mediaSessionCleanup();
@@ -1302,7 +1543,12 @@ export function mountPlayer(item, episode) {
       if (previousStatusBar === null) statusBarMeta.removeAttribute('content');
       else statusBarMeta.setAttribute('content', previousStatusBar);
     }
+    if (themeMeta) {
+      if (previousThemeColor === null) themeMeta.removeAttribute('content');
+      else themeMeta.setAttribute('content', previousThemeColor);
+    }
     page.classList.remove('is-landscape');
+    page.classList.remove('is-landscape-viewport');
     document.body.classList.remove('player-forced-landscape');
     controller.abort();
   }
@@ -1312,8 +1558,8 @@ export function mountPlayer(item, episode) {
   document.addEventListener('visibilitychange', onVisibilityChange, { signal });
   window.addEventListener('pagehide', onPageHide, { signal });
   window.addEventListener('resize', onViewportResize, { signal });
-  document.addEventListener('fullscreenchange', updateDisplayButton, { signal });
-  document.addEventListener('webkitfullscreenchange', updateDisplayButton, { signal });
+  document.addEventListener('fullscreenchange', updateOrientationState, { signal });
+  document.addEventListener('webkitfullscreenchange', updateOrientationState, { signal });
 
   const keepLandscape = pendingLandscape;
   pendingLandscape = null;
@@ -1386,7 +1632,7 @@ export function mountPlayer(item, episode) {
     if (video.paused) saveNow(video.ended);
   }, { signal });
 
-  video.addEventListener('volumechange', updateMuteButton, { signal });
+  video.addEventListener('volumechange', onVolumeChange, { signal });
   video.addEventListener('ratechange', updateSpeedLabel, { signal });
 
   video.addEventListener('ended', () => {
@@ -1446,11 +1692,23 @@ export function mountPlayer(item, episode) {
 
   scrub.addEventListener('change', () => saveNow(video.ended), { signal });
 
+  if (volumeTrack) {
+    volumeTrack.addEventListener('pointerdown', onVolumePointerDown, { signal });
+    volumeTrack.addEventListener('pointermove', onVolumePointerMove, { signal });
+    volumeTrack.addEventListener('pointerup', onVolumePointerUp, { signal });
+    volumeTrack.addEventListener('pointercancel', onVolumePointerUp, { signal });
+    volumeTrack.addEventListener('keydown', onVolumeKeydown, { signal });
+  }
+
   stage.addEventListener('pointermove', (event) => {
     if (event.pointerType === 'mouse') showControls();
   }, { signal });
 
   if (qualityButton) qualityButton.disabled = sources.length === 0;
+  if (lineButton) lineButton.disabled = sources.length === 0;
+  volumeLevel = Number.isFinite(video.volume) ? video.volume : 1;
+  wasLandscapeViewport = isLandscapeViewport();
+  updateOrientationState();
   updateMuteButton();
   updateSpeedLabel();
   updateQualityLabel();

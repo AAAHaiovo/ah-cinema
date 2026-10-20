@@ -324,18 +324,95 @@ async function main() {
       if (!data.src.includes('media.w3.org/2010/05/sintel/trailer.mp4')) throw new Error('播放地址 ' + data.src);
       if (data.quality !== '原始') throw new Error('清晰度按钮 ' + data.quality);
 
-      /* 缓冲转圈必须和播放 / 暂停键一样大。 */
+      /* 缓冲转圈必须和播放 / 暂停键里的图标一样大，而不是整个按钮那么大。 */
       const playSizes = JSON.parse(await evaluate(`(() => {
         const buffering = document.querySelector('#player-buffering');
         const hidden = buffering.hidden;
         buffering.hidden = false;
         const play = document.querySelector('#player-play').getBoundingClientRect();
-        const spinner = document.querySelector('.player-spinner').getBoundingClientRect();
+        const iconEl = document.querySelector('#player-play .icon');
+        const spinnerEl = document.querySelector('.player-spinner');
+        const icon = parseFloat(getComputedStyle(iconEl).width);
+        const spinner = parseFloat(getComputedStyle(spinnerEl).width);
         buffering.hidden = hidden;
-        return JSON.stringify({ play: Math.round(play.width), spinner: Math.round(spinner.width) });
+        return JSON.stringify({
+          play: Math.round(play.width),
+          icon: Math.round(icon),
+          spinner: Math.round(spinner)
+        });
       })()`));
-      if (playSizes.play < 70 || Math.abs(playSizes.play - playSizes.spinner) > 1) {
-        throw new Error('缓冲转圈与播放键尺寸不一致 ' + JSON.stringify(playSizes));
+      if (playSizes.play < 70 || playSizes.icon < 30 || Math.abs(playSizes.icon - playSizes.spinner) > 1) {
+        throw new Error('缓冲转圈与暂停图标尺寸不一致 ' + JSON.stringify(playSizes));
+      }
+
+      /* 新布局：底部横向进度条、居中竖排播放组、右侧音量、右上角投屏/关闭、左下角菜单。 */
+      const layout = JSON.parse(await evaluate(`(() => {
+        const rect = (selector) => {
+          const el = document.querySelector(selector);
+          return el ? el.getBoundingClientRect() : null;
+        };
+        const scrubRow = rect('.player-scrub-row');
+        const scrubInput = rect('#player-scrub');
+        const current = rect('#player-current');
+        const duration = rect('#player-duration');
+        const play = rect('#player-play');
+        const rewind = rect('[data-paction="rewind"]');
+        const forward = rect('[data-paction="forward"]');
+        const volume = rect('#player-volume-track');
+        const volumeBox = rect('#player-volume');
+        const cast = rect('#player-cast');
+        const close = document.querySelector('.player-top-actions .pbtn-close').getBoundingClientRect();
+        const menu = rect('#player-menu');
+        return JSON.stringify({
+          viewport: [innerWidth, innerHeight],
+          scrubRow: [Math.round(scrubRow.left), Math.round(scrubRow.top), Math.round(scrubRow.width), Math.round(scrubRow.height)],
+          scrubInput: [Math.round(scrubInput.left), Math.round(scrubInput.right)],
+          current: [Math.round(current.left), Math.round(current.top)],
+          duration: [Math.round(duration.left), Math.round(duration.top)],
+          durationText: document.querySelector('#player-duration').textContent,
+          play: [Math.round(play.left + play.width / 2), Math.round(play.top + play.height / 2)],
+          playBottom: Math.round(play.bottom),
+          rewindBottom: Math.round(rewind.bottom),
+          forwardTop: Math.round(forward.top),
+          volume: [Math.round(volume.left), Math.round(volume.right), Math.round(volume.width), Math.round(volume.height)],
+          volumeCenter: Math.round((volumeBox.top + volumeBox.bottom) / 2),
+          cast: [Math.round(cast.left), Math.round(cast.top)],
+          close: [Math.round(close.left), Math.round(close.top)],
+          menu: [Math.round(menu.left), Math.round(menu.bottom)],
+          hasLine: Boolean(document.querySelector('#player-menu #player-line')),
+          hasQuality: Boolean(document.querySelector('#player-menu #player-quality')),
+          statusBar: document.getElementById('meta-status-bar').getAttribute('content'),
+          theme: document.getElementById('meta-theme-color').getAttribute('content')
+        });
+      })()`));
+      if (layout.statusBar !== 'black' || layout.theme !== '#000') {
+        throw new Error('竖屏状态栏没有恢复原生样式 ' + JSON.stringify({ statusBar: layout.statusBar, theme: layout.theme }));
+      }
+      const width = layout.viewport[0];
+      const height = layout.viewport[1];
+      if (layout.scrubRow[2] < layout.scrubRow[3] * 3) throw new Error('进度条不是横向 ' + JSON.stringify(layout.scrubRow));
+      if (height - (layout.scrubRow[1] + layout.scrubRow[3]) > 40) throw new Error('进度条不在底部 ' + JSON.stringify(layout.scrubRow));
+      if (!(layout.current[0] < layout.scrubInput[0] && layout.duration[0] >= layout.scrubInput[1])) {
+        throw new Error('时间没有放在进度条两端 ' + JSON.stringify(layout));
+      }
+      if (!layout.durationText.startsWith('-')) {
+        throw new Error('右侧不是剩余时长 ' + layout.durationText);
+      }
+      if (Math.abs(layout.play[0] - width / 2) > 6 || Math.abs(layout.play[1] - height / 2) > 30) {
+        throw new Error('播放键不在画面中央 ' + JSON.stringify(layout.play));
+      }
+      if (layout.rewindBottom > layout.play[1] - 20 || layout.forwardTop < layout.play[1] + 20) {
+        throw new Error('±10 秒按钮没有上下排列 ' + JSON.stringify(layout));
+      }
+      if (layout.volume[2] >= layout.volume[3] || width - layout.volume[1] > 40) {
+        throw new Error('音量条不是右侧竖向 ' + JSON.stringify(layout.volume));
+      }
+      if (Math.abs(layout.volumeCenter - height / 2) > 4) throw new Error('音量条没有垂直居中 ' + layout.volumeCenter);
+      if (layout.close[1] > 90 || layout.close[0] < width * 0.7 || layout.cast[0] > layout.close[0]) {
+        throw new Error('关闭/投屏不在右上角 ' + JSON.stringify({ cast: layout.cast, close: layout.close }));
+      }
+      if (layout.menu[0] > 30 || !layout.hasLine || !layout.hasQuality) {
+        throw new Error('菜单组不在左下角或缺少线路/清晰度 ' + JSON.stringify(layout));
       }
       if (!data.title.includes('trailer')) throw new Error('标题 ' + data.title);
       await clearToast();
@@ -373,20 +450,23 @@ async function main() {
       const muted = await evaluate('document.querySelector("#player-video").muted');
       if (!muted) throw new Error('静音失败');
 
-      /* 静音键在底部控制行最左侧。 */
+      /* 静音键在右侧竖向音量条下方，并和整组一起垂直居中。 */
       const muteSpot = JSON.parse(await evaluate(`(() => {
         const mute = document.querySelector('#player-mute');
-        const controls = mute.closest('.player-controls');
+        const group = mute.closest('.player-volume');
         const rect = mute.getBoundingClientRect();
+        const track = document.querySelector('#player-volume-track').getBoundingClientRect();
+        const groupRect = group ? group.getBoundingClientRect() : null;
         return JSON.stringify({
-          inControls: Boolean(controls),
-          first: Boolean(controls && controls.firstElementChild === mute),
-          left: Math.round(rect.left),
-          bottom: Math.round(innerHeight - rect.bottom)
+          inVolume: Boolean(group),
+          afterTrack: Boolean(track && rect.top >= track.bottom - 1),
+          right: Math.round(innerWidth - rect.right),
+          groupCenter: groupRect ? Math.round((groupRect.top + groupRect.bottom) / 2) : -1,
+          center: Math.round(innerHeight / 2)
         });
       })()`));
-      if (!muteSpot.inControls || !muteSpot.first || muteSpot.left > 40 || muteSpot.bottom > 80) {
-        throw new Error('静音键不在左下角 ' + JSON.stringify(muteSpot));
+      if (!muteSpot.inVolume || !muteSpot.afterTrack || muteSpot.right > 50 || Math.abs(muteSpot.groupCenter - muteSpot.center) > 6) {
+        throw new Error('音量键不在右侧音量条下方 ' + JSON.stringify(muteSpot));
       }
 
       await click('[data-paction="speed"]');
@@ -429,11 +509,13 @@ async function main() {
           pressed: document.querySelector('#player-rotate').getAttribute('aria-pressed'),
           stage: [Math.round(rect.width), Math.round(rect.height)],
           offset: [stage.offsetWidth, stage.offsetHeight],
-          transform: getComputedStyle(stage).transform
+          transform: getComputedStyle(stage).transform,
+          statusBar: document.getElementById('meta-status-bar').getAttribute('content')
         });
       })()`));
       if (!landscape.landscape || landscape.pressed !== 'true') throw new Error('横屏状态 ' + JSON.stringify(landscape));
       if (landscape.offset[0] <= landscape.offset[1] || landscape.transform === 'none') throw new Error('横屏没有旋转 ' + JSON.stringify(landscape));
+      if (landscape.statusBar !== 'black-translucent') throw new Error('横屏状态栏没有适配 ' + landscape.statusBar);
       await clearToast();
       await screenshot('04-播放器-横屏-手机.png');
 
@@ -463,26 +545,26 @@ async function main() {
       await click('#player-rotate');
       await wait(350);
 
-      /* 物理横屏时，右下角只有一个按钮，它就是全屏，并且随其他控件一起隐藏。 */
+      /* 物理横屏时，左下角菜单组里只剩一个显示按钮，它就是全屏，并且随控件一起隐藏。 */
       await setViewport(844, 390, 2, true);
       await wait(500);
       const displayMode = JSON.parse(await evaluate(`(() => {
         const pin = document.querySelector('#player-rotate');
-        const rect = pin.getBoundingClientRect();
+        const menu = document.querySelector('#player-menu').getBoundingClientRect();
         return JSON.stringify({
           label: pin.getAttribute('aria-label'),
           pressed: pin.getAttribute('aria-pressed'),
           duplicate: Boolean(document.querySelector('#player-fullscreen')),
           inOverlay: Boolean(pin.closest('.player-overlay')),
-          inControls: Boolean(pin.closest('.player-controls')),
-          corner: [Math.round(innerWidth - rect.right), Math.round(innerHeight - rect.bottom)]
+          inMenu: Boolean(pin.closest('.player-menu')),
+          corner: [Math.round(menu.left), Math.round(innerHeight - menu.bottom)]
         });
       })()`));
       if (displayMode.label !== '全屏' || displayMode.pressed !== 'false' || displayMode.duplicate) {
-        throw new Error('横屏右下角按钮 ' + JSON.stringify(displayMode));
+        throw new Error('横屏显示模式按钮 ' + JSON.stringify(displayMode));
       }
-      if (!displayMode.inOverlay || !displayMode.inControls || displayMode.corner[0] > 24 || displayMode.corner[1] > 24) {
-        throw new Error('全屏按钮不在控件行的右下角 ' + JSON.stringify(displayMode));
+      if (!displayMode.inOverlay || !displayMode.inMenu || displayMode.corner[0] > 24 || displayMode.corner[1] > 90) {
+        throw new Error('全屏按钮不在左下角菜单组 ' + JSON.stringify(displayMode));
       }
 
       await evaluate(`document.querySelector('#player-overlay').classList.add('is-hidden')`);
@@ -503,6 +585,8 @@ async function main() {
       await screenshot('04b-播放器-物理横屏-手机.png');
       await setViewport(390, 844, 2, true);
       await wait(350);
+      const restoredStatus = await evaluate(`document.getElementById('meta-status-bar').getAttribute('content')`);
+      if (restoredStatus !== 'black') throw new Error('回到竖屏后状态栏没有恢复：' + restoredStatus);
       await clearToast();
       return '播放 ' + playing.time.toFixed(1) + 's；后退 ' + rewound.toFixed(1) + 's；倍速 ' + speed.label + '；横屏已恢复';
     });
@@ -812,8 +896,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v20') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v20')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v21') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v21')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;
