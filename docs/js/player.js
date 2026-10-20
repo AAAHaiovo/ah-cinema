@@ -17,6 +17,14 @@ import { resolveSourceUrl } from './remote-api.js';
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
+/* 剩余时间，iOS 播放器风格：-04:03。 */
+function formatRemaining(seconds) {
+  const text = formatTime(Math.max(0, Number(seconds) || 0));
+  const parts = text.split(':');
+  if (parts.length === 2 && parts[0].length < 2) return '-0' + text;
+  return '-' + text;
+}
+
 /*
  * 每次从影片简介进入播放页都重置横竖屏；
  * 只有同一次观看里选集 / 自动连播才沿用当前横屏状态。
@@ -258,13 +266,14 @@ export function playerPage(item, episode) {
 
       '<div class="player-overlay" id="player-overlay">' +
         '<div class="player-top">' +
-          '<button class="pbtn" type="button" data-paction="back" aria-label="返回">' + icon('chevronLeft') + '</button>' +
+          '<button class="pbtn pbtn-close" type="button" data-paction="back" aria-label="关闭播放器">' + icon('close') + '</button>' +
           '<div class="player-headings">' +
             '<div class="player-title">' + escapeHtml(item.title) + '</div>' +
             '<div class="player-subtitle">' + escapeHtml(subtitle) + '</div>' +
           '</div>' +
           '<div class="player-top-actions">' +
             (item.episodes && item.episodes.length ? '<button class="pbtn" type="button" data-paction="episodes" aria-label="选集">' + icon('list') + '</button>' : '') +
+            '<button class="pbtn" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
           '</div>' +
         '</div>' +
 
@@ -278,16 +287,14 @@ export function playerPage(item, episode) {
           '<div class="player-scrub-row">' +
             '<span class="player-time" id="player-current">0:00</span>' +
             '<input class="player-scrub" id="player-scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度">' +
-            '<span class="player-time" id="player-duration">0:00</span>' +
+            '<span class="player-time" id="player-duration">-0:00</span>' +
           '</div>' +
           '<div class="player-controls">' +
-            '<button class="pbtn" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
             '<div class="player-spacer"></div>' +
             '<button class="pbtn pbtn-label" type="button" data-paction="quality" id="player-quality" aria-label="清晰度">' + escapeHtml(quality) + '</button>' +
             '<button class="pbtn pbtn-label" type="button" data-paction="speed" id="player-speed" aria-label="倍速">' + escapeHtml(formatRate(initialRate)) + '</button>' +
             (subtitles.length ? '<button class="pbtn" type="button" data-paction="cc" id="player-cc" aria-label="字幕">' + icon('cc') + '</button>' : '') +
-            '<button class="pbtn pbtn-rotate" type="button" data-paction="rotate" id="player-rotate" aria-label="横屏播放" aria-pressed="false">' + icon('rotate') + '</button>' +
-            '<button class="pbtn" type="button" data-paction="fullscreen" id="player-fullscreen" aria-label="全屏">' + icon('fullscreen') + '</button>' +
+            '<button class="pbtn pbtn-display" type="button" data-paction="display" id="player-rotate" aria-label="横屏播放" aria-pressed="false">' + icon('rotate') + '</button>' +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -341,8 +348,7 @@ export function mountPlayer(item, episode) {
   const qualityButton = document.getElementById('player-quality');
   const speedButton = document.getElementById('player-speed');
   const muteButton = document.getElementById('player-mute');
-  const rotateButton = document.getElementById('player-rotate');
-  const fullscreenButton = document.getElementById('player-fullscreen');
+  const displayButton = document.getElementById('player-rotate');
   const buffering = document.getElementById('player-buffering');
   const errorBox = document.getElementById('player-error');
   const errorText = document.getElementById('player-error-text');
@@ -658,7 +664,7 @@ export function mountPlayer(item, episode) {
     const percent = duration > 0 ? Math.max(0, Math.min(100, (time / duration) * 100)) : 0;
 
     if (currentLabel) currentLabel.textContent = formatTime(time);
-    if (durationLabel) durationLabel.textContent = formatTime(duration);
+    if (durationLabel) durationLabel.textContent = formatRemaining(duration - time);
     if (scrub) {
       scrub.value = String(Math.round(percent * 10));
       scrub.style.setProperty('--progress', percent.toFixed(2) + '%');
@@ -739,11 +745,53 @@ export function mountPlayer(item, episode) {
     return Boolean(video.webkitDisplayingFullscreen);
   }
 
-  function updateFullscreenButton() {
-    if (!fullscreenButton) return;
-    const active = Boolean(document.fullscreenElement) || isNativeFullscreen();
-    fullscreenButton.innerHTML = icon(active ? 'exitFullscreen' : 'fullscreen');
-    fullscreenButton.setAttribute('aria-label', active ? '退出全屏' : '全屏');
+  /*
+   * 一个按钮管「横屏 / 全屏」：
+   * 竖屏时先转横屏；已经是横屏就进全屏；全屏或强制横屏时再点则退出。
+   * 这样不会再出现旋转和全屏两个按钮挤在一起、功能重复的问题。
+   */
+  function updateDisplayButton() {
+    if (!displayButton) return;
+    const fullscreenActive = Boolean(document.fullscreenElement) || isNativeFullscreen();
+    const active = fullscreenActive || forcedLandscape;
+    let iconName = 'rotate';
+    let label = '横屏播放';
+
+    if (fullscreenActive) {
+      iconName = 'exitFullscreen';
+      label = '退出全屏';
+    } else if (forcedLandscape) {
+      iconName = 'rotate';
+      label = '恢复竖屏';
+    } else if (isLandscapeViewport()) {
+      iconName = 'fullscreen';
+      label = '全屏';
+    }
+
+    displayButton.innerHTML = icon(iconName);
+    displayButton.classList.toggle('is-active', active);
+    displayButton.setAttribute('aria-pressed', active ? 'true' : 'false');
+    displayButton.setAttribute('aria-label', label);
+  }
+
+  function toggleDisplayMode() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+      return;
+    }
+    if (isNativeFullscreen()) {
+      exitNativeFullscreen();
+      return;
+    }
+    if (forcedLandscape) {
+      setForcedLandscape(false);
+      return;
+    }
+    if (!isLandscapeViewport()) {
+      setForcedLandscape(true);
+      return;
+    }
+    toggleFullscreen();
   }
 
   function toggleMute() {
@@ -771,17 +819,7 @@ export function mountPlayer(item, episode) {
       return;
     }
 
-    if (!isLandscapeViewport()) {
-      showToast(
-        forcedLandscape
-          ? '已强制横屏；想隐藏状态栏，请把手机横过来再点全屏'
-          : '请先把手机横过来，再点全屏，才能隐藏状态栏',
-        2800
-      );
-      showControls();
-      return;
-    }
-
+    /* 不再限制必须在物理横屏时才允许全屏，避免横屏下按钮点了没反应。 */
     try {
       video.webkitEnterFullscreen();
       showControls();
@@ -821,13 +859,6 @@ export function mountPlayer(item, episode) {
     return window.innerWidth > window.innerHeight;
   }
 
-  function updateRotateButton() {
-    if (!rotateButton) return;
-    rotateButton.classList.toggle('is-active', forcedLandscape);
-    rotateButton.setAttribute('aria-pressed', forcedLandscape ? 'true' : 'false');
-    rotateButton.setAttribute('aria-label', forcedLandscape ? '恢复竖屏' : '横屏播放');
-  }
-
   function setForcedLandscape(next, options) {
     const opts = options || {};
     const enabled = Boolean(next) && !isLandscapeViewport();
@@ -835,7 +866,7 @@ export function mountPlayer(item, episode) {
     page.classList.toggle('is-landscape', enabled);
     /* 选集等弹层在 dialog-root 里，需要跟着一起转，才能和画面方向一致。 */
     document.body.classList.toggle('player-forced-landscape', enabled);
-    updateRotateButton();
+    updateDisplayButton();
 
     if (opts.toast !== false) {
       showToast(enabled ? '横屏播放，向左转手机观看' : '已恢复竖屏');
@@ -863,6 +894,7 @@ export function mountPlayer(item, episode) {
       setForcedLandscape(false, { toast: false });
       showToast('已切换为横屏', 1400);
     }
+    updateDisplayButton();
   }
 
   /* 新进入播放页时清掉上一次的横屏 / 全屏状态，避免沿用上次的朝向。 */
@@ -870,7 +902,7 @@ export function mountPlayer(item, episode) {
     forcedLandscape = false;
     page.classList.remove('is-landscape');
     document.body.classList.remove('player-forced-landscape');
-    updateRotateButton();
+    updateDisplayButton();
 
     try {
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -1102,6 +1134,7 @@ export function mountPlayer(item, episode) {
       else if (action === 'close-episodes') closeEpisodes();
       else if (action === 'cc') toggleCC();
       else if (action === 'mute') toggleMute();
+      else if (action === 'display') toggleDisplayMode();
       else if (action === 'rotate') toggleForcedLandscape();
       else if (action === 'fullscreen') toggleFullscreen();
       else if (action === 'retry') retry();
@@ -1275,16 +1308,16 @@ export function mountPlayer(item, episode) {
   document.addEventListener('visibilitychange', onVisibilityChange, { signal });
   window.addEventListener('pagehide', onPageHide, { signal });
   window.addEventListener('resize', onViewportResize, { signal });
-  document.addEventListener('fullscreenchange', updateFullscreenButton, { signal });
-  document.addEventListener('webkitfullscreenchange', updateFullscreenButton, { signal });
+  document.addEventListener('fullscreenchange', updateDisplayButton, { signal });
+  document.addEventListener('webkitfullscreenchange', updateDisplayButton, { signal });
 
   const keepLandscape = pendingLandscape;
   pendingLandscape = null;
   resetOrientation();
   if (keepLandscape) setForcedLandscape(true, { toast: false, controls: false });
 
-  video.addEventListener('webkitbeginfullscreen', updateFullscreenButton, { signal });
-  video.addEventListener('webkitendfullscreen', updateFullscreenButton, { signal });
+  video.addEventListener('webkitbeginfullscreen', updateDisplayButton, { signal });
+  video.addEventListener('webkitendfullscreen', updateDisplayButton, { signal });
 
   video.addEventListener('loadedmetadata', () => {
     hideBuffering();
@@ -1419,7 +1452,7 @@ export function mountPlayer(item, episode) {
   updateQualityLabel();
   updateProgressUI();
   updatePlayButton();
-  updateFullscreenButton();
+  updateDisplayButton();
   setupMediaSession();
 
   if (!sources.length) {

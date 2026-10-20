@@ -59,13 +59,6 @@
   --ah-safe-left: env(safe-area-inset-top, 0px);
 }
 
-/* 设备/窗口本身已是横屏时，不需要这个按钮。 */
-@media (orientation: landscape) {
-  .pbtn-rotate {
-    display: none;
-  }
-}
-
 .player-video {
   display: block;
   width: 100%;
@@ -150,35 +143,40 @@
 .player-top-actions {
   display: flex;
   align-items: center;
+  gap: 8px;
 }
 
 /* ---------- 播放器按钮 ---------- */
 
+/* 参考 iOS 播放器：深色半透明圆形按钮 + 高斯模糊。 */
 .pbtn {
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
   flex: 0 0 auto;
   padding: 0;
-  border: 0;
+  border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: transparent;
+  background: rgba(20, 20, 23, 0.46);
   color: #fff;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+  backdrop-filter: blur(16px) saturate(1.25);
   transition: background-color 150ms var(--ah-ease), transform 120ms var(--ah-ease), color 150ms var(--ah-ease);
 }
 
 .pbtn:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(52, 52, 58, 0.62);
 }
 
 .pbtn:active {
-  transform: scale(0.94);
+  transform: scale(0.93);
 }
 
 .pbtn .icon {
-  width: 26px;
-  height: 26px;
+  width: 25px;
+  height: 25px;
   stroke-width: 2.1;
   transition: opacity 180ms var(--ah-ease), transform 220ms var(--ah-ease);
   animation: control-pop 200ms var(--ah-ease);
@@ -200,7 +198,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(22px, 12vw, 96px);
+  gap: clamp(26px, 13vw, 120px);
   pointer-events: none;
   transition: opacity 220ms var(--ah-ease), transform 220ms var(--ah-ease);
 }
@@ -214,20 +212,23 @@
   transform: scale(0.94);
 }
 
+.pbtn-seek {
+  width: 56px;
+  height: 56px;
+}
+
 .pbtn-seek .icon {
-  width: 30px;
-  height: 30px;
-  stroke-width: 2.2;
+  width: 28px;
+  height: 28px;
+  stroke-width: 2.15;
 }
 
 .pbtn-play {
-  width: 70px;
-  height: 70px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.17);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 2px 18px rgba(0, 0, 0, 0.24);
+  width: 76px;
+  height: 76px;
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(32, 32, 36, 0.5);
+  box-shadow: 0 6px 26px rgba(0, 0, 0, 0.3);
   transition: background-color 180ms var(--ah-ease), transform 180ms var(--ah-ease),
     box-shadow 180ms var(--ah-ease);
 }
@@ -240,13 +241,19 @@
 }
 
 .pbtn-play:hover {
-  background: rgba(255, 255, 255, 0.24);
+  background: rgba(58, 58, 64, 0.64);
 }
 
 .pbtn-play .icon {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   stroke-width: 2.1;
+}
+
+.pbtn-close .icon {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.3;
 }
 
 /* ---------- 底部控制区 ---------- */
@@ -261,26 +268,43 @@
   transform: translateY(10px);
 }
 
+/* 进度条做成 iOS 风格的深色胶囊，左侧已播放、右侧剩余时间。 */
 .player-scrub-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  min-height: 50px;
+  padding: 5px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(20, 20, 23, 0.56);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.24);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  backdrop-filter: blur(20px) saturate(1.3);
 }
 
 .player-time {
-  min-width: 40px;
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 11px;
+  min-width: 42px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
-  text-align: center;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.player-time:first-child {
+  text-align: left;
+}
+
+.player-time:last-child {
+  text-align: right;
 }
 
 .player-scrub {
   --progress: 0%;
   flex: 1;
   width: 100%;
-  height: 28px;
+  height: 26px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -293,20 +317,20 @@
 
 .player-scrub::-webkit-slider-runnable-track {
   width: 100%;
-  height: 6px;
-  border-radius: 3px;
+  height: 4px;
+  border-radius: 999px;
   background: linear-gradient(
     to right,
-    #E05A5F 0%,
-    #E05A5F var(--progress),
-    rgba(255, 255, 255, 0.28) var(--progress),
-    rgba(255, 255, 255, 0.28) 100%
+    #fff 0%,
+    #fff var(--progress),
+    rgba(255, 255, 255, 0.25) var(--progress),
+    rgba(255, 255, 255, 0.25) 100%
   );
 }
 
 .player-scrub::-webkit-slider-thumb {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   margin-top: -5px;
   border: 0;
   border-radius: 50%;
@@ -318,21 +342,21 @@
 
 .player-scrub::-moz-range-track {
   width: 100%;
-  height: 6px;
+  height: 4px;
   border: 0;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .player-scrub::-moz-range-progress {
-  height: 6px;
-  border-radius: 3px;
-  background: #E05A5F;
+  height: 4px;
+  border-radius: 999px;
+  background: #fff;
 }
 
 .player-scrub::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border: 0;
   border-radius: 50%;
   background: #fff;
@@ -348,24 +372,25 @@
 .player-controls {
   display: flex;
   align-items: center;
-  gap: 0;
-  margin-top: 2px;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .player-spacer {
   flex: 1;
 }
 
+/* 清晰度 / 倍速用胶囊形，保留文字但和圆形按钮同一套玻璃质感。 */
 .pbtn-label {
   width: auto;
-  min-width: 50px;
-  height: 36px;
-  margin: 0 1px;
-  padding: 0 9px;
-  border-radius: 9px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.2px;
+  min-width: 58px;
+  height: 38px;
+  margin: 0;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -640,7 +665,7 @@
 .player-toast {
   position: absolute;
   left: 50%;
-  bottom: calc(var(--ah-safe-bottom) + 106px);
+  bottom: calc(var(--ah-safe-bottom) + 138px);
   z-index: 6;
   max-width: calc(100vw - 40px);
   padding: 9px 14px;
@@ -671,8 +696,13 @@
   }
 
   .pbtn-play {
-    width: 76px;
-    height: 76px;
+    width: 84px;
+    height: 84px;
+  }
+
+  .pbtn-play .icon {
+    width: 40px;
+    height: 40px;
   }
 
   .player-top {

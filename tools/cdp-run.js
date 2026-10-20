@@ -390,6 +390,22 @@ async function main() {
 
       await click('#player-rotate');
       await wait(350);
+
+      /* 物理横屏时，右下角只保留一个按钮，并且它就是全屏。 */
+      await setViewport(844, 390, 2, true);
+      await wait(500);
+      const displayMode = JSON.parse(await evaluate(`JSON.stringify({
+        label: document.querySelector('#player-rotate').getAttribute('aria-label'),
+        pressed: document.querySelector('#player-rotate').getAttribute('aria-pressed'),
+        duplicate: Boolean(document.querySelector('#player-fullscreen'))
+      })`));
+      if (displayMode.label !== '全屏' || displayMode.pressed !== 'false' || displayMode.duplicate) {
+        throw new Error('横屏右下角按钮 ' + JSON.stringify(displayMode));
+      }
+      await clearToast();
+      await screenshot('04b-播放器-物理横屏-手机.png');
+      await setViewport(390, 844, 2, true);
+      await wait(350);
       await clearToast();
       return '播放 ' + playing.time.toFixed(1) + 's；后退 ' + rewound.toFixed(1) + 's；倍速 ' + speed.label + '；横屏已恢复';
     });
@@ -699,8 +715,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v16') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v16')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v17') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v17')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;
