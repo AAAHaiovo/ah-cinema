@@ -1199,8 +1199,19 @@ async function installApp() {
 function setupPwa() {
   if (!('serviceWorker' in navigator)) return;
 
+  /* 新版本接管时自动刷新一次，省得用户反复退出重开。 */
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    window.location.reload();
+  });
+
   const register = () => {
-    navigator.serviceWorker.register('./sw.js').catch((error) => {
+    navigator.serviceWorker.register('./sw.js').then((registration) => {
+      registration.update().catch(() => {});
+    }).catch((error) => {
       console.warn('[AH 影视] Service Worker 注册失败', error);
     });
   };

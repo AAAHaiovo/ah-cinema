@@ -161,8 +161,8 @@
   background: rgba(20, 20, 23, 0.46);
   color: #fff;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
-  -webkit-backdrop-filter: blur(9px) saturate(1.2);
-  backdrop-filter: blur(9px) saturate(1.2);
+  -webkit-backdrop-filter: blur(6px) saturate(1.15);
+  backdrop-filter: blur(6px) saturate(1.15);
   transition: background-color 150ms var(--ah-ease), transform 120ms var(--ah-ease), color 150ms var(--ah-ease);
 }
 
@@ -213,14 +213,14 @@
 }
 
 .pbtn-seek {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
 }
 
 .pbtn-seek .icon {
-  width: 30px;
-  height: 30px;
-  stroke-width: 2.4;
+  width: 31px;
+  height: 31px;
+  stroke-width: 2.5;
 }
 
 .pbtn-play {
@@ -259,7 +259,7 @@
 /* ---------- 底部控制区 ---------- */
 
 .player-bottom {
-  padding: 6px calc(var(--ah-safe-right) + 10px) calc(var(--ah-safe-bottom) + 6px) calc(var(--ah-safe-left) + 10px);
+  padding: 6px calc(var(--ah-safe-right) + 10px) calc(var(--ah-safe-bottom) + 5px) calc(var(--ah-safe-left) + 10px);
   transition: transform 220ms var(--ah-ease), opacity 220ms var(--ah-ease);
 }
 
@@ -273,14 +273,14 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 44px;
-  padding: 4px 14px;
+  min-height: 42px;
+  padding: 3px 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 999px;
   background: rgba(20, 20, 23, 0.56);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.24);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
-  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(8px) saturate(1.15);
+  backdrop-filter: blur(8px) saturate(1.15);
 }
 
 .player-time {
@@ -373,7 +373,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  margin-top: 5px;
+  margin-top: 3px;
   /* 给右下角常驻的显示模式按钮留出位置。 */
   padding-right: 41px;
 }
@@ -414,7 +414,7 @@
 .player-pin {
   position: absolute;
   right: calc(var(--ah-safe-right) + 10px);
-  bottom: calc(var(--ah-safe-bottom) + 6px);
+  bottom: calc(var(--ah-safe-bottom) + 5px);
   z-index: 4;
   width: 34px;
   height: 34px;
@@ -437,9 +437,9 @@
 }
 
 .player-spinner {
-  width: 34px;
-  height: 34px;
-  border: 3px solid rgba(255, 255, 255, 0.22);
+  width: 38px;
+  height: 38px;
+  border: 3.5px solid rgba(255, 255, 255, 0.22);
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 760ms linear infinite, spinner-in 180ms var(--ah-ease);
@@ -547,8 +547,8 @@
   padding: calc(var(--ah-safe-top) + 14px) 12px calc(var(--ah-safe-bottom) + 12px) 14px;
   border-left: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(20, 20, 22, 0.9);
-  -webkit-backdrop-filter: blur(18px) saturate(1.3);
-  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  backdrop-filter: blur(14px) saturate(1.25);
   box-shadow: -14px 0 44px rgba(0, 0, 0, 0.45);
   transform: translateX(102%);
   transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);

@@ -1,6 +1,6 @@
 /* AH 影视 Service Worker：缓存应用壳；视频与大文件直接走网络。 */
 
-const CACHE_NAME = 'ah-cinema-v18';
+const CACHE_NAME = 'ah-cinema-v19';
 
 const SHELL = [
   './',
@@ -34,27 +34,49 @@ const SHELL = [
   './icons/apple-touch-icon.png'
 ];
 
+async function precache() {
+  const cache = await caches.open(CACHE_NAME);
+  await Promise.all(SHELL.map(async (url) => {
+    try {
+      /* cache: 'reload' 绕过 HTTP 缓存，避免装进旧文件。 */
+      const response = await fetch(url, { cache: 'reload' });
+      if (response && response.ok) await cache.put(url, response);
+    } catch (error) {
+      /* 单个文件失败不阻塞安装，运行时还有 network-first 兜底。 */
+    }
+  }));
+}
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(SHELL))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil(precache().then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    const hadOldCache = keys.some((key) => key !== CACHE_NAME);
+    await Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)));
+    await self.clients.claim();
+    /* 从旧版本升级时让已打开的页面自动刷新一次，立刻用上新界面。 */
+    if (hadOldCache) {
+      const windows = await self.clients.matchAll({ type: 'window' });
+      windows.forEach((client) => {
+        try {
+          client.navigate(client.url).catch(() => {});
+        } catch (error) {
+          /* 忽略不支持 navigate 的浏览器。 */
+        }
+      });
+    }
+  })());
 });
 
 async function networkFirst(request, fallbackUrl) {
   const cache = await caches.open(CACHE_NAME);
 
   try {
-    const response = await fetch(request);
+    /* 绕过 HTTP 缓存，保证发版后能立刻拿到新的 HTML / CSS / JS。 */
+    const response = await fetch(request, { cache: 'no-store' });
     if (response && response.ok) {
       cache.put(request, response.clone()).catch(() => {});
     }
