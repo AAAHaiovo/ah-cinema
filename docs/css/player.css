@@ -150,8 +150,8 @@
 
 /* 参考 iOS 播放器：深色半透明圆形按钮 + 高斯模糊。 */
 .pbtn {
-  width: 46px;
-  height: 46px;
+  width: 42px;
+  height: 42px;
   flex: 0 0 auto;
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.13);
@@ -161,8 +161,8 @@
   background: rgba(20, 20, 23, 0.46);
   color: #fff;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
-  -webkit-backdrop-filter: blur(16px) saturate(1.25);
-  backdrop-filter: blur(16px) saturate(1.25);
+  -webkit-backdrop-filter: blur(9px) saturate(1.2);
+  backdrop-filter: blur(9px) saturate(1.2);
   transition: background-color 150ms var(--ah-ease), transform 120ms var(--ah-ease), color 150ms var(--ah-ease);
 }
 
@@ -175,9 +175,9 @@
 }
 
 .pbtn .icon {
-  width: 25px;
-  height: 25px;
-  stroke-width: 2.1;
+  width: 27px;
+  height: 27px;
+  stroke-width: 2.3;
   transition: opacity 180ms var(--ah-ease), transform 220ms var(--ah-ease);
   animation: control-pop 200ms var(--ah-ease);
 }
@@ -213,19 +213,19 @@
 }
 
 .pbtn-seek {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
 }
 
 .pbtn-seek .icon {
-  width: 28px;
-  height: 28px;
-  stroke-width: 2.15;
+  width: 30px;
+  height: 30px;
+  stroke-width: 2.4;
 }
 
 .pbtn-play {
-  width: 76px;
-  height: 76px;
+  width: 64px;
+  height: 64px;
   border-color: rgba(255, 255, 255, 0.18);
   background: rgba(32, 32, 36, 0.5);
   box-shadow: 0 6px 26px rgba(0, 0, 0, 0.3);
@@ -245,21 +245,21 @@
 }
 
 .pbtn-play .icon {
-  width: 36px;
-  height: 36px;
-  stroke-width: 2.1;
+  width: 34px;
+  height: 34px;
+  stroke-width: 2.3;
 }
 
 .pbtn-close .icon {
-  width: 22px;
-  height: 22px;
-  stroke-width: 2.3;
+  width: 23px;
+  height: 23px;
+  stroke-width: 2.5;
 }
 
 /* ---------- 底部控制区 ---------- */
 
 .player-bottom {
-  padding: 6px calc(var(--ah-safe-right) + 10px) calc(var(--ah-safe-bottom) + 8px) calc(var(--ah-safe-left) + 10px);
+  padding: 6px calc(var(--ah-safe-right) + 10px) calc(var(--ah-safe-bottom) + 6px) calc(var(--ah-safe-left) + 10px);
   transition: transform 220ms var(--ah-ease), opacity 220ms var(--ah-ease);
 }
 
@@ -273,18 +273,18 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 50px;
-  padding: 5px 16px;
+  min-height: 44px;
+  padding: 4px 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 999px;
   background: rgba(20, 20, 23, 0.56);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.24);
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
 }
 
 .player-time {
-  min-width: 42px;
+  min-width: 40px;
   color: rgba(255, 255, 255, 0.68);
   font-size: 12px;
   font-weight: 500;
@@ -329,9 +329,9 @@
 }
 
 .player-scrub::-webkit-slider-thumb {
-  width: 14px;
-  height: 14px;
-  margin-top: -5px;
+  width: 13px;
+  height: 13px;
+  margin-top: -4.5px;
   border: 0;
   border-radius: 50%;
   background: #fff;
@@ -355,8 +355,8 @@
 }
 
 .player-scrub::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   border: 0;
   border-radius: 50%;
   background: #fff;
@@ -372,21 +372,33 @@
 .player-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 7px;
+  margin-top: 5px;
+  /* 给右下角常驻的显示模式按钮留出位置。 */
+  padding-right: 41px;
 }
 
 .player-spacer {
   flex: 1;
 }
 
+.player-controls .pbtn:not(.pbtn-label) {
+  width: 34px;
+  height: 34px;
+}
+
+.player-controls .pbtn:not(.pbtn-label) .icon {
+  width: 21px;
+  height: 21px;
+}
+
 /* 清晰度 / 倍速用胶囊形，保留文字但和圆形按钮同一套玻璃质感。 */
 .pbtn-label {
   width: auto;
-  min-width: 58px;
-  height: 38px;
+  min-width: 54px;
+  height: 34px;
   margin: 0;
-  padding: 0 14px;
+  padding: 0 13px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
@@ -396,6 +408,21 @@
 
 .pbtn-label.is-active {
   color: #E05A5F;
+}
+
+/* 显示模式按钮常驻右下角，覆盖层自动隐藏时也保留。 */
+.player-pin {
+  position: absolute;
+  right: calc(var(--ah-safe-right) + 10px);
+  bottom: calc(var(--ah-safe-bottom) + 6px);
+  z-index: 4;
+  width: 34px;
+  height: 34px;
+}
+
+.player-pin .icon {
+  width: 21px;
+  height: 21px;
 }
 
 /* ---------- 缓冲 / 错误 ---------- */
@@ -520,8 +547,8 @@
   padding: calc(var(--ah-safe-top) + 14px) 12px calc(var(--ah-safe-bottom) + 12px) 14px;
   border-left: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(20, 20, 22, 0.9);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  backdrop-filter: blur(18px) saturate(1.3);
   box-shadow: -14px 0 44px rgba(0, 0, 0, 0.45);
   transform: translateX(102%);
   transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -665,7 +692,7 @@
 .player-toast {
   position: absolute;
   left: 50%;
-  bottom: calc(var(--ah-safe-bottom) + 138px);
+  bottom: calc(var(--ah-safe-bottom) + 118px);
   z-index: 6;
   max-width: calc(100vw - 40px);
   padding: 9px 14px;
@@ -696,13 +723,13 @@
   }
 
   .pbtn-play {
-    width: 84px;
-    height: 84px;
+    width: 72px;
+    height: 72px;
   }
 
   .pbtn-play .icon {
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
   }
 
   .player-top {

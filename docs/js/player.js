@@ -294,10 +294,11 @@ export function playerPage(item, episode) {
             '<button class="pbtn pbtn-label" type="button" data-paction="quality" id="player-quality" aria-label="清晰度">' + escapeHtml(quality) + '</button>' +
             '<button class="pbtn pbtn-label" type="button" data-paction="speed" id="player-speed" aria-label="倍速">' + escapeHtml(formatRate(initialRate)) + '</button>' +
             (subtitles.length ? '<button class="pbtn" type="button" data-paction="cc" id="player-cc" aria-label="字幕">' + icon('cc') + '</button>' : '') +
-            '<button class="pbtn pbtn-display" type="button" data-paction="display" id="player-rotate" aria-label="横屏播放" aria-pressed="false">' + icon('rotate') + '</button>' +
           '</div>' +
         '</div>' +
       '</div>' +
+      /* 显示模式按钮独立于覆盖层，控件自动隐藏后仍固定在右下角。 */
+      '<button class="pbtn pbtn-display player-pin" type="button" data-paction="display" id="player-rotate" aria-label="横屏播放" aria-pressed="false">' + icon('rotate') + '</button>' +
 
       (item.episodes && item.episodes.length
         ? '<div class="player-drawer" id="player-drawer" hidden>' +

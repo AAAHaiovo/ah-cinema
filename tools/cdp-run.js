@@ -394,13 +394,27 @@ async function main() {
       /* 物理横屏时，右下角只保留一个按钮，并且它就是全屏。 */
       await setViewport(844, 390, 2, true);
       await wait(500);
-      const displayMode = JSON.parse(await evaluate(`JSON.stringify({
-        label: document.querySelector('#player-rotate').getAttribute('aria-label'),
-        pressed: document.querySelector('#player-rotate').getAttribute('aria-pressed'),
-        duplicate: Boolean(document.querySelector('#player-fullscreen'))
-      })`));
+      const displayMode = JSON.parse(await evaluate(`(() => {
+        const pin = document.querySelector('#player-rotate');
+        const rect = pin.getBoundingClientRect();
+        const overlay = document.querySelector('#player-overlay');
+        overlay.classList.add('is-hidden');
+        const opacityWhenHidden = getComputedStyle(pin).opacity;
+        overlay.classList.remove('is-hidden');
+        return JSON.stringify({
+          label: pin.getAttribute('aria-label'),
+          pressed: pin.getAttribute('aria-pressed'),
+          duplicate: Boolean(document.querySelector('#player-fullscreen')),
+          inOverlay: Boolean(pin.closest('.player-overlay')),
+          corner: [Math.round(innerWidth - rect.right), Math.round(innerHeight - rect.bottom)],
+          opacityWhenHidden
+        });
+      })()`));
       if (displayMode.label !== '全屏' || displayMode.pressed !== 'false' || displayMode.duplicate) {
         throw new Error('横屏右下角按钮 ' + JSON.stringify(displayMode));
+      }
+      if (displayMode.inOverlay || displayMode.opacityWhenHidden !== '1' || displayMode.corner[0] > 24 || displayMode.corner[1] > 24) {
+        throw new Error('显示模式按钮没有常驻右下角 ' + JSON.stringify(displayMode));
       }
       await clearToast();
       await screenshot('04b-播放器-物理横屏-手机.png');
@@ -715,8 +729,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v17') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v17')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v18') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v18')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;
