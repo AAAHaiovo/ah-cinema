@@ -54,7 +54,7 @@ import {
 import { localItems, localCount } from './local-library.js';
 import { cachedSources } from './sources.js';
 
-const APP_VERSION = '0.8.2';
+const APP_VERSION = '0.8.3';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -374,7 +374,9 @@ export function renderSearchResults(query) {
       ? '<section class="section">' +
           '<div class="section-head"><h2 class="section-title">最近搜索</h2><button class="text-btn" type="button" data-action="clear-searches">清除</button></div>' +
           '<div class="recent-list">' +
-          recent.map((record) => '<button class="recent-chip" type="button" data-search-query="' + escapeHtml(record.id) + '">' + escapeHtml(record.id) + '</button>').join('') +
+          recent.map((record) =>
+            '<button class="recent-chip" type="button" data-search-query="' + escapeHtml(record.id) + '">' + escapeHtml(record.id) + '</button>'
+          ).join('') +
           '</div>' +
         '</section>'
       : '';

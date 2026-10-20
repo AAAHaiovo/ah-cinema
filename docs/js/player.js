@@ -9,13 +9,19 @@ import {
   formatEpisodeLabel,
   safeAssetUrl,
   safeExternalUrl,
-  openSheet
+  openSheet,
+  isIOS
 } from './ui.js';
-import { href } from './router.js';
+import { navigate } from './router.js';
 import { resolveSourceUrl } from './remote-api.js';
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-const LANDSCAPE_KEY = 'ah-player-landscape';
+
+/*
+ * 每次从影片简介进入播放页都重置横竖屏；
+ * 只有同一次观看里选集 / 自动连播才沿用当前横屏状态。
+ */
+let pendingLandscape = null;
 
 let hlsPromise = null;
 
@@ -325,6 +331,9 @@ export function mountPlayer(item, episode) {
 
   const startRecord = getProgress(item.id, episode ? episode.id : null);
   const initialRate = state.settings.defaultRate;
+  const statusBarMeta = document.getElementById('meta-status-bar');
+  const previousStatusBar = statusBarMeta ? statusBarMeta.getAttribute('content') : null;
+  if (statusBarMeta) statusBarMeta.setAttribute('content', 'black-translucent');
 
   let sourceIndex = 0;
   let currentSource = sources[0] || null;
@@ -551,10 +560,12 @@ export function mountPlayer(item, episode) {
 
   function showBuffering() {
     if (buffering) buffering.hidden = false;
+    stage.classList.add('is-buffering');
   }
 
   function hideBuffering() {
     if (buffering) buffering.hidden = true;
+    stage.classList.remove('is-buffering');
   }
 
   function showError(message) {
@@ -695,9 +706,13 @@ export function mountPlayer(item, episode) {
     if (qualityButton && currentSource) qualityButton.textContent = qualityOf(currentSource);
   }
 
+  function isNativeFullscreen() {
+    return Boolean(video.webkitDisplayingFullscreen);
+  }
+
   function updateFullscreenButton() {
     if (!fullscreenButton) return;
-    const active = Boolean(document.fullscreenElement);
+    const active = Boolean(document.fullscreenElement) || isNativeFullscreen();
     fullscreenButton.innerHTML = icon(active ? 'exitFullscreen' : 'fullscreen');
     fullscreenButton.setAttribute('aria-label', active ? '退出全屏' : '全屏');
   }
@@ -708,28 +723,68 @@ export function mountPlayer(item, episode) {
     showToast(video.muted ? '已静音' : '已取消静音');
   }
 
-  function toggleFullscreen() {
-    const fullscreenElement = document.fullscreenElement;
+  function exitNativeFullscreen() {
+    if (!isNativeFullscreen()) return;
+    try {
+      video.webkitExitFullscreen();
+    } catch (error) {
+      /* 忽略。 */
+    }
+  }
 
-    if (fullscreenElement) {
+  /*
+   * iOS 只允许视频原生全屏（能隐藏状态栏，但使用系统控件）；
+   * 其他浏览器让整页进入全屏，保留自定义横屏布局，避免全屏后变成竖屏。
+   */
+  function fallbackNativeFullscreen() {
+    if (typeof video.webkitEnterFullscreen !== 'function') {
+      showToast('当前浏览器不支持全屏');
+      return;
+    }
+
+    if (!isLandscapeViewport()) {
+      showToast(
+        forcedLandscape
+          ? '已强制横屏；想隐藏状态栏，请把手机横过来再点全屏'
+          : '请先把手机横过来，再点全屏，才能隐藏状态栏',
+        2800
+      );
+      showControls();
+      return;
+    }
+
+    try {
+      video.webkitEnterFullscreen();
+      showControls();
+    } catch (error) {
+      showToast('当前浏览器不支持全屏');
+    }
+  }
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
       return;
     }
 
-    if (stage.requestFullscreen) {
-      stage.requestFullscreen().catch(() => {
-        if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
-        else showToast('当前浏览器不支持全屏');
-      });
+    if (isNativeFullscreen()) {
+      exitNativeFullscreen();
       return;
     }
 
-    if (video.webkitEnterFullscreen) {
-      video.webkitEnterFullscreen();
+    /* iPhone / iPad 的网页全屏藏不掉状态栏，只有原生视频全屏可以。 */
+    if (isIOS() && typeof video.webkitEnterFullscreen === 'function') {
+      fallbackNativeFullscreen();
       return;
     }
 
-    showToast('当前浏览器不支持全屏');
+    if (typeof page.requestFullscreen === 'function') {
+      const request = page.requestFullscreen({ navigationUI: 'hide' });
+      Promise.resolve(request).catch(fallbackNativeFullscreen);
+      return;
+    }
+
+    fallbackNativeFullscreen();
   }
 
   function isLandscapeViewport() {
@@ -749,14 +804,9 @@ export function mountPlayer(item, episode) {
     const enabled = Boolean(next) && !isLandscapeViewport();
     forcedLandscape = enabled;
     page.classList.toggle('is-landscape', enabled);
+    /* 选集等弹层在 dialog-root 里，需要跟着一起转，才能和画面方向一致。 */
+    document.body.classList.toggle('player-forced-landscape', enabled);
     updateRotateButton();
-
-    try {
-      if (enabled) sessionStorage.setItem(LANDSCAPE_KEY, '1');
-      else sessionStorage.removeItem(LANDSCAPE_KEY);
-    } catch (error) {
-      /* 隐私模式下可能无法写入，忽略。 */
-    }
 
     if (opts.toast !== false) {
       showToast(enabled ? '横屏播放，向左转手机观看' : '已恢复竖屏');
@@ -786,13 +836,25 @@ export function mountPlayer(item, episode) {
     }
   }
 
-  function restoreForcedLandscape() {
+  /* 新进入播放页时清掉上一次的横屏 / 全屏状态，避免沿用上次的朝向。 */
+  function resetOrientation() {
+    forcedLandscape = false;
+    page.classList.remove('is-landscape');
+    document.body.classList.remove('player-forced-landscape');
+    updateRotateButton();
+
     try {
-      if (sessionStorage.getItem(LANDSCAPE_KEY) === '1') {
-        setForcedLandscape(true, { toast: false, controls: false });
-      }
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     } catch (error) {
       /* 忽略。 */
+    }
+
+    if (video.webkitDisplayingFullscreen && video.webkitExitFullscreen) {
+      try {
+        video.webkitExitFullscreen();
+      } catch (error) {
+        /* 忽略。 */
+      }
     }
   }
 
@@ -860,6 +922,7 @@ export function mountPlayer(item, episode) {
 
     const value = await openSheet({
       title: '选集',
+      className: 'sheet-episodes',
       value: episode ? episode.id : null,
       options: item.episodes.map((entry, index) => ({
         value: entry.id,
@@ -870,7 +933,11 @@ export function mountPlayer(item, episode) {
     showControls();
 
     if (value === null) return;
-    location.hash = href('/watch/' + encodeURIComponent(item.id) + '/' + encodeURIComponent(value));
+    /* 选集替换当前历史记录，返回键才能回到简介，而不是上一集。 */
+    pendingLandscape = forcedLandscape;
+    navigate('/watch/' + encodeURIComponent(item.id) + '/' + encodeURIComponent(value), {
+      replace: true
+    });
   }
 
   function switchSource(nextIndex) {
@@ -1101,9 +1168,15 @@ export function mountPlayer(item, episode) {
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
+    exitNativeFullscreen();
 
     if (mediaSessionCleanup) mediaSessionCleanup();
+    if (statusBarMeta) {
+      if (previousStatusBar === null) statusBarMeta.removeAttribute('content');
+      else statusBarMeta.setAttribute('content', previousStatusBar);
+    }
     page.classList.remove('is-landscape');
+    document.body.classList.remove('player-forced-landscape');
     controller.abort();
   }
 
@@ -1113,13 +1186,15 @@ export function mountPlayer(item, episode) {
   window.addEventListener('pagehide', onPageHide, { signal });
   window.addEventListener('resize', onViewportResize, { signal });
   document.addEventListener('fullscreenchange', updateFullscreenButton, { signal });
-  restoreForcedLandscape();
-  video.addEventListener('webkitbeginfullscreen', () => {
-    if (fullscreenButton) fullscreenButton.innerHTML = icon('exitFullscreen');
-  }, { signal });
-  video.addEventListener('webkitendfullscreen', () => {
-    if (fullscreenButton) fullscreenButton.innerHTML = icon('fullscreen');
-  }, { signal });
+  document.addEventListener('webkitfullscreenchange', updateFullscreenButton, { signal });
+
+  const keepLandscape = pendingLandscape;
+  pendingLandscape = null;
+  resetOrientation();
+  if (keepLandscape) setForcedLandscape(true, { toast: false, controls: false });
+
+  video.addEventListener('webkitbeginfullscreen', updateFullscreenButton, { signal });
+  video.addEventListener('webkitendfullscreen', updateFullscreenButton, { signal });
 
   video.addEventListener('loadedmetadata', () => {
     hideBuffering();
@@ -1198,7 +1273,10 @@ export function mountPlayer(item, episode) {
     if (next && state.settings.autoplayNext) {
       showToast('即将播放下一集…', 1400);
       nextTimer = window.setTimeout(() => {
-        location.hash = href('/watch/' + encodeURIComponent(item.id) + '/' + encodeURIComponent(next.id));
+        pendingLandscape = forcedLandscape;
+        navigate('/watch/' + encodeURIComponent(item.id) + '/' + encodeURIComponent(next.id), {
+          replace: true
+        });
       }, 1400);
     } else {
       showToast('已播放完毕', 2000);

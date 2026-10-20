@@ -30,6 +30,29 @@ body {
   transition: background-color var(--ah-duration) var(--ah-ease), color var(--ah-duration) var(--ah-ease);
 }
 
+/* 影视类 App：界面文字默认不可选中，避免长按误触复制；输入框单独放开。 */
+html,
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"],
+.allow-select {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+img {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
 body.player-active {
   overflow: hidden;
   background: #000;
@@ -201,10 +224,8 @@ ul, ol {
   top: 0;
   z-index: 30;
   padding-top: var(--ah-safe-top);
+  /* 与首页分类栏使用同一实色，下滑时质感一致。 */
   background: var(--ah-bg);
-  background: color-mix(in srgb, var(--ah-bg) 82%, transparent);
-  -webkit-backdrop-filter: var(--ah-blur);
-  backdrop-filter: var(--ah-blur);
   border-bottom: 1px solid var(--ah-line);
 }
 
@@ -1483,7 +1504,12 @@ button.settings-row:hover {
 .detail-page {
   position: relative;
   padding-bottom: 32px;
-  animation: page-in 240ms var(--ah-ease);
+  animation: detail-in 300ms var(--ah-ease);
+}
+
+@keyframes detail-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.988); }
+  to { opacity: 1; transform: none; }
 }
 
 .detail-topbar {
@@ -2088,8 +2114,11 @@ body.no-tabbar .toast {
 }
 
 .sheet {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   max-width: 520px;
+  max-height: calc(100dvh - 20px);
   padding: 16px 16px calc(16px + var(--ah-safe-bottom));
   border-radius: var(--ah-radius-sheet) var(--ah-radius-sheet) 0 0;
   background: var(--ah-bg-elevated);
@@ -2103,6 +2132,7 @@ body.no-tabbar .toast {
 }
 
 .sheet-title {
+  flex: 0 0 auto;
   margin-bottom: 10px;
   font-size: 15px;
   font-weight: 700;
@@ -2112,7 +2142,12 @@ body.no-tabbar .toast {
 .sheet-list {
   display: flex;
   flex-direction: column;
+  flex: 0 1 auto;
   gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .sheet-option {
@@ -2145,6 +2180,7 @@ body.no-tabbar .toast {
 }
 
 .sheet-cancel {
+  flex: 0 0 auto;
   width: 100%;
   min-height: 48px;
   margin-top: 8px;
@@ -2154,6 +2190,69 @@ body.no-tabbar .toast {
   color: var(--ah-text);
   font-size: 15px;
   font-weight: 600;
+}
+
+/* 搜索记录管理：多选列表 + 删除所选 / 全部删除。 */
+.sheet-sub {
+  flex: 0 0 auto;
+  margin: -4px 2px 10px;
+  color: var(--ah-text-2);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.sheet-manage .sheet-list {
+  gap: 2px;
+}
+
+.manage-option {
+  gap: 12px;
+}
+
+.manage-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manage-check {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--ah-line);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: transparent;
+  transition: background-color 160ms var(--ah-ease), border-color 160ms var(--ah-ease),
+    color 160ms var(--ah-ease), transform 160ms var(--ah-ease);
+}
+
+.manage-check .icon {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.4;
+}
+
+.manage-option.is-selected .manage-check {
+  background: var(--ah-accent);
+  border-color: var(--ah-accent);
+  color: #fff;
+  transform: scale(1.04);
+}
+
+.manage-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.manage-actions .btn {
+  flex: 1;
 }
 
 @media (min-width: 600px) {
@@ -2167,6 +2266,133 @@ body.no-tabbar .toast {
     border-radius: var(--ah-radius-sheet);
     padding-bottom: 16px;
   }
+}
+
+/* 横屏选集：居中、紧凑网格，不再是一整块竖屏抽屉。 */
+@media (orientation: landscape), (max-height: 520px) {
+  .sheet-backdrop {
+    align-items: center;
+    padding: 10px;
+  }
+
+  .sheet {
+    max-width: 560px;
+    max-height: calc(100dvh - 20px);
+    padding: 12px 14px;
+    border-radius: 18px;
+    animation: sheet-pop 220ms var(--ah-ease);
+  }
+
+  .sheet-title {
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+
+  .sheet-episodes {
+    width: min(720px, calc(100vw - 20px));
+    max-width: 720px;
+  }
+
+  .sheet-episodes .sheet-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    align-content: start;
+    gap: 6px;
+    padding: 2px;
+  }
+
+  .sheet-option {
+    min-height: 40px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: var(--ah-surface-2);
+    font-size: 13px;
+    line-height: 1.3;
+  }
+
+  .sheet-option > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sheet-option .icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .sheet-cancel {
+    min-height: 40px;
+    margin-top: 8px;
+  }
+}
+
+@keyframes sheet-pop {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/*
+ * 播放器「强制横屏」时手机仍竖着，弹层在 dialog-root 里不会被播放器旋转。
+ * 这里把弹层也转 90°，方向与画面一致，避免选集突然变回竖屏。
+ */
+body.player-forced-landscape .sheet-backdrop {
+  align-items: center;
+  padding: 10px;
+}
+
+body.player-forced-landscape .sheet {
+  width: min(calc(100dvh - 24px), 680px);
+  max-width: none;
+  max-height: calc(100dvw - 24px);
+  padding: 12px 14px;
+  border-radius: 18px;
+  transform: rotate(90deg);
+  transform-origin: center;
+  animation: sheet-rotate-in 220ms var(--ah-ease);
+}
+
+body.player-forced-landscape .sheet-title {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+body.player-forced-landscape .sheet-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  align-content: start;
+  gap: 6px;
+  padding: 2px;
+}
+
+body.player-forced-landscape .sheet-option {
+  min-height: 40px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--ah-surface-2);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+body.player-forced-landscape .sheet-option > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.player-forced-landscape .sheet-option .icon {
+  width: 16px;
+  height: 16px;
+}
+
+body.player-forced-landscape .sheet-cancel {
+  min-height: 40px;
+  margin-top: 8px;
+}
+
+@keyframes sheet-rotate-in {
+  from { opacity: 0; transform: rotate(90deg) scale(0.96); }
+  to { opacity: 1; transform: rotate(90deg); }
 }
 
 /* ---------- 无脚本提示 ---------- */
@@ -2230,6 +2456,15 @@ body.no-tabbar .toast {
   border-bottom: 1px solid var(--ah-line);
   /* 实色背景：iOS Safari 上 backdrop-filter + 横向滚动容易吞掉滑动手势。 */
   background: var(--ah-bg);
+  transition: transform 240ms var(--ah-ease), opacity 200ms var(--ah-ease);
+  will-change: transform;
+}
+
+/* 下滑时收进顶栏下面；上滑或回到顶部时再出现。 */
+.browse-filterbar.is-collapsed {
+  opacity: 0;
+  transform: translateY(calc(-100% - 2px));
+  pointer-events: none;
 }
 
 .browse-filterbar.is-meta-only {

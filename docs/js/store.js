@@ -282,6 +282,20 @@ export async function addSearch(query) {
   return state.searches;
 }
 
+export async function removeSearches(ids) {
+  const values = Array.from(new Set(
+    (Array.isArray(ids) ? ids : [ids])
+      .map((id) => String(id || '').trim())
+      .filter(Boolean)
+  ));
+  if (!values.length) return state.searches;
+
+  const removed = new Set(values);
+  state.searches = state.searches.filter((record) => !removed.has(record.id));
+  await Promise.all(values.map((id) => db.remove('searches', id)));
+  return state.searches;
+}
+
 export async function clearSearches() {
   state.searches = [];
   await db.clear('searches');

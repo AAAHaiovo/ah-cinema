@@ -1,6 +1,6 @@
 # AH 影视
 
-个人自用的影视 PWA。前端是纯静态的原生 HTML / CSS / JavaScript，**不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。v0.5.0 起增加**可选的**源管理与多源点播搜索，需要一个自己的 Vercel / 腾讯云 EdgeOne Pages / SCF / 本地 Node 服务来转发源请求（浏览器跨域所限）。v0.6.0 起首页直接显示已启用源的最新影片；v0.7.0 起支持按源分类筛选和上一页 / 下一页翻页；v0.8.0 改进播放失败的诊断与 HLS 自动兜底；v0.8.0 把分类整理成「电影 / 电视剧 / 动漫 / 综艺 / 纪录片 + 子类型」，翻页按源站真实页数显示并支持跳页，同时支持源站的 Apple CMS XML 接口（`/at/xml/`）；v0.8.1 把「更多」改成 iOS 风格的内嵌展开网格，并给桌面 / 主屏图标加上超椭圆圆角；v0.8.2 在服务端按 `type_id` 二次过滤分类结果（即使源站忽略 `t` 参数），HTTPS 视频默认直连、失败才切代理，减少播放卡顿；粘贴链接的入口在「我的视频」。
+个人自用的影视 PWA。前端是纯静态的原生 HTML / CSS / JavaScript，**不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。v0.5.0 起增加**可选的**源管理与多源点播搜索，需要一个自己的 Vercel / 腾讯云 EdgeOne Pages / SCF / 本地 Node 服务来转发源请求（浏览器跨域所限）。v0.6.0 起首页直接显示已启用源的最新影片；v0.7.0 起支持按源分类筛选和上一页 / 下一页翻页；v0.8.0 改进播放失败的诊断与 HLS 自动兜底；v0.8.0 把分类整理成「电影 / 电视剧 / 动漫 / 综艺 / 纪录片 + 子类型」，翻页按源站真实页数显示并支持跳页，同时支持源站的 Apple CMS XML 接口（`/at/xml/`）；v0.8.1 把「更多」改成 iOS 风格的内嵌展开网格，并给桌面 / 主屏图标加上超椭圆圆角；v0.8.2 在服务端按 `type_id` 二次过滤分类结果（即使源站忽略 `t` 参数），HTTPS 视频默认直连、失败才切代理，减少播放卡顿；v0.8.3 优化播放器与日常使用：横屏选集紧凑网格、返回键回到简介、搜索记录可多选删除或一键清空、下滑隐藏分类栏、界面文字禁止长按复制、播放器图标重绘与过渡动画、每次进入重置横竖屏，以及更完整的全屏处理；粘贴链接的入口在「我的视频」。
 
 **线上地址**：<https://aaahaiovo.github.io/ah-cinema/>（纯静态备用入口；iPhone 用 Safari 打开 → 分享 → 添加到主屏幕）
 
@@ -10,7 +10,7 @@
 
 ## 现在能做什么
 
-### 首页片库（v0.6.0，v0.8.0 重做分类与翻页，v0.8.1 改进分类展开，v0.8.2 修正分类准确性）
+### 首页片库（v0.6.0，v0.8.0 重做分类与翻页，v0.8.1 改进分类展开，v0.8.2 修正分类准确性，v0.8.3 下滑隐藏分类栏）
 
 配置好源之后，首页「最新影片」会自动拉取所有已启用源的最新入库列表，以海报墙显示；两个源里的同一部影片会合并成一张卡片。
 
@@ -281,7 +281,7 @@ GitHub Pages 免费版需要 **public（公开）仓库**。代码会公开；�
 ```bash
 git init
 git add .
-git commit -m "AH 影视 v0.8.2"
+git commit -m "AH 影视 v0.8.3"
 git branch -M main
 git remote add origin https://github.com/<你的用户名>/ah-cinema.git
 git push -u origin main
@@ -301,9 +301,9 @@ https://<你的用户名>.github.io/ah-cinema/
 
 App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也能正常工作；`docs/.nojekyll` 已放好，GitHub Pages 不会用 Jekyll 处理这些文件。
 
-> **更新后还是旧版本？** Service Worker 会缓存应用壳。新版本部署后，iPhone 上先从主屏幕完全退出 App，再用 Safari 打开线上地址刷新一次；Windows 上按 `Ctrl + Shift + R`。缓存版本变化（`ah-cinema-v13`）后会自动清理旧缓存。
+> **更新后还是旧版本？** Service Worker 会缓存应用壳。新版本部署后，iPhone 上先从主屏幕完全退出 App，再用 Safari 打开线上地址刷新一次；Windows 上按 `Ctrl + Shift + R`。缓存版本变化（`ah-cinema-v15`）后会自动清理旧缓存。
 >
-> **主屏图标还是旧样式？** iOS 会按 URL 缓存 `apple-touch-icon`。v0.8.2 已给图标地址加上 `?v=082`；如果主屏仍是直角旧图标，删除旧图标后重新「添加到主屏幕」即可。
+> **主屏图标还是旧样式？** iOS 会按 URL 缓存 `apple-touch-icon`。v0.8.3 已给图标地址加上 `?v=083`；如果主屏仍是直角旧图标，删除旧图标后重新「添加到主屏幕」即可。
 
 ---
 
@@ -343,7 +343,7 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 ├─ docs/                    # App 本体；GitHub Pages / Vercel / EdgeOne 静态输出都指向这里
 │  ├─ index.html
 │  ├─ manifest.webmanifest
-│  ├─ sw.js                 # Service Worker（缓存版本 ah-cinema-v13）
+│  ├─ sw.js                 # Service Worker（缓存版本 ah-cinema-v15）
 │  ├─ css/                  # tokens.css / app.css / player.css
 │  ├─ js/                   # app / router / store / catalog / views / player / ui / db
 │  │                        # local-library / sources / sources-view / sources-controller
@@ -413,7 +413,7 @@ node tools/cdp-run.js
 - 粘贴 B 站视频页，官方嵌入式 iframe 地址与尺寸
 - 无效链接拒绝、网页链接需确认且取消后不添加
 - 分页（27 条 / 每页 24 条）与跳页校验
-- Service Worker、缓存版本 `ah-cinema-v13`、manifest 图标
+- Service Worker、缓存版本 `ah-cinema-v15`、manifest 图标
 - 断网重载仍能打开应用壳
 - 本机文件：写入 IndexedDB 的 blob、刷新后恢复、删除后清空
 - 手机横屏与桌面布局
@@ -423,10 +423,12 @@ node tools/cdp-run.js
 - 分类与翻页：约数显示、真实页数（25 页，超过旧上限）、下一页 / 上一页、动作分类两页、跳转到第 21 页、分类行手机宽度可横滑、切回全部
 - 服务端单测：`browseUrl` 的 `t` 参数、`listUrl`、`parseClassList` 的过滤与去重、JSON / XML 自动识别与安全限制
 - 多源搜索：按「标题 + 年份」合并为一组、显示来源数量
+- 搜索记录：点「清除」后可勾选删除或全部删除；界面文字不可选中而输入框可选中
+- 横屏选集：紧凑居中网格、选集后仍在播放页、返回键回到简介
 - XML 源：搜索、详情、简介与多线路解析
 - 选源 → 远程详情 → 刷新片源入口 → 播放 → 拿到签名代理地址
 
-当前结果：界面回归 **15/15 通过**，源管理与多源搜索 **63/63 通过**（版本 v0.8.2，Service Worker `ah-cinema-v13`），无未捕获异常、无控制台错误。服务端单测另跑：
+当前结果：界面回归 **15/15 通过**，源管理与多源搜索 **69/69 通过**（版本 v0.8.3，Service Worker `ah-cinema-v15`），无未捕获异常、无控制台错误。服务端单测另跑：
 
 ```bash
 npm test        # 63/63，含 CORS、代理、SCF、XML 解析、片库 URL 与分类过滤用例

@@ -9,15 +9,15 @@ const ICONS = {
   chevronDown: '<path d="M6 9.5 12 15l6-5.5"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
   check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
-  play: '<path d="M8 5.5v13l10-6.5z" fill="currentColor" stroke="none"/>',
-  pause: '<path d="M8 5.5h3v13H8zM13 5.5h3v13h-3z" fill="currentColor" stroke="none"/>',
-  rewind: '<path d="M4.8 9.5A8 8 0 1 1 4 14"/><path d="M4.8 4.8v4.7h4.7"/><text x="12" y="15.6" text-anchor="middle" font-size="6.4" font-weight="700" fill="currentColor" stroke="none">10</text>',
-  forward: '<path d="M19.2 9.5A8 8 0 1 0 20 14"/><path d="M19.2 4.8v4.7h-4.7"/><text x="12" y="15.6" text-anchor="middle" font-size="6.4" font-weight="700" fill="currentColor" stroke="none">10</text>',
-  volume: '<path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/>',
-  volumeMute: '<path d="M4 9.5h3.5L12 5.5v13L7.5 14.5H4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/>',
-  fullscreen: '<path d="M8.5 4H4v4.5M15.5 4H20v4.5M20 15.5V20h-4.5M4 15.5V20h4.5"/>',
-  exitFullscreen: '<path d="M4 8.5h4.5V4M20 8.5h-4.5V4M15.5 20v-4.5H20M8.5 20v-4.5H4"/>',
-  rotate: '<rect x="9" y="6" width="6" height="12" rx="1.6"/><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4.5v5h-5"/>',
+  play: '<path d="M9.1 5.7v12.6L19 12z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
+  pause: '<rect x="7.4" y="5" width="3.5" height="14" rx="1.6" fill="currentColor" stroke="none"/><rect x="13.1" y="5" width="3.5" height="14" rx="1.6" fill="currentColor" stroke="none"/>',
+  rewind: '<path d="M5.1 9.8A7.7 7.7 0 1 1 4.4 14.2"/><path d="M5.1 5.2v4.6h4.6"/><text x="12" y="15" text-anchor="middle" font-size="7" font-weight="700" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="currentColor" stroke="none">10</text>',
+  forward: '<path d="M18.9 9.8A7.7 7.7 0 1 0 19.6 14.2"/><path d="M18.9 5.2v4.6h-4.6"/><text x="12" y="15" text-anchor="middle" font-size="7" font-weight="700" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="currentColor" stroke="none">10</text>',
+  volume: '<path d="M4.6 9.4h3.1l4.2-3.6v12.4l-4.2-3.6H4.6z"/><path d="M15.2 9.2a4.1 4.1 0 0 1 0 5.6"/><path d="M17.7 6.7a7.5 7.5 0 0 1 0 10.6"/>',
+  volumeMute: '<path d="M4.6 9.4h3.1l4.2-3.6v12.4l-4.2-3.6H4.6z"/><path d="m16.2 9.6 4.6 4.8M20.8 9.6l-4.6 4.8"/>',
+  fullscreen: '<path d="M4.5 9.2V4.5h4.7M14.8 4.5h4.7v4.7M19.5 14.8v4.7h-4.7M9.2 19.5H4.5v-4.7"/>',
+  exitFullscreen: '<path d="M4.5 9.2h4.7V4.5M19.5 9.2h-4.7V4.5M14.8 19.5v-4.7h4.7M9.2 19.5v-4.7H4.5"/>',
+  rotate: '<rect x="3.5" y="8.8" width="14.2" height="9.6" rx="2"/><path d="M13.4 5.2a7.4 7.4 0 0 1 7.1 7.1"/><path d="M20.5 9v3.5H17"/>',
   quality: '<path d="M5 16.5v-4M9.5 16.5V8M14 16.5v-6M18.5 16.5V6"/>',
   speed: '<path d="M12 13.5l3.4-3.4"/><path d="M4.5 17a8.5 8.5 0 1 1 15 0"/><circle cx="12" cy="13.5" r="1.2" fill="currentColor" stroke="none"/>',
   cc: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10.2 10.2a2.4 2.4 0 1 0 0 3.6"/><path d="M17.2 10.2a2.4 2.4 0 1 0 0 3.6"/>',
@@ -495,7 +495,7 @@ export function openConfirm({ title, description = '', confirmText = '确定', c
   });
 }
 
-export function openSheet({ title, options = [], value = null }) {
+export function openSheet({ title, options = [], value = null, className = '' }) {
   closeActiveOverlay();
 
   return new Promise((resolve) => {
@@ -508,7 +508,7 @@ export function openSheet({ title, options = [], value = null }) {
     const previousFocus = document.activeElement;
     const backdrop = createBackdrop('sheet-backdrop', () => close(null));
     const sheet = document.createElement('div');
-    sheet.className = 'sheet';
+    sheet.className = 'sheet' + (className ? ' ' + className : '');
     sheet.setAttribute('role', 'dialog');
     sheet.setAttribute('aria-modal', 'true');
 
@@ -559,6 +559,109 @@ export function openSheet({ title, options = [], value = null }) {
     root.appendChild(backdrop);
     activeOverlayClose = () => close(null);
     focusSoon(sheet.querySelector('[data-value]'));
+  });
+}
+
+/*
+ * 搜索记录管理：点「清除」后先选记录，再决定删除所选或全部删除。
+ * 返回 { action: 'delete', ids } / { action: 'clear' }，取消返回 null。
+ */
+export function openSearchManager(records = []) {
+  closeActiveOverlay();
+
+  return new Promise((resolve) => {
+    const root = document.getElementById('dialog-root');
+    const values = records.map((record) => String(record && record.id ? record.id : record)).filter(Boolean);
+    if (!root || !values.length) {
+      resolve(null);
+      return;
+    }
+
+    const previousFocus = document.activeElement;
+    const selected = new Set();
+    const backdrop = createBackdrop('sheet-backdrop', () => close(null));
+    const sheet = document.createElement('div');
+    sheet.className = 'sheet sheet-manage';
+    sheet.setAttribute('role', 'dialog');
+    sheet.setAttribute('aria-modal', 'true');
+    sheet.setAttribute('aria-label', '管理搜索记录');
+
+    const rows = values.map((value) =>
+      '<button type="button" class="sheet-option manage-option" role="checkbox" aria-checked="false" data-manage-value="' + escapeHtml(value) + '">' +
+        '<span class="manage-label">' + escapeHtml(value) + '</span>' +
+        '<span class="manage-check" aria-hidden="true">' + icon('check') + '</span>' +
+      '</button>'
+    ).join('');
+
+    sheet.innerHTML = '<div class="sheet-title">管理搜索记录</div>' +
+      '<p class="sheet-sub">选择要删除的记录，或一键全部删除。</p>' +
+      '<div class="sheet-list manage-list">' + rows + '</div>' +
+      '<div class="manage-actions">' +
+        '<button type="button" class="btn btn-secondary" data-delete-selected disabled>删除所选</button>' +
+        '<button type="button" class="btn btn-danger" data-delete-all>全部删除</button>' +
+      '</div>' +
+      '<button type="button" class="sheet-cancel" data-cancel>取消</button>';
+
+    const options = Array.from(sheet.querySelectorAll('[data-manage-value]'));
+    const deleteSelected = sheet.querySelector('[data-delete-selected]');
+
+    function updateSelection() {
+      options.forEach((option) => {
+        const active = selected.has(option.getAttribute('data-manage-value'));
+        option.classList.toggle('is-selected', active);
+        option.setAttribute('aria-checked', active ? 'true' : 'false');
+      });
+      deleteSelected.disabled = selected.size === 0;
+      deleteSelected.textContent = selected.size ? '删除所选（' + selected.size + '）' : '删除所选';
+    }
+
+    function cleanup() {
+      document.removeEventListener('keydown', onKeydown);
+      backdrop.remove();
+      if (activeOverlayClose === cleanup) activeOverlayClose = null;
+      try {
+        if (previousFocus && typeof previousFocus.focus === 'function') {
+          previousFocus.focus({ preventScroll: true });
+        }
+      } catch (error) {
+        /* 忽略。 */
+      }
+    }
+
+    function close(result) {
+      cleanup();
+      resolve(result);
+    }
+
+    function onKeydown(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close(null);
+      }
+    }
+
+    options.forEach((option) => {
+      option.addEventListener('click', () => {
+        const value = option.getAttribute('data-manage-value');
+        if (selected.has(value)) selected.delete(value);
+        else selected.add(value);
+        updateSelection();
+      });
+    });
+    deleteSelected.addEventListener('click', () => {
+      if (!selected.size) return;
+      close({ action: 'delete', ids: Array.from(selected) });
+    });
+    sheet.querySelector('[data-delete-all]').addEventListener('click', () => {
+      close({ action: 'clear' });
+    });
+    sheet.querySelector('[data-cancel]').addEventListener('click', () => close(null));
+    document.addEventListener('keydown', onKeydown);
+
+    backdrop.appendChild(sheet);
+    root.appendChild(backdrop);
+    activeOverlayClose = () => close(null);
+    focusSoon(options[0]);
   });
 }
 

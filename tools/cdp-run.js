@@ -478,6 +478,61 @@ async function main() {
       const found = await evaluate('document.querySelectorAll(".poster-card").length');
       if (found !== 1) throw new Error('搜索结果 ' + found);
 
+      await evaluate(`document.querySelector('#search-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))`);
+      await wait(600);
+
+      /* 再留一条记录，用于验证“删除所选”和“全部删除”两条路径。 */
+      await evaluate(`(() => {
+        const input = document.querySelector('#search-input');
+        input.value = 'second-record';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`);
+      await wait(200);
+      await evaluate(`document.querySelector('#search-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))`);
+      await wait(600);
+      await navigate('#/search');
+      await waitFor('document.querySelectorAll(".section .recent-chip").length >= 2');
+
+      const selection = JSON.parse(await evaluate(`JSON.stringify({
+        body: getComputedStyle(document.body).userSelect,
+        input: getComputedStyle(document.querySelector('#search-input')).userSelect
+      })`));
+      if (selection.body !== 'none' || selection.input !== 'text') {
+        throw new Error('文字选择策略 ' + JSON.stringify(selection));
+      }
+
+      await evaluate(`document.querySelector('[data-action="clear-searches"]').click()`);
+      await waitFor('document.querySelector(".sheet-manage")');
+      await wait(350);
+      await screenshot('08b-搜索-管理记录-手机.png');
+      const manageRows = await evaluate('document.querySelectorAll(".sheet-manage [data-manage-value]").length');
+      if (manageRows !== 2) throw new Error('管理面板记录数 ' + manageRows);
+
+      await evaluate(`document.querySelector('.sheet-manage [data-manage-value]').click()`);
+      await wait(150);
+      const chosen = JSON.parse(await evaluate(`JSON.stringify({
+        checked: document.querySelector('.sheet-manage [data-manage-value]').getAttribute('aria-checked'),
+        label: document.querySelector('.sheet-manage [data-delete-selected]').textContent,
+        disabled: document.querySelector('.sheet-manage [data-delete-selected]').disabled
+      })`));
+      if (chosen.checked !== 'true' || chosen.disabled || !chosen.label.includes('1')) {
+        throw new Error('多选状态 ' + JSON.stringify(chosen));
+      }
+
+      await evaluate(`document.querySelector('.sheet-manage [data-delete-selected]').click()`);
+      await waitFor('!document.querySelector(".sheet-manage")');
+      await wait(250);
+      const remaining = await evaluate('document.querySelectorAll(".section .recent-chip").length');
+      if (remaining !== 1) throw new Error('删除所选后剩余 ' + remaining);
+
+      await evaluate(`document.querySelector('[data-action="clear-searches"]').click()`);
+      await waitFor('document.querySelector(".sheet-manage")');
+      await evaluate(`document.querySelector('.sheet-manage [data-delete-all]').click()`);
+      await waitFor('!document.querySelector(".sheet-manage")');
+      await wait(250);
+      const afterAll = await evaluate('document.querySelectorAll(".section .recent-chip").length');
+      if (afterAll !== 0) throw new Error('全部删除后剩余 ' + afterAll);
+
       await evaluate(`(() => {
         const input = document.querySelector('#search-input');
         input.value = '绝对不存在的链接 98765';
@@ -643,8 +698,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v13') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v13')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v15') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v15')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;

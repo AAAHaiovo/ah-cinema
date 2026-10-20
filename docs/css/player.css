@@ -7,7 +7,12 @@
   overflow: hidden;
   background: #000;
   color: #fff;
-  animation: fade-in 180ms var(--ah-ease);
+  animation: player-in 240ms var(--ah-ease);
+}
+
+@keyframes player-in {
+  from { opacity: 0; transform: scale(1.015); }
+  to { opacity: 1; transform: none; }
 }
 
 .player-stage {
@@ -108,6 +113,12 @@
   align-items: center;
   gap: 6px;
   padding: calc(var(--ah-safe-top) + 6px) calc(var(--ah-safe-right) + 10px) 10px calc(var(--ah-safe-left) + 10px);
+  transition: transform 220ms var(--ah-ease), opacity 220ms var(--ah-ease);
+}
+
+.player-overlay.is-hidden .player-top {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 .player-headings {
@@ -168,33 +179,63 @@
 .pbtn .icon {
   width: 24px;
   height: 24px;
+  stroke-width: 1.9;
+  transition: opacity 180ms var(--ah-ease), transform 220ms var(--ah-ease);
+  animation: control-pop 200ms var(--ah-ease);
+}
+
+@keyframes control-pop {
+  from { opacity: 0; transform: scale(0.72); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 .pbtn.is-active {
   color: #E05A5F;
 }
 
+/* 绝对居中：和缓冲转圈共用同一个画面中心。 */
 .player-center {
-  flex: 1;
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: clamp(22px, 12vw, 96px);
-  min-height: 0;
+  pointer-events: none;
+  transition: opacity 220ms var(--ah-ease), transform 220ms var(--ah-ease);
+}
+
+.player-center .pbtn {
+  pointer-events: auto;
+}
+
+.player-overlay.is-hidden .player-center {
+  opacity: 0;
+  transform: scale(0.94);
 }
 
 .pbtn-seek .icon {
-  width: 29px;
-  height: 29px;
+  width: 28px;
+  height: 28px;
 }
 
 .pbtn-play {
-  width: 68px;
-  height: 68px;
-  background: rgba(255, 255, 255, 0.16);
+  width: 70px;
+  height: 70px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.17);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 2px 18px rgba(0, 0, 0, 0.24);
+  transition: background-color 180ms var(--ah-ease), transform 180ms var(--ah-ease),
+    box-shadow 180ms var(--ah-ease);
+}
+
+/* 缓冲时暂停图标淡出，转圈正好落在同一个圆心里。 */
+.player-stage.is-buffering .pbtn-play .icon {
+  opacity: 0;
+  transform: scale(0.7);
+  animation: none;
 }
 
 .pbtn-play:hover {
@@ -202,19 +243,20 @@
 }
 
 .pbtn-play .icon {
-  width: 32px;
-  height: 32px;
-  margin-left: 3px;
-}
-
-.pbtn-play.is-playing .icon {
-  margin-left: 0;
+  width: 31px;
+  height: 31px;
 }
 
 /* ---------- 底部控制区 ---------- */
 
 .player-bottom {
   padding: 6px calc(var(--ah-safe-right) + 10px) calc(var(--ah-safe-bottom) + 8px) calc(var(--ah-safe-left) + 10px);
+  transition: transform 220ms var(--ah-ease), opacity 220ms var(--ah-ease);
+}
+
+.player-overlay.is-hidden .player-bottom {
+  opacity: 0;
+  transform: translateY(10px);
 }
 
 .player-scrub-row {
@@ -346,7 +388,12 @@
   border: 3px solid rgba(255, 255, 255, 0.22);
   border-top-color: #fff;
   border-radius: 50%;
-  animation: spin 760ms linear infinite;
+  animation: spin 760ms linear infinite, spinner-in 180ms var(--ah-ease);
+}
+
+@keyframes spinner-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .player-error {

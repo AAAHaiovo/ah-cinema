@@ -213,6 +213,26 @@ async function main() {
     const subScroll = JSON.parse(subMetrics);
     record(results, '子分类行可横向滑动', subScroll.scrollWidth > subScroll.clientWidth && subScroll.max > 0, subMetrics);
 
+    /* 手机宽度下验证分类栏吸顶后下滑隐藏、上滑出现。 */
+    await send('Emulation.setDeviceMetricsOverride', {
+      width: 390, height: 844, deviceScaleFactor: 2, mobile: true
+    });
+    await wait(250);
+    await evaluate('window.scrollTo(0, 1200)');
+    record(results, '下滑隐藏分类栏', await waitFor(
+      'document.querySelector("#home-browse .browse-filterbar")?.classList.contains("is-collapsed") === true',
+      3000
+    ));
+    await evaluate('window.scrollTo(0, 500)');
+    record(results, '上滑恢复分类栏', await waitFor(
+      '!document.querySelector("#home-browse .browse-filterbar")?.classList.contains("is-collapsed")',
+      3000
+    ));
+    await evaluate('window.scrollTo(0, 0)');
+    await wait(250);
+    await send('Emulation.clearDeviceMetricsOverride');
+    await wait(200);
+
     await evaluate(
       `Array.from(document.querySelectorAll('#browse-sub-categories .category-chip')).find((chip) => chip.textContent.trim() === '动作').click()`
     );
@@ -356,6 +376,28 @@ async function main() {
     await evaluate('document.querySelector("#player-quality").click()');
     record(results, '多线路可选', await waitFor('document.querySelectorAll(".sheet [data-value]").length === 2'));
     await evaluate('document.querySelector(".sheet [data-cancel]").click()');
+
+    await evaluate('document.querySelector("[data-paction=episodes]").click()');
+    record(results, '横屏选集面板打开', await waitFor('Boolean(document.querySelector(".sheet-episodes"))'));
+    const episodeSheet = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const sheet = document.querySelector('.sheet-episodes');
+      const list = sheet.querySelector('.sheet-list');
+      const rect = sheet.getBoundingClientRect();
+      return {
+        display: getComputedStyle(list).display,
+        height: Math.round(rect.height),
+        centerOffset: Math.round(Math.abs((rect.top + rect.bottom) / 2 - innerHeight / 2))
+      };
+    })())`));
+    record(results, '选集使用紧凑居中网格',
+      episodeSheet.display === 'grid' && episodeSheet.height <= 500 && episodeSheet.centerOffset <= 40,
+      JSON.stringify(episodeSheet));
+
+    await evaluate('document.querySelector(".sheet-episodes .sheet-option").click()');
+    record(results, '选集后停留在播放页', await waitFor('Boolean(document.querySelector("#player-video")) && !document.querySelector(".sheet")'));
+
+    await evaluate('document.querySelector("[data-paction=back]").click()');
+    record(results, '返回简介而不是上一集', await waitFor('location.hash.startsWith("#/title/") && Boolean(document.querySelector(".detail-page"))'));
 
     await send('Page.navigate', { url: BASE + '#/search?q=XML' });
     record(results, 'XML 搜索出结果', await waitFor('Boolean(document.querySelector(".remote-card"))', 20000));

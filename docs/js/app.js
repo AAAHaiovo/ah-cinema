@@ -11,6 +11,7 @@ import {
   removeFavorite,
   clearHistory,
   clearSearches,
+  removeSearches,
   addSearch,
   exportData,
   importData,
@@ -43,6 +44,7 @@ import {
   openPrompt,
   openConfirm,
   openSheet,
+  openSearchManager,
   closeOverlay,
   debounce,
   formatBytes,
@@ -368,6 +370,7 @@ function renderRoute() {
   els.view.innerHTML = html;
 
   if (resolved.name === 'home') {
+    browseBarHidden = false;
     ensureBrowse();
   }
 
@@ -410,6 +413,7 @@ function renderRoute() {
   const savedScroll = tabbed ? (scrollMemory.get(nextKey) || 0) : 0;
   window.requestAnimationFrame(() => {
     window.scrollTo(0, savedScroll);
+    lastScrollY = window.scrollY || 0;
     try {
       els.view.focus({ preventScroll: true });
     } catch (error) {
@@ -647,6 +651,9 @@ let browseAbort = null;
 let browseRunId = 0;
 let browseKey = '';
 let browseLastTopGroup = '';
+let browseBarHidden = false;
+let lastScrollY = 0;
+let scrollFrame = 0;
 
 function emptyBrowseState() {
   return {
@@ -702,6 +709,12 @@ function renderBrowse() {
 
   section.innerHTML = renderHomeBrowse(browseState);
   browseLastTopGroup = browseState.topGroup;
+
+  const bar = section.querySelector('.browse-filterbar');
+  if (bar && browseBarHidden) {
+    bar.classList.add('is-collapsed');
+    bar.setAttribute('aria-hidden', 'true');
+  }
 
   window.requestAnimationFrame(() => {
     const top = document.getElementById('browse-top-categories');
@@ -825,6 +838,45 @@ function scrollBrowseIntoView() {
   if (target.getBoundingClientRect().top >= 0) return;
   const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+}
+
+/* 首页分类栏：下滑时收起、上滑或回到顶部时出现。 */
+function setBrowseBarHidden(hidden) {
+  browseBarHidden = Boolean(hidden);
+  document.querySelectorAll('#home-browse .browse-filterbar').forEach((bar) => {
+    bar.classList.toggle('is-collapsed', browseBarHidden);
+    bar.setAttribute('aria-hidden', browseBarHidden ? 'true' : 'false');
+  });
+}
+
+function updateBrowseBarOnScroll() {
+  scrollFrame = 0;
+  const bar = document.querySelector('#home-browse .browse-filterbar');
+  if (!bar) {
+    browseBarHidden = false;
+    lastScrollY = window.scrollY || 0;
+    return;
+  }
+
+  const y = window.scrollY || window.pageYOffset || 0;
+  const delta = y - lastScrollY;
+  const header = document.querySelector('.app-header');
+  const headerBottom = header && !header.hidden ? header.getBoundingClientRect().bottom : 0;
+  /* 只有分类栏已经吸顶时才收起，避免在页面中部留下空洞。 */
+  const stuck = bar.getBoundingClientRect().top <= headerBottom + 1;
+
+  if (y < 28 || !stuck || delta < -6) {
+    if (browseBarHidden) setBrowseBarHidden(false);
+  } else if (delta > 6 && y > 60 && !browseBarHidden) {
+    setBrowseBarHidden(true);
+  }
+
+  lastScrollY = y;
+}
+
+function onWindowScroll() {
+  if (scrollFrame) return;
+  scrollFrame = window.requestAnimationFrame(updateBrowseBarOnScroll);
 }
 
 async function loadBrowse(page, topGroup, subCategory, options = {}) {
@@ -1536,15 +1588,45 @@ async function onDocumentClick(event) {
     toast('观看历史已清空');
     renderRoute();
   } else if (action === 'clear-searches') {
-    if (currentRoute && currentRoute.name === 'settings') {
-      const confirmed = await openConfirm({
-        title: '清空搜索记录？',
-        description: '最近搜索会被删除，不影响观看历史和收藏。',
-        confirmText: '清空',
-        danger: true
-      });
-      if (!confirmed) return;
+    const records = state.searches.slice();
+
+    /* 搜索页：先打开管理面板，可只删选中项，也可一键全删。 */
+    if (currentRoute && currentRoute.name === 'search') {
+      if (!records.length) return;
+      const result = await openSearchManager(records);
+      if (!result) return;
+
+      try {
+        if (result.action === 'clear') await clearSearches();
+        else await removeSearches(result.ids);
+      } catch (error) {
+        toast('删除失败，请再试一次');
+        return;
+      }
+
+      if (result.action === 'clear') {
+        toast('搜索记录已清空');
+      } else {
+        toast('已删除 ' + result.ids.length + ' 条搜索记录', 1600);
+      }
+
+      if (!state.ui.searchQuery) {
+        const results = document.getElementById('search-results');
+        if (results) results.innerHTML = renderSearchResults('');
+      } else {
+        renderRoute();
+      }
+      return;
     }
+
+    /* 设置页：仍是清空全部，先确认一次。 */
+    const confirmed = await openConfirm({
+      title: '清空搜索记录？',
+      description: '最近搜索会被删除，不影响观看历史和收藏。',
+      confirmText: '清空',
+      danger: true
+    });
+    if (!confirmed) return;
 
     try {
       await clearSearches();
@@ -1554,15 +1636,7 @@ async function onDocumentClick(event) {
     }
 
     toast('搜索记录已清空');
-
-    if (currentRoute && currentRoute.name === 'search') {
-      if (!state.ui.searchQuery) {
-        const results = document.getElementById('search-results');
-        if (results) results.innerHTML = renderSearchResults('');
-      }
-    } else {
-      renderRoute();
-    }
+    renderRoute();
   } else if (action === 'refresh-remote') {
     const id = actionElement.getAttribute('data-item-id') || '';
     if (!id) return;
@@ -1715,13 +1789,24 @@ function onResourceError(event) {
   }
 }
 
+/* 影视类 App 不应长按复制界面文字；输入框和明确标记的区域除外。 */
+function onDocumentContextMenu(event) {
+  const target = event.target;
+  if (target && target.closest && target.closest('input, textarea, select, [contenteditable="true"], .allow-select')) {
+    return;
+  }
+  event.preventDefault();
+}
+
 function setupGlobalListeners() {
   document.addEventListener('click', onDocumentClick);
   document.addEventListener('change', onDocumentChange);
   document.addEventListener('input', onDocumentInput);
   document.addEventListener('submit', onDocumentSubmit);
   document.addEventListener('error', onResourceError, true);
+  document.addEventListener('contextmenu', onDocumentContextMenu);
   window.addEventListener('hashchange', onHashChange);
+  window.addEventListener('scroll', onWindowScroll, { passive: true });
 
   window.addEventListener('offline', () => toast('已离线：已经缓存的界面仍然可以打开'));
   window.addEventListener('online', () => toast('网络已恢复'));
