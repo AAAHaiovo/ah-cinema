@@ -44,7 +44,6 @@ import {
   openPrompt,
   openConfirm,
   openSheet,
-  openSearchManager,
   closeOverlay,
   debounce,
   formatBytes,
@@ -1448,10 +1447,54 @@ async function removeLocalFlow(id) {
 
 /* ---------- 全局事件 ---------- */
 
+/* 搜索记录：点「清除」进入原位多选，不再另开面板。 */
+function searchManageParts() {
+  const section = document.querySelector('#search-results .recent-section');
+  if (!section) return null;
+  return {
+    section,
+    list: section.querySelector('.recent-list'),
+    normal: section.querySelector('.recent-actions'),
+    manage: section.querySelector('.recent-manage-actions'),
+    deleteButton: section.querySelector('[data-action="delete-selected-searches"]')
+  };
+}
+
+function updateSearchManageCount() {
+  const parts = searchManageParts();
+  if (!parts || !parts.list || !parts.deleteButton) return;
+  const count = parts.list.querySelectorAll('.recent-chip.is-selected').length;
+  parts.deleteButton.disabled = count === 0;
+  parts.deleteButton.textContent = count ? '删除选中（' + count + '）' : '删除选中';
+}
+
+function setSearchManageMode(active) {
+  const parts = searchManageParts();
+  if (!parts || !parts.list) return;
+  parts.list.classList.toggle('is-managing', Boolean(active));
+  if (parts.normal) parts.normal.hidden = Boolean(active);
+  if (parts.manage) parts.manage.hidden = !active;
+  if (!active) {
+    parts.list.querySelectorAll('.recent-chip.is-selected').forEach((chip) => {
+      chip.classList.remove('is-selected');
+      chip.setAttribute('aria-pressed', 'false');
+    });
+  }
+  updateSearchManageCount();
+}
+
 async function onDocumentClick(event) {
   const searchChip = event.target.closest('[data-search-query]');
   if (searchChip) {
     event.preventDefault();
+    /* 管理状态下，点原来的搜索胶囊就是选中 / 取消选中。 */
+    if (searchChip.closest('.recent-list.is-managing')) {
+      const active = !searchChip.classList.contains('is-selected');
+      searchChip.classList.toggle('is-selected', active);
+      searchChip.setAttribute('aria-pressed', active ? 'true' : 'false');
+      updateSearchManageCount();
+      return;
+    }
     handleSearchChip(searchChip.getAttribute('data-search-query') || '');
     return;
   }
@@ -1587,38 +1630,42 @@ async function onDocumentClick(event) {
     }
     toast('观看历史已清空');
     renderRoute();
-  } else if (action === 'clear-searches') {
-    const records = state.searches.slice();
+  } else if (action === 'search-manage') {
+    setSearchManageMode(true);
+    toast('点选要删除的记录，再点“删除选中”', 2400);
+  } else if (action === 'cancel-search-manage') {
+    setSearchManageMode(false);
+  } else if (action === 'delete-selected-searches') {
+    const parts = searchManageParts();
+    const ids = parts && parts.list
+      ? Array.from(parts.list.querySelectorAll('.recent-chip.is-selected'))
+          .map((chip) => chip.getAttribute('data-search-query') || '')
+          .filter(Boolean)
+      : [];
+    if (!ids.length) return;
 
-    /* 搜索页：先打开管理面板，可只删选中项，也可一键全删。 */
-    if (currentRoute && currentRoute.name === 'search') {
-      if (!records.length) return;
-      const result = await openSearchManager(records);
-      if (!result) return;
-
-      try {
-        if (result.action === 'clear') await clearSearches();
-        else await removeSearches(result.ids);
-      } catch (error) {
-        toast('删除失败，请再试一次');
-        return;
-      }
-
-      if (result.action === 'clear') {
-        toast('搜索记录已清空');
-      } else {
-        toast('已删除 ' + result.ids.length + ' 条搜索记录', 1600);
-      }
-
-      if (!state.ui.searchQuery) {
-        const results = document.getElementById('search-results');
-        if (results) results.innerHTML = renderSearchResults('');
-      } else {
-        renderRoute();
-      }
+    try {
+      await removeSearches(ids);
+    } catch (error) {
+      toast('删除失败，请再试一次');
       return;
     }
 
+    const results = document.getElementById('search-results');
+    if (results) results.innerHTML = renderSearchResults('');
+    toast('已删除 ' + ids.length + ' 条搜索记录', 1600);
+  } else if (action === 'clear-all-searches') {
+    try {
+      await clearSearches();
+    } catch (error) {
+      toast('清空失败，请再试一次');
+      return;
+    }
+
+    const results = document.getElementById('search-results');
+    if (results) results.innerHTML = renderSearchResults('');
+    toast('搜索记录已清空');
+  } else if (action === 'clear-searches') {
     /* 设置页：仍是清空全部，先确认一次。 */
     const confirmed = await openConfirm({
       title: '清空搜索记录？',

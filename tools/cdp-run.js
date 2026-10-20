@@ -501,35 +501,36 @@ async function main() {
         throw new Error('文字选择策略 ' + JSON.stringify(selection));
       }
 
-      await evaluate(`document.querySelector('[data-action="clear-searches"]').click()`);
-      await waitFor('document.querySelector(".sheet-manage")');
-      await wait(350);
-      await screenshot('08b-搜索-管理记录-手机.png');
-      const manageRows = await evaluate('document.querySelectorAll(".sheet-manage [data-manage-value]").length');
-      if (manageRows !== 2) throw new Error('管理面板记录数 ' + manageRows);
+      /* 原位多选：不弹面板，原位置的胶囊直接可点选。 */
+      await evaluate(`document.querySelector('[data-action="search-manage"]').click()`);
+      await waitFor('document.querySelector(".recent-list.is-managing")');
+      await wait(250);
+      const manageRows = await evaluate('document.querySelectorAll(".recent-list.is-managing .recent-chip").length');
+      if (manageRows !== 2) throw new Error('管理状态记录数 ' + manageRows);
 
-      await evaluate(`document.querySelector('.sheet-manage [data-manage-value]').click()`);
+      await evaluate(`document.querySelector('.recent-list.is-managing .recent-chip').click()`);
       await wait(150);
       const chosen = JSON.parse(await evaluate(`JSON.stringify({
-        checked: document.querySelector('.sheet-manage [data-manage-value]').getAttribute('aria-checked'),
-        label: document.querySelector('.sheet-manage [data-delete-selected]').textContent,
-        disabled: document.querySelector('.sheet-manage [data-delete-selected]').disabled
+        selected: document.querySelector('.recent-chip').classList.contains('is-selected'),
+        pressed: document.querySelector('.recent-chip').getAttribute('aria-pressed'),
+        label: document.querySelector('[data-action="delete-selected-searches"]').textContent,
+        disabled: document.querySelector('[data-action="delete-selected-searches"]').disabled,
+        stillManaging: Boolean(document.querySelector('.recent-list.is-managing'))
       })`));
-      if (chosen.checked !== 'true' || chosen.disabled || !chosen.label.includes('1')) {
-        throw new Error('多选状态 ' + JSON.stringify(chosen));
+      if (!chosen.selected || chosen.pressed !== 'true' || chosen.disabled || !chosen.label.includes('1')) {
+        throw new Error('原位多选状态 ' + JSON.stringify(chosen));
       }
+      if (!chosen.stillManaging) throw new Error('点选后不应退出管理状态');
+      await screenshot('08b-搜索-管理记录-手机.png');
 
-      await evaluate(`document.querySelector('.sheet-manage [data-delete-selected]').click()`);
-      await waitFor('!document.querySelector(".sheet-manage")');
+      await evaluate(`document.querySelector('[data-action="delete-selected-searches"]').click()`);
+      await waitFor('!document.querySelector(".recent-list.is-managing")');
       await wait(250);
       const remaining = await evaluate('document.querySelectorAll(".section .recent-chip").length');
       if (remaining !== 1) throw new Error('删除所选后剩余 ' + remaining);
 
-      await evaluate(`document.querySelector('[data-action="clear-searches"]').click()`);
-      await waitFor('document.querySelector(".sheet-manage")');
-      await evaluate(`document.querySelector('.sheet-manage [data-delete-all]').click()`);
-      await waitFor('!document.querySelector(".sheet-manage")');
-      await wait(250);
+      await evaluate(`document.querySelector('[data-action="clear-all-searches"]').click()`);
+      await waitFor('document.querySelectorAll(".section .recent-chip").length === 0');
       const afterAll = await evaluate('document.querySelectorAll(".section .recent-chip").length');
       if (afterAll !== 0) throw new Error('全部删除后剩余 ' + afterAll);
 
@@ -698,8 +699,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v15') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v15')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v16') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v16')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;

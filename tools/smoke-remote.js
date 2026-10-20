@@ -9,6 +9,7 @@ const PORT = 9337;
 const BASE = process.env.AH_BASE || 'http://127.0.0.1:4191/';
 const CMS = process.env.AH_MOCK_CMS || 'http://127.0.0.1:4180';
 const PROFILE = path.join(process.env.TEMP || 'C:/Windows/Temp', 'ah-smoke-remote-' + process.pid);
+const SHOTS = process.env.AH_SHOTS ? path.resolve(process.env.AH_SHOTS) : '';
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function record(results, name, pass, detail = '') {
@@ -47,6 +48,14 @@ async function main() {
         pending.set(id, { resolve, reject });
         ws.send(JSON.stringify({ id, method, params }));
       });
+    }
+
+    /* 设置 AH_SHOTS 目录时顺手保存关键截图，便于人工复核。 */
+    async function screenshot(name) {
+      if (!SHOTS) return;
+      fs.mkdirSync(SHOTS, { recursive: true });
+      const data = await send('Page.captureScreenshot', { format: 'png', fromSurface: true });
+      fs.writeFileSync(path.join(SHOTS, name), Buffer.from(data.data, 'base64'));
     }
 
     ws.onmessage = (event) => {
@@ -378,23 +387,32 @@ async function main() {
     await evaluate('document.querySelector(".sheet [data-cancel]").click()');
 
     await evaluate('document.querySelector("[data-paction=episodes]").click()');
-    record(results, '横屏选集面板打开', await waitFor('Boolean(document.querySelector(".sheet-episodes"))'));
-    const episodeSheet = JSON.parse(await evaluate(`JSON.stringify((() => {
-      const sheet = document.querySelector('.sheet-episodes');
-      const list = sheet.querySelector('.sheet-list');
-      const rect = sheet.getBoundingClientRect();
+    record(results, '右侧选集抽屉打开', await waitFor('Boolean(document.querySelector(".player-drawer.is-open"))'));
+    await wait(380);
+    await screenshot('14-播放器-选集抽屉-手机.png');
+    const episodeDrawer = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const drawer = document.querySelector('#player-drawer');
+      const panel = drawer.querySelector('.player-drawer-panel');
+      const list = drawer.querySelector('.player-episode-list');
+      const rect = panel.getBoundingClientRect();
+      const listStyle = getComputedStyle(list);
       return {
-        display: getComputedStyle(list).display,
-        height: Math.round(rect.height),
-        centerOffset: Math.round(Math.abs((rect.top + rect.bottom) / 2 - innerHeight / 2))
+        rightAligned: Math.round(innerWidth - rect.right),
+        width: Math.round(rect.width),
+        direction: listStyle.flexDirection,
+        overflowY: listStyle.overflowY,
+        count: list.querySelectorAll('.player-episode').length,
+        current: Boolean(list.querySelector('.player-episode.is-current'))
       };
     })())`));
-    record(results, '选集使用紧凑居中网格',
-      episodeSheet.display === 'grid' && episodeSheet.height <= 500 && episodeSheet.centerOffset <= 40,
-      JSON.stringify(episodeSheet));
+    record(results, '选集从右侧滑出、竖向可滚',
+      episodeDrawer.rightAligned <= 1 && episodeDrawer.width >= 200 && episodeDrawer.direction === 'column' &&
+        episodeDrawer.overflowY === 'auto' && episodeDrawer.count === 2 && episodeDrawer.current,
+      JSON.stringify(episodeDrawer));
 
-    await evaluate('document.querySelector(".sheet-episodes .sheet-option").click()');
-    record(results, '选集后停留在播放页', await waitFor('Boolean(document.querySelector("#player-video")) && !document.querySelector(".sheet")'));
+    await evaluate('document.querySelector(".player-episode:not(.is-current)").click()');
+    record(results, '选集后停留在播放页',
+      await waitFor('Boolean(document.querySelector("#player-video")) && !document.querySelector(".player-drawer.is-open")'));
 
     await evaluate('document.querySelector("[data-paction=back]").click()');
     record(results, '返回简介而不是上一集', await waitFor('location.hash.startsWith("#/title/") && Boolean(document.querySelector(".detail-page"))'));

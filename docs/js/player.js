@@ -292,6 +292,33 @@ export function playerPage(item, episode) {
         '</div>' +
       '</div>' +
 
+      (item.episodes && item.episodes.length
+        ? '<div class="player-drawer" id="player-drawer" hidden>' +
+            '<button class="player-drawer-scrim" type="button" data-paction="close-episodes" aria-label="关闭选集" tabindex="-1"></button>' +
+            '<aside class="player-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="player-drawer-title">' +
+              '<div class="player-drawer-head">' +
+                '<div class="player-drawer-heading">' +
+                  '<h2 class="player-drawer-title" id="player-drawer-title">选集</h2>' +
+                  '<p class="player-drawer-meta">共 ' + item.episodes.length + ' 集</p>' +
+                '</div>' +
+                '<button class="pbtn player-drawer-close" type="button" data-paction="close-episodes" aria-label="关闭">' + icon('close') + '</button>' +
+              '</div>' +
+              '<div class="player-episode-list" id="player-episode-list">' +
+                item.episodes.map((entry, index) => {
+                  const active = Boolean(episode && entry.id === episode.id);
+                  const label = formatEpisodeLabel(entry) || ('第 ' + (index + 1) + ' 集');
+                  return '<button class="player-episode' + (active ? ' is-current' : '') + '" type="button" data-episode-id="' + escapeHtml(entry.id) + '"' +
+                    (active ? ' aria-current="true"' : '') + '>' +
+                    '<span class="player-episode-index">' + (index + 1) + '</span>' +
+                    '<span class="player-episode-label">' + escapeHtml(label) + '</span>' +
+                    (active ? '<span class="player-episode-now">正在播放</span>' : '') +
+                  '</button>';
+                }).join('') +
+              '</div>' +
+            '</aside>' +
+          '</div>'
+        : '') +
+
       '<div class="player-toast" id="player-toast" role="status" aria-live="polite"></div>' +
     '</div>' +
     '</div>';
@@ -344,6 +371,8 @@ export function mountPlayer(item, episode) {
   let cleaned = false;
   let resumeApplied = false;
   let forcedLandscape = false;
+  let drawerOpen = false;
+  let drawerTimer = null;
   let mediaSessionCleanup = null;
   let hls = null;
   let attachSeq = 0;
@@ -912,30 +941,73 @@ export function mountPlayer(item, episode) {
     showToast('已切换到 ' + formatRate(rate));
   }
 
-  async function openEpisodes() {
+  /* 选集从右侧滑出：竖向排列，当前集尽量滚到列表中间。 */
+  function centerCurrentEpisode() {
+    const drawer = document.getElementById('player-drawer');
+    if (!drawer) return;
+    const list = drawer.querySelector('.player-episode-list');
+    if (!list) return;
+
+    const current = list.querySelector('.player-episode.is-current');
+    if (!current) {
+      list.scrollTop = 0;
+      return;
+    }
+
+    const max = Math.max(0, list.scrollHeight - list.clientHeight);
+    /* 前面的集数不够时 target 为负，钳到 0，自然从顶部开始。 */
+    const target = current.offsetTop - (list.clientHeight - current.offsetHeight) / 2;
+    list.scrollTop = Math.max(0, Math.min(max, target));
+  }
+
+  function openEpisodes() {
     if (!item.episodes || !item.episodes.length) return;
+
+    const drawer = document.getElementById('player-drawer');
+    if (!drawer) return;
 
     if (hideTimer) {
       clearTimeout(hideTimer);
       hideTimer = null;
     }
+    if (drawerTimer) {
+      clearTimeout(drawerTimer);
+      drawerTimer = null;
+    }
 
-    const value = await openSheet({
-      title: '选集',
-      className: 'sheet-episodes',
-      value: episode ? episode.id : null,
-      options: item.episodes.map((entry, index) => ({
-        value: entry.id,
-        label: formatEpisodeLabel(entry) || ('第 ' + (index + 1) + ' 集')
-      }))
+    drawerOpen = true;
+    drawer.hidden = false;
+    /* 先让浏览器完成一帧布局，再打开过渡类，滑入动画才会生效。 */
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!drawerOpen) return;
+        drawer.classList.add('is-open');
+        centerCurrentEpisode();
+      });
     });
+  }
 
+  function closeEpisodes() {
+    const drawer = document.getElementById('player-drawer');
+    if (!drawer || !drawerOpen) return;
+
+    drawerOpen = false;
+    drawer.classList.remove('is-open');
+    if (drawerTimer) clearTimeout(drawerTimer);
+    drawerTimer = window.setTimeout(() => {
+      drawerTimer = null;
+      if (!drawerOpen) drawer.hidden = true;
+    }, 280);
     showControls();
+  }
 
-    if (value === null) return;
+  function selectEpisode(nextId) {
+    if (!nextId) return;
+    closeEpisodes();
+    if (episode && nextId === episode.id) return;
     /* 选集替换当前历史记录，返回键才能回到简介，而不是上一集。 */
     pendingLandscape = forcedLandscape;
-    navigate('/watch/' + encodeURIComponent(item.id) + '/' + encodeURIComponent(value), {
+    navigate('/watch/' + encodeURIComponent(item.id) + '/' + encodeURIComponent(nextId), {
       replace: true
     });
   }
@@ -1008,6 +1080,13 @@ export function mountPlayer(item, episode) {
   }
 
   function onPageClick(event) {
+    const episodeButton = event.target.closest('[data-episode-id]');
+    if (episodeButton) {
+      event.preventDefault();
+      selectEpisode(episodeButton.getAttribute('data-episode-id'));
+      return;
+    }
+
     const actionButton = event.target.closest('[data-paction]');
     if (actionButton) {
       event.preventDefault();
@@ -1020,6 +1099,7 @@ export function mountPlayer(item, episode) {
       else if (action === 'quality') openQuality();
       else if (action === 'speed') openSpeed();
       else if (action === 'episodes') openEpisodes();
+      else if (action === 'close-episodes') closeEpisodes();
       else if (action === 'cc') toggleCC();
       else if (action === 'mute') toggleMute();
       else if (action === 'rotate') toggleForcedLandscape();
@@ -1030,7 +1110,7 @@ export function mountPlayer(item, episode) {
 
     if (event.target.closest('.player-error')) return;
 
-    if (event.target.closest('.pbtn, input, button, .sheet, .dialog')) return;
+    if (event.target.closest('.player-drawer, .pbtn, input, button, .sheet, .dialog')) return;
 
     toggleControls();
   }
@@ -1038,6 +1118,14 @@ export function mountPlayer(item, episode) {
   function onKeydown(event) {
     const target = event.target;
     if (target && target.closest && target.closest('input, textarea, select')) return;
+
+    if (drawerOpen) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeEpisodes();
+      }
+      return;
+    }
 
     const dialogRoot = document.getElementById('dialog-root');
     if (dialogRoot && dialogRoot.childElementCount) return;
@@ -1164,6 +1252,8 @@ export function mountPlayer(item, episode) {
     if (hideTimer) clearTimeout(hideTimer);
     if (toastTimer) clearTimeout(toastTimer);
     if (nextTimer) clearTimeout(nextTimer);
+    if (drawerTimer) clearTimeout(drawerTimer);
+    drawerOpen = false;
 
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});

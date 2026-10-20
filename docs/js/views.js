@@ -54,7 +54,7 @@ import {
 import { localItems, localCount } from './local-library.js';
 import { cachedSources } from './sources.js';
 
-const APP_VERSION = '0.8.3';
+const APP_VERSION = '0.8.4';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -371,11 +371,24 @@ export function renderSearchResults(query) {
   if (!value) {
     const recent = recentSearches();
     const recentSection = recent.length
-      ? '<section class="section">' +
-          '<div class="section-head"><h2 class="section-title">最近搜索</h2><button class="text-btn" type="button" data-action="clear-searches">清除</button></div>' +
+      ? '<section class="section recent-section">' +
+          '<div class="section-head">' +
+            '<h2 class="section-title">最近搜索</h2>' +
+            '<div class="section-actions recent-actions">' +
+              '<button class="text-btn" type="button" data-action="search-manage">清除</button>' +
+              '<button class="text-btn recent-clear-all" type="button" data-action="clear-all-searches">全部清除</button>' +
+            '</div>' +
+            '<div class="section-actions recent-manage-actions" hidden>' +
+              '<button class="text-btn" type="button" data-action="delete-selected-searches" disabled>删除选中</button>' +
+              '<button class="text-btn" type="button" data-action="cancel-search-manage">取消</button>' +
+            '</div>' +
+          '</div>' +
           '<div class="recent-list">' +
           recent.map((record) =>
-            '<button class="recent-chip" type="button" data-search-query="' + escapeHtml(record.id) + '">' + escapeHtml(record.id) + '</button>'
+            '<button class="recent-chip" type="button" data-search-query="' + escapeHtml(record.id) + '" aria-pressed="false">' +
+              '<span class="recent-check" aria-hidden="true">' + icon('check') + '</span>' +
+              '<span class="recent-label">' + escapeHtml(record.id) + '</span>' +
+            '</button>'
           ).join('') +
           '</div>' +
         '</section>'
