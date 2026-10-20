@@ -273,7 +273,6 @@ export function playerPage(item, episode) {
           '</div>' +
           '<div class="player-top-actions">' +
             (item.episodes && item.episodes.length ? '<button class="pbtn" type="button" data-paction="episodes" aria-label="选集">' + icon('list') + '</button>' : '') +
-            '<button class="pbtn" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
           '</div>' +
         '</div>' +
 
@@ -290,15 +289,17 @@ export function playerPage(item, episode) {
             '<span class="player-time" id="player-duration">-0:00</span>' +
           '</div>' +
           '<div class="player-controls">' +
+            /* 静音放左下角，跟清晰度 / 倍速同一行。 */
+            '<button class="pbtn" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
             '<div class="player-spacer"></div>' +
             '<button class="pbtn pbtn-label" type="button" data-paction="quality" id="player-quality" aria-label="清晰度">' + escapeHtml(quality) + '</button>' +
             '<button class="pbtn pbtn-label" type="button" data-paction="speed" id="player-speed" aria-label="倍速">' + escapeHtml(formatRate(initialRate)) + '</button>' +
             (subtitles.length ? '<button class="pbtn" type="button" data-paction="cc" id="player-cc" aria-label="字幕">' + icon('cc') + '</button>' : '') +
+            /* 显示模式按钮回到控件行，随其他按钮一起出现 / 消失。 */
+            '<button class="pbtn pbtn-display" type="button" data-paction="display" id="player-rotate" aria-label="横屏播放" aria-pressed="false">' + icon('rotate') + '</button>' +
           '</div>' +
         '</div>' +
       '</div>' +
-      /* 显示模式按钮独立于覆盖层，控件自动隐藏后仍固定在右下角。 */
-      '<button class="pbtn pbtn-display player-pin" type="button" data-paction="display" id="player-rotate" aria-label="横屏播放" aria-pressed="false">' + icon('rotate') + '</button>' +
 
       (item.episodes && item.episodes.length
         ? '<div class="player-drawer" id="player-drawer" hidden>' +
@@ -933,6 +934,7 @@ export function mountPlayer(item, episode) {
 
     const value = await openSheet({
       title: '清晰度 / 线路',
+      className: 'sheet-side',
       value: String(sourceIndex),
       options: sources.map((source, index) => ({
         value: String(index),
@@ -957,6 +959,7 @@ export function mountPlayer(item, episode) {
     const current = String(video.playbackRate || initialRate);
     const value = await openSheet({
       title: '倍速',
+      className: 'sheet-side',
       value: current,
       options: SPEEDS.map((speed) => ({
         value: String(speed),

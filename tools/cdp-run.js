@@ -323,6 +323,20 @@ async function main() {
       if (data.error) throw new Error('直链播放错误：' + data.errorText);
       if (!data.src.includes('media.w3.org/2010/05/sintel/trailer.mp4')) throw new Error('播放地址 ' + data.src);
       if (data.quality !== '原始') throw new Error('清晰度按钮 ' + data.quality);
+
+      /* 缓冲转圈必须和播放 / 暂停键一样大。 */
+      const playSizes = JSON.parse(await evaluate(`(() => {
+        const buffering = document.querySelector('#player-buffering');
+        const hidden = buffering.hidden;
+        buffering.hidden = false;
+        const play = document.querySelector('#player-play').getBoundingClientRect();
+        const spinner = document.querySelector('.player-spinner').getBoundingClientRect();
+        buffering.hidden = hidden;
+        return JSON.stringify({ play: Math.round(play.width), spinner: Math.round(spinner.width) });
+      })()`));
+      if (playSizes.play < 70 || Math.abs(playSizes.play - playSizes.spinner) > 1) {
+        throw new Error('缓冲转圈与播放键尺寸不一致 ' + JSON.stringify(playSizes));
+      }
       if (!data.title.includes('trailer')) throw new Error('标题 ' + data.title);
       await clearToast();
       await screenshot('03-播放器-直链-手机.png');
@@ -359,8 +373,43 @@ async function main() {
       const muted = await evaluate('document.querySelector("#player-video").muted');
       if (!muted) throw new Error('静音失败');
 
+      /* 静音键在底部控制行最左侧。 */
+      const muteSpot = JSON.parse(await evaluate(`(() => {
+        const mute = document.querySelector('#player-mute');
+        const controls = mute.closest('.player-controls');
+        const rect = mute.getBoundingClientRect();
+        return JSON.stringify({
+          inControls: Boolean(controls),
+          first: Boolean(controls && controls.firstElementChild === mute),
+          left: Math.round(rect.left),
+          bottom: Math.round(innerHeight - rect.bottom)
+        });
+      })()`));
+      if (!muteSpot.inControls || !muteSpot.first || muteSpot.left > 40 || muteSpot.bottom > 80) {
+        throw new Error('静音键不在左下角 ' + JSON.stringify(muteSpot));
+      }
+
       await click('[data-paction="speed"]');
       await waitFor('document.querySelector(".sheet")');
+
+      /* 倍速面板是贴右侧的浮动卡片，不再是从底部升起的整块面板。 */
+      const sideSheet = JSON.parse(await evaluate(`(() => {
+        const sheet = document.querySelector('.sheet');
+        const rect = sheet.getBoundingClientRect();
+        return JSON.stringify({
+          side: sheet.classList.contains('sheet-side'),
+          right: Math.round(innerWidth - rect.right),
+          bottom: Math.round(innerHeight - rect.bottom),
+          width: Math.round(rect.width),
+          backdrop: Boolean(document.querySelector('.sheet-side-backdrop'))
+        });
+      })()`));
+      if (!sideSheet.side || !sideSheet.backdrop || sideSheet.right > 24 || sideSheet.bottom < 88 || sideSheet.width > 300) {
+        throw new Error('倍速面板不是右下角浮卡 ' + JSON.stringify(sideSheet));
+      }
+      await wait(240);
+      await screenshot('07b-播放器-倍速浮卡-手机.png');
+
       await evaluate(`document.querySelector('.sheet-option[data-value="1.5"]').click()`);
       await wait(300);
       const speed = JSON.parse(await evaluate(`JSON.stringify({
@@ -388,33 +437,67 @@ async function main() {
       await clearToast();
       await screenshot('04-播放器-横屏-手机.png');
 
+      /* 强制横屏下打开倍速浮卡：卡片也转 90°，并落在画面右下角。 */
+      await click('[data-paction="speed"]');
+      await waitFor('document.querySelector(".sheet-side")');
+      await wait(280);
+      const sideRotated = JSON.parse(await evaluate(`(() => {
+        const sheet = document.querySelector('.sheet-side');
+        const rect = sheet.getBoundingClientRect();
+        return JSON.stringify({
+          rotated: getComputedStyle(sheet).transform !== 'none',
+          rect: [Math.round(rect.left), Math.round(rect.top), Math.round(rect.right), Math.round(rect.bottom)],
+          viewport: [innerWidth, innerHeight]
+        });
+      })()`));
+      /* 旋转后：竖屏的 bottom 对应画面右侧，left 对应画面底部。 */
+      const sideRight = sideRotated.viewport[1] - sideRotated.rect[3];
+      const sideBottom = sideRotated.rect[0];
+      if (!sideRotated.rotated || sideRight > 24 || sideBottom < 84) {
+        throw new Error('强制横屏的浮卡不在画面右下角 ' + JSON.stringify(Object.assign({}, sideRotated, { sideRight, sideBottom })));
+      }
+      await screenshot('04c-播放器-强制横屏-倍速浮卡-手机.png');
+      await evaluate(`document.querySelector('.sheet-side-backdrop').click()`);
+      await wait(260);
+
       await click('#player-rotate');
       await wait(350);
 
-      /* 物理横屏时，右下角只保留一个按钮，并且它就是全屏。 */
+      /* 物理横屏时，右下角只有一个按钮，它就是全屏，并且随其他控件一起隐藏。 */
       await setViewport(844, 390, 2, true);
       await wait(500);
       const displayMode = JSON.parse(await evaluate(`(() => {
         const pin = document.querySelector('#player-rotate');
         const rect = pin.getBoundingClientRect();
-        const overlay = document.querySelector('#player-overlay');
-        overlay.classList.add('is-hidden');
-        const opacityWhenHidden = getComputedStyle(pin).opacity;
-        overlay.classList.remove('is-hidden');
         return JSON.stringify({
           label: pin.getAttribute('aria-label'),
           pressed: pin.getAttribute('aria-pressed'),
           duplicate: Boolean(document.querySelector('#player-fullscreen')),
           inOverlay: Boolean(pin.closest('.player-overlay')),
-          corner: [Math.round(innerWidth - rect.right), Math.round(innerHeight - rect.bottom)],
-          opacityWhenHidden
+          inControls: Boolean(pin.closest('.player-controls')),
+          corner: [Math.round(innerWidth - rect.right), Math.round(innerHeight - rect.bottom)]
         });
       })()`));
       if (displayMode.label !== '全屏' || displayMode.pressed !== 'false' || displayMode.duplicate) {
         throw new Error('横屏右下角按钮 ' + JSON.stringify(displayMode));
       }
-      if (displayMode.inOverlay || displayMode.opacityWhenHidden !== '1' || displayMode.corner[0] > 24 || displayMode.corner[1] > 24) {
-        throw new Error('显示模式按钮没有常驻右下角 ' + JSON.stringify(displayMode));
+      if (!displayMode.inOverlay || !displayMode.inControls || displayMode.corner[0] > 24 || displayMode.corner[1] > 24) {
+        throw new Error('全屏按钮不在控件行的右下角 ' + JSON.stringify(displayMode));
+      }
+
+      await evaluate(`document.querySelector('#player-overlay').classList.add('is-hidden')`);
+      await wait(320);
+      const hiddenMode = JSON.parse(await evaluate(`(() => {
+        const overlay = document.querySelector('#player-overlay');
+        return JSON.stringify({
+          opacity: getComputedStyle(overlay).opacity,
+          pointer: getComputedStyle(overlay).pointerEvents
+        });
+      })()`));
+      await evaluate(`document.querySelector('#player-overlay').classList.remove('is-hidden')`);
+      await wait(240);
+      if (hiddenMode.opacity !== '0' || hiddenMode.pointer !== 'none') {
+        throw new Error('全屏按钮没有随控件一起隐藏 ' + JSON.stringify(hiddenMode));
       }
       await clearToast();
       await screenshot('04b-播放器-物理横屏-手机.png');
@@ -729,8 +812,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v19') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v19')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v20') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v20')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;
@@ -837,14 +920,20 @@ async function main() {
 
       await setViewport(844, 390, 2, true);
       await wait(400);
-      const landscape = JSON.parse(await evaluate(`JSON.stringify({
-        cards: document.querySelectorAll('.poster-card').length,
-        columns: getComputedStyle(document.querySelector('.poster-grid')).gridTemplateColumns.split(' ').length,
-        scrollWidth: document.documentElement.scrollWidth,
-        clientWidth: document.documentElement.clientWidth,
-        tabbar: getComputedStyle(document.querySelector('#tabbar')).display
-      })`));
-      if (landscape.scrollWidth > landscape.clientWidth + 1) throw new Error('横向溢出 ' + JSON.stringify(landscape));
+      const landscape = JSON.parse(await evaluate(`JSON.stringify((() => {
+        const view = document.getElementById('view');
+        return {
+          cards: document.querySelectorAll('.poster-card').length,
+          columns: getComputedStyle(document.querySelector('.poster-grid')).gridTemplateColumns.split(' ').length,
+          viewScrollWidth: view.scrollWidth,
+          viewClientWidth: view.clientWidth,
+          rootScrollWidth: document.documentElement.scrollWidth,
+          rootClientWidth: document.documentElement.clientWidth,
+          tabbar: getComputedStyle(document.querySelector('#tabbar')).display
+        };
+      })())`));
+      if (landscape.viewScrollWidth > landscape.viewClientWidth + 1) throw new Error('内容区横向溢出 ' + JSON.stringify(landscape));
+      if (landscape.rootScrollWidth > landscape.rootClientWidth + 1) throw new Error('页面横向溢出 ' + JSON.stringify(landscape));
       if (landscape.tabbar === 'none') throw new Error('横屏底部导航不可见');
       await screenshot('12-收藏-横屏-手机.png');
 
@@ -856,6 +945,7 @@ async function main() {
         header: getComputedStyle(document.querySelector('#app-header')).display
       })`));
       if (desktop.header !== 'none') throw new Error('桌面端不应显示顶栏');
+      if (desktop.viewMargin !== '220px') throw new Error('桌面内容区应让出侧栏 ' + desktop.viewMargin);
       await screenshot('13-收藏-桌面.png');
 
       await clearCustom();

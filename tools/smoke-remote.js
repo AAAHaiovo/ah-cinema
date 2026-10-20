@@ -222,22 +222,64 @@ async function main() {
     const subScroll = JSON.parse(subMetrics);
     record(results, '子分类行可横向滑动', subScroll.scrollWidth > subScroll.clientWidth && subScroll.max > 0, subMetrics);
 
-    /* 手机宽度下验证分类栏吸顶后下滑隐藏、上滑出现。 */
+    /* 手机宽度下验证分类栏吸顶后下滑隐藏、上滑出现；
+       同时确认顶栏和底部栏在滚动过程中纹丝不动。 */
     await send('Emulation.setDeviceMetricsOverride', {
       width: 390, height: 844, deviceScaleFactor: 2, mobile: true
     });
     await wait(250);
-    await evaluate('window.scrollTo(0, 1200)');
+    const beforeScroll = JSON.parse(await evaluate(`(() => {
+      const header = document.querySelector('.app-header').getBoundingClientRect();
+      const tabbar = document.querySelector('#tabbar').getBoundingClientRect();
+      return JSON.stringify({
+        headerTop: Math.round(header.top),
+        tabbarGap: Math.round(innerHeight - tabbar.bottom),
+        docScroll: document.scrollingElement ? document.scrollingElement.scrollTop : -1,
+        viewOverflow: getComputedStyle(document.getElementById('view')).overflowY
+      });
+    })()`));
+    await evaluate('document.getElementById("view").scrollTo(0, 1200)');
     record(results, '下滑隐藏分类栏', await waitFor(
       'document.querySelector("#home-browse .browse-filterbar")?.classList.contains("is-collapsed") === true',
       3000
     ));
-    await evaluate('window.scrollTo(0, 500)');
+    const afterDown = JSON.parse(await evaluate(`(() => {
+      const header = document.querySelector('.app-header').getBoundingClientRect();
+      const tabbar = document.querySelector('#tabbar').getBoundingClientRect();
+      return JSON.stringify({
+        headerTop: Math.round(header.top),
+        tabbarGap: Math.round(innerHeight - tabbar.bottom),
+        docScroll: document.scrollingElement ? document.scrollingElement.scrollTop : -1,
+        viewScroll: Math.round(document.getElementById('view').scrollTop),
+        headerCollapsed: document.querySelector('.app-header').classList.contains('is-collapsed'),
+        tabbarCollapsed: document.querySelector('#tabbar').classList.contains('is-collapsed')
+      });
+    })()`));
+    record(results, '下滑时顶栏不动', afterDown.headerTop === beforeScroll.headerTop && !afterDown.headerCollapsed,
+      JSON.stringify({ before: beforeScroll.headerTop, after: afterDown.headerTop }));
+    record(results, '下滑时底部栏不动', afterDown.tabbarGap === beforeScroll.tabbarGap && !afterDown.tabbarCollapsed,
+      JSON.stringify({ before: beforeScroll.tabbarGap, after: afterDown.tabbarGap }));
+    record(results, '窗口本身不滚动', beforeScroll.docScroll === 0 && afterDown.docScroll === 0,
+      JSON.stringify({ before: beforeScroll.docScroll, after: afterDown.docScroll }));
+    record(results, '#view 是唯一滚动容器', beforeScroll.viewOverflow === 'auto' && afterDown.viewScroll > 0,
+      JSON.stringify({ overflow: beforeScroll.viewOverflow, scrollTop: afterDown.viewScroll }));
+    await evaluate('document.getElementById("view").scrollTo(0, 500)');
     record(results, '上滑恢复分类栏', await waitFor(
       '!document.querySelector("#home-browse .browse-filterbar")?.classList.contains("is-collapsed")',
       3000
     ));
-    await evaluate('window.scrollTo(0, 0)');
+    const afterUp = JSON.parse(await evaluate(`(() => {
+      const header = document.querySelector('.app-header').getBoundingClientRect();
+      const tabbar = document.querySelector('#tabbar').getBoundingClientRect();
+      return JSON.stringify({ headerTop: Math.round(header.top), tabbarGap: Math.round(innerHeight - tabbar.bottom) });
+    })()`));
+    record(results, '上滑后顶栏 / 底栏仍不动',
+      afterUp.headerTop === beforeScroll.headerTop && afterUp.tabbarGap === beforeScroll.tabbarGap,
+      JSON.stringify(afterUp));
+    await evaluate('window.scrollTo(0, 1200)');
+    const windowNoop = await evaluate('document.scrollingElement.scrollTop');
+    record(results, 'window 滚动被外壳拦截', Number(windowNoop) === 0, String(windowNoop));
+    await evaluate('document.getElementById("view").scrollTo(0, 0)');
     await wait(250);
     await send('Emulation.clearDeviceMetricsOverride');
     await wait(200);
@@ -384,6 +426,8 @@ async function main() {
     record(results, '第二集拿到片源', await waitFor('(document.querySelector("#player-video")?.currentSrc || "").includes("/api/proxy")', 20000));
     await evaluate('document.querySelector("#player-quality").click()');
     record(results, '多线路可选', await waitFor('document.querySelectorAll(".sheet [data-value]").length === 2'));
+    await wait(260);
+    await screenshot('07-播放器-换线路浮卡-手机.png');
     await evaluate('document.querySelector(".sheet [data-cancel]").click()');
 
     await evaluate('document.querySelector("[data-paction=episodes]").click()');

@@ -298,7 +298,7 @@ function renderRoute() {
   const nextKey = routeKey(route);
 
   if (currentRoute && isTabbedRoute(currentRoute.name) && !document.body.classList.contains('no-tabbar')) {
-    scrollMemory.set(currentRouteKey, window.scrollY || 0);
+    scrollMemory.set(currentRouteKey, els.view ? (els.view.scrollTop || 0) : 0);
   }
 
   if (currentCleanup) {
@@ -366,6 +366,11 @@ function renderRoute() {
   }
 
   setDocumentTitle(resolved);
+  /* 旧页面残留的滚动回调不能在换页后继续跑。 */
+  if (scrollFrame) {
+    window.cancelAnimationFrame(scrollFrame);
+    scrollFrame = 0;
+  }
   els.view.innerHTML = html;
 
   if (resolved.name === 'home') {
@@ -410,9 +415,13 @@ function renderRoute() {
   syncThemeChoices();
 
   const savedScroll = tabbed ? (scrollMemory.get(nextKey) || 0) : 0;
+  /* 先同步归位，避免旧滚动位置闪一帧；下一帧再复设一次。 */
+  if (els.view) els.view.scrollTop = savedScroll;
+  lastScrollY = els.view ? (els.view.scrollTop || 0) : 0;
   window.requestAnimationFrame(() => {
-    window.scrollTo(0, savedScroll);
-    lastScrollY = window.scrollY || 0;
+    /* #view 才是滚动容器；窗口本身永远不滚动。 */
+    if (els.view) els.view.scrollTop = savedScroll;
+    lastScrollY = els.view ? (els.view.scrollTop || 0) : 0;
     try {
       els.view.focus({ preventScroll: true });
     } catch (error) {
@@ -834,7 +843,8 @@ function scrollBrowseIntoView() {
   const target = document.getElementById('home-browse');
   if (!target) return;
   /* 分类标签本来就吸顶时不要跳动；只有翻页或已滚过分类栏时才回到片库开头。 */
-  if (target.getBoundingClientRect().top >= 0) return;
+  const viewTop = els.view ? els.view.getBoundingClientRect().top : 0;
+  if (target.getBoundingClientRect().top >= viewTop) return;
   const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
 }
@@ -853,16 +863,16 @@ function updateBrowseBarOnScroll() {
   const bar = document.querySelector('#home-browse .browse-filterbar');
   if (!bar) {
     browseBarHidden = false;
-    lastScrollY = window.scrollY || 0;
+    lastScrollY = els.view ? (els.view.scrollTop || 0) : 0;
     return;
   }
 
-  const y = window.scrollY || window.pageYOffset || 0;
+  /* 只有 #view 会滚动，窗口本身固定不动。 */
+  const y = els.view ? (els.view.scrollTop || 0) : 0;
   const delta = y - lastScrollY;
-  const header = document.querySelector('.app-header');
-  const headerBottom = header && !header.hidden ? header.getBoundingClientRect().bottom : 0;
+  const viewTop = els.view ? els.view.getBoundingClientRect().top : 0;
   /* 只有分类栏已经吸顶时才收起，避免在页面中部留下空洞。 */
-  const stuck = bar.getBoundingClientRect().top <= headerBottom + 1;
+  const stuck = bar.getBoundingClientRect().top <= viewTop + 1;
 
   if (y < 28 || !stuck || delta < -6) {
     if (browseBarHidden) setBrowseBarHidden(false);
@@ -873,7 +883,7 @@ function updateBrowseBarOnScroll() {
   lastScrollY = y;
 }
 
-function onWindowScroll() {
+function onViewScroll() {
   if (scrollFrame) return;
   scrollFrame = window.requestAnimationFrame(updateBrowseBarOnScroll);
 }
@@ -1516,7 +1526,7 @@ async function onDocumentClick(event) {
     const tab = event.target.closest('.tab');
     if (tab && tab.getAttribute('href') === location.hash) {
       event.preventDefault();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (els.view) els.view.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     rememberSearchResultClick(event);
@@ -1864,7 +1874,7 @@ function setupGlobalListeners() {
   document.addEventListener('error', onResourceError, true);
   document.addEventListener('contextmenu', onDocumentContextMenu);
   window.addEventListener('hashchange', onHashChange);
-  window.addEventListener('scroll', onWindowScroll, { passive: true });
+  if (els.view) els.view.addEventListener('scroll', onViewScroll, { passive: true });
 
   window.addEventListener('offline', () => toast('已离线：已经缓存的界面仍然可以打开'));
   window.addEventListener('online', () => toast('网络已恢复'));

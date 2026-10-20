@@ -1,6 +1,6 @@
 /* AH 影视 Service Worker：缓存应用壳；视频与大文件直接走网络。 */
 
-const CACHE_NAME = 'ah-cinema-v19';
+const CACHE_NAME = 'ah-cinema-v20';
 
 const SHELL = [
   './',

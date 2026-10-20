@@ -11,14 +11,19 @@
 }
 
 html {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   background: var(--ah-bg);
 }
 
 body {
+  height: 100%;
   margin: 0;
-  min-height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
   font-family: var(--ah-font);
   font-size: 16px;
   line-height: 1.4;
@@ -28,6 +33,14 @@ body {
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
   transition: background-color var(--ah-duration) var(--ah-ease), color var(--ah-duration) var(--ah-ease);
+}
+
+/* 固定外壳：页面本身不再滚动，顶栏和底栏永远留在原位；
+   只有 #view 是滚动容器，分类栏的吸顶 / 收起也只发生在它内部。 */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 /* 影视类 App：界面文字默认不可选中，避免长按误触复制；输入框单独放开。 */
@@ -56,6 +69,12 @@ img {
 body.player-active {
   overflow: hidden;
   background: #000;
+}
+
+/* 播放器固定在 #view 内部；锁住真正的滚动容器，防止底层页面跟着滚。 */
+body.player-active .view {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body.no-tabbar .view {
@@ -220,8 +239,8 @@ ul, ol {
 /* ---------- 顶栏 ---------- */
 
 .app-header {
-  position: sticky;
-  top: 0;
+  position: relative;
+  flex: 0 0 auto;
   z-index: 30;
   padding-top: var(--ah-safe-top);
   /* 与首页分类栏使用同一实色，下滑时质感一致。 */
@@ -262,9 +281,16 @@ ul, ol {
 
 /* ---------- 页面骨架 ---------- */
 
+/* 注意：#view / #app 不能加 transform、filter、backdrop-filter、contain
+   或 will-change: transform —— 它们会成为播放器 fixed 层的包含块，
+   让 .player-page 不再铺满视口。 */
 .view {
-  min-height: calc(100dvh - var(--ah-header-h) - var(--ah-safe-top));
-  padding-bottom: calc(var(--ah-tab-h) + var(--ah-safe-bottom) + 24px);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-bottom: 24px;
   outline: none;
 }
 
@@ -1891,7 +1917,6 @@ button.settings-row:hover {
 
   .view {
     margin-left: 220px;
-    min-height: 100dvh;
     padding-bottom: 40px;
   }
 
@@ -1918,18 +1943,15 @@ button.settings-row:hover {
 /* ---------- 底部标签栏 / 桌面侧栏 ---------- */
 
 .tabbar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: relative;
+  flex: 0 0 auto;
   z-index: 40;
   display: flex;
   padding: 6px calc(8px + var(--ah-safe-right)) calc(6px + var(--ah-safe-bottom)) calc(8px + var(--ah-safe-left));
   border-top: 1px solid var(--ah-line);
+  /* 底栏不再压着滚动内容，用实色即可；去掉半透明和模糊可避免
+     iOS 把它放进独立合成层、惯性滚动时产生浮动感。 */
   background: var(--ah-bg-elevated);
-  background: color-mix(in srgb, var(--ah-bg-elevated) 88%, transparent);
-  -webkit-backdrop-filter: var(--ah-blur);
-  backdrop-filter: var(--ah-blur);
 }
 
 .tabbar-links {
@@ -1977,7 +1999,9 @@ button.settings-row:hover {
 
 @media (min-width: 900px) {
   .tabbar {
+    position: fixed;
     top: 0;
+    left: 0;
     right: auto;
     bottom: 0;
     width: 220px;
@@ -2256,6 +2280,85 @@ body.no-tabbar .toast {
   font-weight: 600;
 }
 
+/*
+ * 播放器里的「清晰度 / 线路」与「倍速」：不再从底部升起整块面板，
+ * 改成贴着右下角浮起的小卡片（参考 iOS 播放器的速度菜单）。
+ * 卡片在播放器里，所以固定用黑夜配色，不跟随页面主题。
+ */
+.sheet-side-backdrop {
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.sheet.sheet-side {
+  position: fixed;
+  right: calc(env(safe-area-inset-right, 0px) + 12px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
+  left: auto;
+  top: auto;
+  width: min(64vw, 236px);
+  max-width: none;
+  max-height: min(58dvh, 340px);
+  padding: 12px 8px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(28, 28, 30, 0.94);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  animation: sheet-side-in 200ms var(--ah-ease);
+}
+
+@keyframes sheet-side-in {
+  from { opacity: 0; transform: translateX(14px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+.sheet.sheet-side .sheet-title {
+  margin: 0 2px 6px;
+  padding: 0 10px;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  text-align: left;
+}
+
+.sheet.sheet-side .sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+}
+
+.sheet.sheet-side .sheet-option {
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: transparent;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.sheet.sheet-side .sheet-option:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sheet.sheet-side .sheet-option.is-active {
+  background: rgba(224, 90, 95, 0.16);
+  color: #E05A5F;
+  font-weight: 600;
+}
+
+.sheet.sheet-side .sheet-option .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.sheet.sheet-side .sheet-cancel {
+  display: none;
+}
+
 @media (min-width: 600px) {
   .sheet-backdrop {
     align-items: center;
@@ -2383,6 +2486,27 @@ body.player-forced-landscape .sheet-cancel {
   to { opacity: 1; transform: rotate(90deg); }
 }
 
+/*
+ * 强制横屏时网页仍是竖的，侧边卡片要挪到竖屏的左下角再转 90°，
+ * 旋转后才正好落在画面的右下角。
+ */
+body.player-forced-landscape .sheet.sheet-side {
+  right: auto;
+  /* 旋转后：竖屏的 left 对应画面底部，竖屏的 bottom 对应画面右侧。 */
+  left: calc(env(safe-area-inset-left, 0px) + 92px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  width: min(64dvh, 236px);
+  max-height: min(58dvw, 340px);
+  padding: 12px 8px 8px;
+  transform: rotate(90deg);
+  animation: sheet-side-rotate-in 200ms var(--ah-ease);
+}
+
+@keyframes sheet-side-rotate-in {
+  from { opacity: 0; transform: rotate(90deg) translateX(14px); }
+  to { opacity: 1; transform: rotate(90deg); }
+}
+
 /* ---------- 无脚本提示 ---------- */
 
 .noscript-card {
@@ -2431,13 +2555,14 @@ body.player-forced-landscape .sheet-cancel {
 
 .home-browse {
   min-height: 80px;
-  scroll-margin-top: calc(var(--ah-header-h) + var(--ah-safe-top) + 4px);
+  scroll-margin-top: 4px;
 }
 
-/* 分类栏贴着顶栏吸顶；左右负外边距铺满页面内边距。 */
+/* 分类栏在 #view 的滚动区顶部吸顶（滚动区正好在顶栏下方）；
+   左右负外边距铺满页面内边距。 */
 .browse-filterbar {
   position: sticky;
-  top: calc(var(--ah-header-h) + var(--ah-safe-top));
+  top: 0;
   z-index: 20;
   margin: 0 calc(var(--ah-page-pad) * -1) 14px;
   padding: 7px var(--ah-page-pad) 9px;
@@ -2448,10 +2573,11 @@ body.player-forced-landscape .sheet-cancel {
   will-change: transform;
 }
 
-/* 下滑时收进顶栏下面；上滑或回到顶部时再出现。 */
+/* 下滑时收进滚动区顶部；上滑或回到顶部时再出现。
+   translate3d 让 iOS 把它放进合成层，减少吸顶后回弹时的抖动。 */
 .browse-filterbar.is-collapsed {
   opacity: 0;
-  transform: translateY(calc(-100% - 2px));
+  transform: translate3d(0, calc(-100% - 2px), 0);
   pointer-events: none;
 }
 

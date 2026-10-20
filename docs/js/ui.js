@@ -11,8 +11,11 @@ const ICONS = {
   check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
   play: '<path d="M9.1 5.7v12.6L19 12z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
   pause: '<rect x="7.4" y="5" width="3.5" height="14" rx="1.6" fill="currentColor" stroke="none"/><rect x="13.1" y="5" width="3.5" height="14" rx="1.6" fill="currentColor" stroke="none"/>',
-  rewind: '<path d="M13.94 5.75A7.5 7.5 0 1 1 10.06 5.75"/><path d="M6.6 5.75 10.5 2.9 10.5 8.6Z" fill="currentColor" stroke="none"/><text x="12" y="16.2" text-anchor="middle" font-size="8" font-weight="700" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="currentColor" stroke="none">10</text>',
-  forward: '<path d="M10.06 5.75A7.5 7.5 0 1 0 13.94 5.75"/><path d="M17.4 5.75 13.5 2.9 13.5 8.6Z" fill="currentColor" stroke="none"/><text x="12" y="16.2" text-anchor="middle" font-size="8" font-weight="700" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="currentColor" stroke="none">10</text>',
+  /* ±10 秒沿用 Material Icons 的 replay_10 / forward_10（Apache-2.0）。
+     关键差别：标准图的圆环是闭合的，实心大箭头压在左上（后退）/ 右上（前进）的环上；
+     旧版在圆环顶部留一个缺口、再挂一个小三角，缩小后缺口像个缺口、三角像个凸起。 */
+  rewind: '<path fill="currentColor" stroke="none" d="M11.99 5V1l-5 5l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6s-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8s-3.58-8-8-8z"/><path fill="currentColor" stroke="none" d="M10.89 16h-.85v-3.26l-1.01.31v-.69l1.77-.63h.09V16zm4.28-1.76c0 .32-.03.6-.1.82s-.17.42-.29.57s-.28.26-.45.33s-.37.1-.59.1s-.41-.03-.59-.1s-.33-.18-.46-.33s-.23-.34-.3-.57s-.11-.5-.11-.82v-.74c0-.32.03-.6.1-.82s.17-.42.29-.57s.28-.26.45-.33s.37-.1.59-.1s.41.03.59.1s.33.18.46.33s.23.34.3.57s.11.5.11.82v.74zm-.85-.86c0-.19-.01-.35-.04-.48s-.07-.23-.12-.31s-.11-.14-.19-.17s-.16-.05-.25-.05s-.18.02-.25.05s-.14.09-.19.17s-.09.18-.12.31s-.04.29-.04.48v.97c0 .19.01.35.04.48s.07.24.12.32s.11.14.19.17s.16.05.25.05s.18-.02.25-.05s.14-.09.19-.17s.09-.19.11-.32s.04-.29.04-.48v-.97z"/>',
+  forward: '<path fill="currentColor" stroke="none" d="M18 13c0 3.31-2.69 6-6 6s-6-2.69-6-6s2.69-6 6-6v4l5-5l-5-5v4c-4.42 0-8 3.58-8 8s3.58 8 8 8s8-3.58 8-8h-2z"/><path fill="currentColor" stroke="none" d="M10.86 15.94v-4.27h-.09L9 12.3v.69l1.01-.31v3.26zm1.39-2.5v.74c0 1.9 1.31 1.82 1.44 1.82c.14 0 1.44.09 1.44-1.82v-.74c0-1.9-1.31-1.82-1.44-1.82c-.14 0-1.44-.09-1.44 1.82zm2.04-.12v.97c0 .77-.21 1.03-.59 1.03s-.6-.26-.6-1.03v-.97c0-.75.22-1.01.59-1.01c.38-.01.6.26.6 1.01z"/>',
   volume: '<path d="M4.6 9.4h3.1l4.2-3.6v12.4l-4.2-3.6H4.6z"/><path d="M15.2 9.2a4.1 4.1 0 0 1 0 5.6"/><path d="M17.7 6.7a7.5 7.5 0 0 1 0 10.6"/>',
   volumeMute: '<path d="M4.6 9.4h3.1l4.2-3.6v12.4l-4.2-3.6H4.6z"/><path d="m16.2 9.6 4.6 4.8M20.8 9.6l-4.6 4.8"/>',
   fullscreen: '<path d="M4.5 9.2V4.5h4.7M14.8 4.5h4.7v4.7M19.5 14.8v4.7h-4.7M9.2 19.5H4.5v-4.7"/>',
@@ -506,7 +509,8 @@ export function openSheet({ title, options = [], value = null, className = '' })
     }
 
     const previousFocus = document.activeElement;
-    const backdrop = createBackdrop('sheet-backdrop', () => close(null));
+    /* 让弹层样式可以同时作用到背板（例如播放器里的侧边浮卡只压暗一点）。 */
+    const backdrop = createBackdrop('sheet-backdrop' + (className ? ' ' + className + '-backdrop' : ''), () => close(null));
     const sheet = document.createElement('div');
     sheet.className = 'sheet' + (className ? ' ' + className : '');
     sheet.setAttribute('role', 'dialog');
