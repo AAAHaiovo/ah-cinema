@@ -82,10 +82,37 @@
   justify-content: flex-end;
 }
 
-/* 物理横屏不旋转：静音 / 选集 / 关闭直接在右上角，
+/* 物理横屏不旋转：静音 / 选集在右上角，
    菜单组与全屏靠右下，和强制横屏看到的视觉位置一致。 */
 .player-page.is-landscape-viewport .player-menu {
   justify-content: flex-end;
+}
+
+/* 横屏时关闭键单独挪到左上角，静音 / 选集仍留在右上角。
+   强制横屏的 stage 旋转了 90°，局部左上角正好是用户视角的左上角。 */
+.player-page.is-landscape .player-top,
+.player-page.is-landscape-viewport .player-top {
+  position: relative;
+}
+
+.player-page.is-landscape .player-top .pbtn-close,
+.player-page.is-landscape-viewport .player-top .pbtn-close {
+  position: absolute;
+  top: calc(var(--ah-safe-top) + 12px);
+  left: calc(var(--ah-safe-left) + 14px);
+}
+
+/* 给左上角的关闭键让出位置，标题不要压到按钮下面。 */
+.player-page.is-landscape .player-headings,
+.player-page.is-landscape-viewport .player-headings {
+  padding-left: 54px;
+}
+
+@media (max-height: 480px) {
+  /* 矮屏时顶部内边距是 8px，关闭键跟着上移，保持和右侧按钮齐平。 */
+  .player-page.is-landscape-viewport .player-top .pbtn-close {
+    top: calc(var(--ah-safe-top) + 8px);
+  }
 }
 
 .player-page.is-landscape .player-menu .pbtn-fullscreen,
@@ -410,7 +437,8 @@
   background: rgba(255, 255, 255, 0.24);
 }
 
-/* 底部胶囊：左当前时间、右剩余时长。 */
+/* 底部胶囊：左当前时间、右剩余时长。
+   不用高斯模糊，改用偏实的深色底，避免进度条周围发虚。 */
 .player-scrub-row {
   display: flex;
   align-items: center;
@@ -418,10 +446,8 @@
   min-height: 44px;
   padding: 4px 16px;
   border-radius: 999px;
-  background: var(--ah-glass);
+  background: rgba(28, 28, 30, 0.72);
   box-shadow: var(--ah-glass-shadow);
-  -webkit-backdrop-filter: var(--ah-glass-blur);
-  backdrop-filter: var(--ah-glass-blur);
 }
 
 .player-time {

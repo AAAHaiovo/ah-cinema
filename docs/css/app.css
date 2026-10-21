@@ -248,6 +248,15 @@ ul, ol {
   border-bottom: 1px solid var(--ah-line);
 }
 
+/* iOS 26 的主屏幕独立模式会在状态栏下方叠一条约 32px 的
+   Liquid Glass 模糊带，网页没有 CSS 可以关掉它；只能把顶栏内容
+   整体下移，避免图标和标题被糊住。安全区为 0（没有刘海）时不加。 */
+@media (display-mode: standalone) {
+  .app-header {
+    padding-top: calc(var(--ah-safe-top) + min(32px, calc(var(--ah-safe-top) * 1000)));
+  }
+}
+
 .app-header-inner {
   max-width: var(--ah-page-max);
   height: var(--ah-header-h);

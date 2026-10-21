@@ -368,6 +368,7 @@ async function main() {
         return JSON.stringify({
           viewport: [innerWidth, innerHeight],
           scrubRow: [Math.round(scrubRow.left), Math.round(scrubRow.top), Math.round(scrubRow.width), Math.round(scrubRow.height)],
+          scrubBlur: getComputedStyle(document.querySelector('.player-scrub-row')).backdropFilter,
           scrubInput: [Math.round(scrubInput.left), Math.round(scrubInput.right)],
           current: [Math.round(current.left), Math.round(current.top)],
           duration: [Math.round(duration.left), Math.round(duration.top)],
@@ -412,6 +413,7 @@ async function main() {
       const width = layout.viewport[0];
       const height = layout.viewport[1];
       if (layout.scrubRow[2] < layout.scrubRow[3] * 3) throw new Error('进度条不是横向 ' + JSON.stringify(layout.scrubRow));
+      if (layout.scrubBlur && layout.scrubBlur !== 'none') throw new Error('进度条不应该有高斯模糊 ' + layout.scrubBlur);
       if (height - (layout.scrubRow[1] + layout.scrubRow[3]) > 40) throw new Error('进度条不在底部 ' + JSON.stringify(layout.scrubRow));
       if (!(layout.current[0] < layout.scrubInput[0] && layout.duration[0] >= layout.scrubInput[1])) {
         throw new Error('时间没有放在进度条两端 ' + JSON.stringify(layout));
@@ -588,7 +590,8 @@ async function main() {
       if (!landscape.landscape || landscape.pressed !== 'true') throw new Error('横屏状态 ' + JSON.stringify(landscape));
       if (landscape.offset[0] <= landscape.offset[1] || landscape.transform === 'none') throw new Error('横屏没有旋转 ' + JSON.stringify(landscape));
       if (landscape.statusBar !== 'black-translucent') throw new Error('横屏状态栏没有适配 ' + landscape.statusBar);
-      /* 旋转后的局部坐标：顶部动作组在右，菜单与全屏也在右（用户转正手机后即右上 / 右下）。 */
+      /* 旋转后的局部坐标：关闭键在左上，静音/选集在右上，菜单与全屏在右下。
+         强制横屏的 stage 旋转 90° 后，局部左上角就是用户视角的左上角。 */
       const forcedLayout = JSON.parse(await evaluate(`(() => {
         const stage = document.querySelector('#player-stage');
         const left = (selector) => document.querySelector(selector).offsetLeft;
@@ -602,13 +605,16 @@ async function main() {
           stageWidth: stage.offsetWidth
         });
       })()`));
-      const forcedLefts = [forcedLayout.mute, forcedLayout.episodes, forcedLayout.close]
+      const forcedLefts = [forcedLayout.mute, forcedLayout.episodes]
         .filter((value) => value !== null);
       if (forcedLefts.some((value, index) => index > 0 && value <= forcedLefts[index - 1])) {
-        throw new Error('强制横屏顶部动作组顺序不对 ' + JSON.stringify(forcedLayout));
+        throw new Error('强制横屏静音/选集顺序不对 ' + JSON.stringify(forcedLayout));
       }
-      if (!(forcedLayout.close > forcedLayout.stageWidth * 0.5)) {
-        throw new Error('强制横屏顶部动作组不在右上角 ' + JSON.stringify(forcedLayout));
+      if (!(forcedLayout.mute > forcedLayout.stageWidth * 0.5)) {
+        throw new Error('强制横屏静音/选集不在右上角 ' + JSON.stringify(forcedLayout));
+      }
+      if (!(forcedLayout.close < forcedLayout.stageWidth * 0.5)) {
+        throw new Error('强制横屏关闭键不在左上角 ' + JSON.stringify(forcedLayout));
       }
       if (!(forcedLayout.line > forcedLayout.stageWidth * 0.5 && forcedLayout.fullscreen > forcedLayout.line)) {
         throw new Error('强制横屏菜单/全屏不在右侧 ' + JSON.stringify(forcedLayout));
@@ -642,7 +648,7 @@ async function main() {
       await click('#player-rotate');
       await wait(350);
 
-      /* 物理横屏：静音/选集/关闭在右上角，菜单与全屏在右下，和点「横屏」后看到的一致。 */
+      /* 物理横屏：关闭键在左上，静音/选集在右上，菜单与全屏在右下。 */
       await setViewport(844, 390, 2, true);
       await wait(500);
       const landscapeLayout = JSON.parse(await evaluate(`(() => {
@@ -677,14 +683,14 @@ async function main() {
       }
       const landscapeWidth = landscapeLayout.viewport[0];
       const landscapeHeight = landscapeLayout.viewport[1];
-      if (!(landscapeLayout.close[0] > landscapeWidth * 0.7 && landscapeLayout.close[1] < 90)) {
-        throw new Error('物理横屏关闭键不在右上角 ' + JSON.stringify(landscapeLayout.close));
+      if (!(landscapeLayout.close[0] < landscapeWidth * 0.3 && landscapeLayout.close[1] < 90)) {
+        throw new Error('物理横屏关闭键不在左上角 ' + JSON.stringify(landscapeLayout.close));
       }
-      const topLefts = [landscapeLayout.mute, landscapeLayout.episodes, landscapeLayout.close]
+      const topLefts = [landscapeLayout.mute, landscapeLayout.episodes]
         .filter(Boolean).map((item) => item[0]);
       if (landscapeLayout.mute[1] > 90 || landscapeLayout.mute[0] < landscapeWidth * 0.5
         || topLefts.some((left, index) => index > 0 && left <= topLefts[index - 1])) {
-        throw new Error('物理横屏顶部动作组不在右上角或顺序不对 ' + JSON.stringify(landscapeLayout));
+        throw new Error('物理横屏静音/选集不在右上角或顺序不对 ' + JSON.stringify(landscapeLayout));
       }
       if (landscapeLayout.fullscreen[0] > 24 || landscapeLayout.fullscreen[1] < landscapeHeight * 0.7) {
         throw new Error('物理横屏全屏键不在右下角 ' + JSON.stringify(landscapeLayout));
@@ -1079,8 +1085,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v25') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v25')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v26') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v26')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;

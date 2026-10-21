@@ -122,9 +122,18 @@ async function parseErrorResponse(response, fallback) {
   }
 
   const code = payload && typeof payload.code === 'string' ? payload.code : '';
-  let message = payload && typeof payload.error === 'string' && payload.error ? payload.error : fallback;
+  /* 腾讯云函数平台错误（如欠费）只有 errorMessage 字段，也读出来，
+     否则用户只会看到一句「HTTP 410」。 */
+  const platformMessage = payload && typeof payload.errorMessage === 'string' ? payload.errorMessage : '';
+  let message = payload && typeof payload.error === 'string' && payload.error
+    ? payload.error
+    : (platformMessage || fallback);
 
-  if (response.status === 401) message = '访问口令不正确，请到源管理重新填写';
+  if (/InsufficientBalance/i.test(platformMessage)) {
+    message = '服务不可用：腾讯云账户余额不足，请充值后重试';
+  } else if (/Function is Unavailable/i.test(platformMessage)) {
+    message = '服务不可用：云函数已停止运行，请到控制台检查配置';
+  } else if (response.status === 401) message = '访问口令不正确，请到源管理重新填写';
   else if (response.status === 403 && !message) message = '没有权限访问该服务';
   else if (response.status === 429) message = '请求过于频繁，请稍后再试';
   else if (response.status === 503 || code === 'NOT_CONFIGURED') {
