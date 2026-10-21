@@ -393,6 +393,9 @@ export function mountPlayer(item, episode) {
   let proxyFallbackTried = false;
   let expectingMedia = false;
   let tapTimer = null;
+  let pointerShowedControls = false;
+  let pointerFlagTimer = null;
+  let orientationTimer = null;
   let wasLandscapeViewport = isLandscapeViewport();
 
   function destroyHls() {
@@ -930,6 +933,35 @@ export function mountPlayer(item, episode) {
     setForcedLandscape(true);
   }
 
+  /*
+   * iOS 独立模式从横屏转回竖屏时，偶尔会留下旋转前的合成层，
+   * 表现是画面正常、控件也在，但所有按钮都点不动。
+   * 视口稳定后重新算一次朝向，并强制 WebKit 重建这一层。
+   */
+  function refreshAfterOrientation() {
+    updateOrientationState();
+    showControls();
+    page.style.transform = 'translateZ(0)';
+    void page.offsetHeight;
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        page.style.transform = '';
+      });
+    });
+  }
+
+  function scheduleOrientationRefresh() {
+    if (orientationTimer) {
+      clearTimeout(orientationTimer);
+      orientationTimer = null;
+    }
+    if (cleaned) return;
+    orientationTimer = window.setTimeout(() => {
+      orientationTimer = null;
+      refreshAfterOrientation();
+    }, 260);
+  }
+
   function onViewportResize() {
     const landscape = isLandscapeViewport();
 
@@ -949,6 +981,7 @@ export function mountPlayer(item, episode) {
 
     wasLandscapeViewport = landscape;
     updateOrientationState();
+    scheduleOrientationRefresh();
   }
 
   /* 新进入播放页时清掉上一次的横屏 / 全屏状态，避免沿用上次的朝向。 */
@@ -1171,7 +1204,49 @@ export function mountPlayer(item, episode) {
     tapTimer = null;
   }
 
+  /*
+   * 控件自动隐藏后，第一次触摸就立刻唤出控件。
+   * 不能只依赖 click：iOS 旋转后偶尔不派发合成 click，
+   * 那样整屏看起来就像“所有按键都点不了”。
+   */
+  function onPagePointerDown(event) {
+    if (!overlay.classList.contains('is-hidden')) return;
+    if (event.button !== undefined && event.button > 0) return;
+    const target = event.target;
+    if (target && target.closest &&
+      target.closest('[data-paction], [data-episode-id], .player-drawer, .sheet, .dialog, input, button')) {
+      return;
+    }
+    if (tapTimer) {
+      clearTimeout(tapTimer);
+      tapTimer = null;
+    }
+    showControls();
+    /* 同一次点击随后还会合成一个 click，要把它吞掉，
+       否则控件会刚出现又被“单击切换控件”的逻辑藏回去。 */
+    pointerShowedControls = true;
+    if (pointerFlagTimer) clearTimeout(pointerFlagTimer);
+    pointerFlagTimer = window.setTimeout(() => {
+      pointerFlagTimer = null;
+      pointerShowedControls = false;
+    }, 700);
+  }
+
   function onPageClick(event) {
+    /*
+     * 这一下 click 是刚才用 pointerdown 唤出控件时合成的，
+     * 只负责让控件出现，不再触发按钮或切换控件；
+     * 如果紧接着还有第二下，仍然按双击暂停处理。
+     */
+    if (pointerShowedControls) {
+      pointerShowedControls = false;
+      cancelPendingTap();
+      tapTimer = window.setTimeout(() => {
+        tapTimer = null;
+      }, 250);
+      return;
+    }
+
     const episodeButton = event.target.closest('[data-episode-id]');
     if (episodeButton) {
       cancelPendingTap();
@@ -1268,7 +1343,12 @@ export function mountPlayer(item, episode) {
   }
 
   function onVisibilityChange() {
-    if (document.hidden) saveNow(video.ended);
+    if (document.hidden) {
+      saveNow(video.ended);
+      return;
+    }
+    /* 在后台转过手机再回来时，iOS 也可能留下旧的点击区域。 */
+    scheduleOrientationRefresh();
   }
 
   function onPageHide() {
@@ -1354,8 +1434,14 @@ export function mountPlayer(item, episode) {
     if (nextTimer) clearTimeout(nextTimer);
     if (drawerTimer) clearTimeout(drawerTimer);
     if (tapTimer) clearTimeout(tapTimer);
+    if (orientationTimer) clearTimeout(orientationTimer);
+    if (pointerFlagTimer) clearTimeout(pointerFlagTimer);
     tapTimer = null;
+    orientationTimer = null;
+    pointerFlagTimer = null;
+    pointerShowedControls = false;
     drawerOpen = false;
+    page.style.transform = '';
 
     exitAutoFullscreen();
     exitNativeFullscreen();
@@ -1376,10 +1462,15 @@ export function mountPlayer(item, episode) {
   }
 
   page.addEventListener('click', onPageClick, { signal });
+  page.addEventListener('pointerdown', onPagePointerDown, { signal, passive: true });
   document.addEventListener('keydown', onKeydown, { signal });
   document.addEventListener('visibilitychange', onVisibilityChange, { signal });
   window.addEventListener('pagehide', onPageHide, { signal });
   window.addEventListener('resize', onViewportResize, { signal });
+  if (window.visualViewport) {
+    /* iOS 旋转 / 状态栏变化时，视觉视口可能比 window 先稳定。 */
+    window.visualViewport.addEventListener('resize', scheduleOrientationRefresh, { signal });
+  }
   document.addEventListener('fullscreenchange', updateOrientationState, { signal });
   document.addEventListener('webkitfullscreenchange', updateOrientationState, { signal });
 

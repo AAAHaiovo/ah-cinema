@@ -11,10 +11,11 @@ const ICONS = {
   check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
   play: '<path d="M9.1 5.7v12.6L19 12z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
   pause: '<rect x="7.4" y="5" width="3.5" height="14" rx="1.6" fill="currentColor" stroke="none"/><rect x="13.1" y="5" width="3.5" height="14" rx="1.6" fill="currentColor" stroke="none"/>',
-  /* ±10 秒：开口朝上的细圆环 + 顶部箭头 + 中间数字 10。
-     箭头尾部有一段短杆连着圆环，箭头尖端朝外、不碰圆环。 */
-  rewind: '<path d="M8.1 5.6H5.6"/><path fill="currentColor" stroke="none" d="M5.6 3.6v4L2.6 5.6z"/><path d="M8.1 5.6a7.6 7.6 0 1 0 7.8 0"/><text x="12" y="15.1" text-anchor="middle" font-size="8.4" font-weight="700" fill="currentColor" stroke="none" font-family="-apple-system, BlinkMacSystemFont, sans-serif">10</text>',
-  forward: '<path d="M15.9 5.6h2.5"/><path fill="currentColor" stroke="none" d="M18.4 3.6v4l3-2z"/><path d="M15.9 5.6a7.6 7.6 0 1 1-7.8 0"/><text x="12" y="15.1" text-anchor="middle" font-size="8.4" font-weight="700" fill="currentColor" stroke="none" font-family="-apple-system, BlinkMacSystemFont, sans-serif">10</text>',
+  /* ±10 秒：接近整圈的细圆环，顶部留一个小缺口；
+     实心箭头从圆环端点顺着圆弧方向伸出，箭尾直接接在圆线上，箭头朝外。
+     效果等同 iOS 的 gobackward.10 / goforward.10。 */
+  rewind: '<path d="M6.77 7.37A7.4 7.4 0 1 0 13.28 5.31"/><path fill="currentColor" stroke="none" d="M9.73 4.68 13.71 2.9 12.85 7.72z"/><text x="12" y="15.6" text-anchor="middle" font-size="8.6" font-weight="700" fill="currentColor" stroke="none" font-family="-apple-system, BlinkMacSystemFont, sans-serif">10</text>',
+  forward: '<path d="M17.23 7.37A7.4 7.4 0 1 1 10.72 5.31"/><path fill="currentColor" stroke="none" d="M14.27 4.68 10.29 2.9 11.15 7.72z"/><text x="12" y="15.6" text-anchor="middle" font-size="8.6" font-weight="700" fill="currentColor" stroke="none" font-family="-apple-system, BlinkMacSystemFont, sans-serif">10</text>',
   volume: '<path d="M4.6 9.4h3.1l4.2-3.6v12.4l-4.2-3.6H4.6z"/><path d="M15.2 9.2a4.1 4.1 0 0 1 0 5.6"/><path d="M17.7 6.7a7.5 7.5 0 0 1 0 10.6"/>',
   volumeMute: '<path d="M4.6 9.4h3.1l4.2-3.6v12.4l-4.2-3.6H4.6z"/><path d="m16.2 9.6 4.6 4.8M20.8 9.6l-4.6 4.8"/>',
   /* 线路：两条交叉的路径 + 方向箭头，表达“换线路”。 */

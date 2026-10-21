@@ -387,6 +387,21 @@ async function main() {
           hasQuality: Boolean(document.querySelector('#player-quality, [data-paction="quality"]')),
           hasCast: Boolean(document.querySelector('[data-paction="cast"], #player-cast')),
           hasVolumeTrack: Boolean(document.querySelector('.player-volume-track, #player-volume-track')),
+          /* ±10 图标：实心箭头在圆环顶部，箭尾贴着圆环端点。 */
+          seekIcon: (() => {
+            const boxes = (selector) => {
+              const paths = document.querySelector(selector).querySelectorAll('path');
+              return { ring: paths[0].getBBox(), head: paths[1].getBBox() };
+            };
+            const rewind = boxes('[data-paction="rewind"] .icon');
+            const forward = boxes('[data-paction="forward"] .icon');
+            return {
+              rewindHeadAbove: rewind.head.y < rewind.ring.y - 1,
+              forwardHeadAbove: forward.head.y < forward.ring.y - 1,
+              rewindGap: rewind.ring.y < 6,
+              forwardGap: forward.ring.y < 6
+            };
+          })(),
           statusBar: document.getElementById('meta-status-bar').getAttribute('content'),
           theme: document.getElementById('meta-theme-color').getAttribute('content')
         });
@@ -416,6 +431,10 @@ async function main() {
       }
       if (layout.rewind[2] < 54 || layout.forward[2] < 54 || layout.seekText !== '1010') {
         throw new Error('±10 秒按钮或图标不对 ' + JSON.stringify(layout));
+      }
+      if (!layout.seekIcon.rewindHeadAbove || !layout.seekIcon.forwardHeadAbove
+        || !layout.seekIcon.rewindGap || !layout.seekIcon.forwardGap) {
+        throw new Error('±10 箭头没有接在顶部圆环上 ' + JSON.stringify(layout.seekIcon));
       }
       if (layout.mute[1] > 90 || layout.mute[2] < 40
         || (layout.episodes && (Math.abs(layout.mute[1] - layout.episodes[1]) > 4
@@ -697,11 +716,59 @@ async function main() {
       await clearToast();
       await screenshot('04b-播放器-物理横屏-手机.png');
       await setViewport(390, 844, 2, true);
-      await wait(350);
+      await wait(500);
       const restoredStatus = await evaluate(`document.getElementById('meta-status-bar').getAttribute('content')`);
       if (restoredStatus !== 'black') throw new Error('回到竖屏后状态栏没有恢复：' + restoredStatus);
+
+      /* 物理横屏转回竖屏后，所有按钮必须重新可点（iOS 上最容易坏在这里）。 */
+      const portraitHit = JSON.parse(await evaluate(`(() => {
+        const selectors = ['#player-mute', '.player-top-actions .pbtn-close', '[data-paction="rewind"]',
+          '#player-play', '[data-paction="forward"]', '#player-line', '#player-speed',
+          '#player-rotate', '#player-fullscreen'];
+        const misses = [];
+        selectors.forEach((selector) => {
+          const el = document.querySelector(selector);
+          if (!el) { misses.push(selector + ':missing'); return; }
+          const rect = el.getBoundingClientRect();
+          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+          if (!hit || !(hit === el || el.contains(hit))) {
+            misses.push(selector + ':' + (hit ? hit.tagName + '.' + hit.className : 'null'));
+          }
+        });
+        return JSON.stringify({
+          landscapeViewport: document.querySelector('#player-page').classList.contains('is-landscape-viewport'),
+          rotateHidden: document.querySelector('#player-rotate').hidden,
+          overlayHidden: document.querySelector('#player-overlay').classList.contains('is-hidden'),
+          misses
+        });
+      })()`));
+      if (portraitHit.landscapeViewport || portraitHit.rotateHidden || portraitHit.overlayHidden || portraitHit.misses.length) {
+        throw new Error('回到竖屏后按钮不可点 ' + JSON.stringify(portraitHit));
+      }
+      const mutedBefore = await evaluate('document.querySelector("#player-video").muted');
+      await click('#player-mute');
+      await wait(200);
+      if (await evaluate('document.querySelector("#player-video").muted') === mutedBefore) {
+        throw new Error('回到竖屏后静音键没有响应');
+      }
+      await click('#player-mute');
+
+      /* 控件隐藏后，第一次触摸就要能把它们唤回来。 */
+      await evaluate(`document.querySelector('#player-overlay').classList.add('is-hidden')`);
+      await wait(280);
+      const tapPoint = JSON.parse(await evaluate(`JSON.stringify([innerWidth / 2, innerHeight * 0.62])`));
+      await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: tapPoint[0], y: tapPoint[1], button: 'left', clickCount: 1 });
+      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: tapPoint[0], y: tapPoint[1], button: 'left', clickCount: 1 });
+      await wait(180);
+      if (await evaluate(`document.querySelector('#player-overlay').classList.contains('is-hidden')`)) {
+        throw new Error('控件隐藏后触摸没有唤出控件');
+      }
+      await wait(400);
+      if (await evaluate(`document.querySelector('#player-overlay').classList.contains('is-hidden')`)) {
+        throw new Error('唤出控件后又被同一次点击藏回去');
+      }
       await clearToast();
-      return '播放 ' + playing.time.toFixed(1) + 's；后退 ' + rewound.toFixed(1) + 's；倍速 ' + speed.label + '；横屏已恢复';
+      return '播放 ' + playing.time.toFixed(1) + 's；后退 ' + rewound.toFixed(1) + 's；倍速 ' + speed.label + '；横屏已恢复且按钮可点';
     });
 
     await step('断点续播与观看历史', async () => {
@@ -1009,8 +1076,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v23') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v23')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v24') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v24')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;
