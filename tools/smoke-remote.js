@@ -424,7 +424,21 @@ async function main() {
     await evaluate('document.querySelectorAll(".episode-btn")[1].click()');
     record(results, '进入第二集播放页', await waitFor('Boolean(document.querySelector("#player-video"))'));
     record(results, '第二集拿到片源', await waitFor('(document.querySelector("#player-video")?.currentSrc || "").includes("/api/proxy")', 20000));
-    record(results, '选集按钮在右上角', await evaluate('Boolean(document.querySelector(".player-top-actions #player-episodes"))'));
+    record(results, '选集在右上角、静音在左、全屏在右下', await evaluate(`(() => {
+      const mute = document.querySelector('.player-top-actions #player-mute');
+      const episodes = document.querySelector('.player-top-actions #player-episodes');
+      const menu = document.querySelector('#player-menu');
+      const fullscreen = document.querySelector('#player-menu #player-fullscreen');
+      if (!mute || !episodes || !menu || !fullscreen) return false;
+      const muteRect = mute.getBoundingClientRect();
+      const episodeRect = episodes.getBoundingClientRect();
+      const menuRect = menu.getBoundingClientRect();
+      const fullRect = fullscreen.getBoundingClientRect();
+      return muteRect.top < 90
+        && muteRect.right <= episodeRect.left
+        && fullRect.left > menuRect.left + menuRect.width / 2
+        && menuRect.right - fullRect.right < 30;
+    })()`));
     await evaluate('document.querySelector("#player-line").click()');
     record(results, '多线路可选', await waitFor('document.querySelectorAll(".sheet [data-value]").length === 2'));
     await wait(260);

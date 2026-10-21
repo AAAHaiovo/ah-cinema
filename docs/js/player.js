@@ -268,10 +268,10 @@ export function playerPage(item, episode) {
             '<div class="player-title">' + escapeHtml(item.title) + '</div>' +
             '<div class="player-subtitle">' + escapeHtml(subtitle) + '</div>' +
           '</div>' +
-          /* 右上角：选集 + 全屏 + 关闭。 */
+          /* 顶部动作组：静音 + 选集 + 关闭（竖屏靠右，横屏靠左；静音在选集左边）。 */
           '<div class="player-top-actions">' +
+            '<button class="pbtn pbtn-sound" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
             (item.episodes && item.episodes.length ? '<button class="pbtn pbtn-episodes" type="button" data-paction="episodes" id="player-episodes" aria-label="选集">' + icon('list') + '</button>' : '') +
-            '<button class="pbtn pbtn-fullscreen" type="button" data-paction="fullscreen" id="player-fullscreen" aria-label="全屏">' + icon('fullscreen') + '</button>' +
             '<button class="pbtn pbtn-close" type="button" data-paction="back" aria-label="关闭播放器">' + icon('close') + '</button>' +
           '</div>' +
         '</div>' +
@@ -283,16 +283,14 @@ export function playerPage(item, episode) {
           '<button class="pbtn pbtn-seek" type="button" data-paction="forward" aria-label="前进 10 秒">' + icon('forward') + '</button>' +
         '</div>' +
 
-        /* 声音只做静音开关，不再调节音量。 */
-        '<button class="pbtn pbtn-sound" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
-
         '<div class="player-bottom">' +
-          /* 左下角菜单组：线路 / 倍速 / 字幕 / 横屏。 */
+          /* 底部菜单组：线路 / 倍速 / 字幕 / 横屏，全屏固定在最右侧。 */
           '<div class="player-menu" id="player-menu">' +
             '<button class="pbtn pbtn-label pbtn-line" type="button" data-paction="line" id="player-line" aria-label="切换线路">' + icon('line') + '<span>线路</span></button>' +
             '<button class="pbtn pbtn-label" type="button" data-paction="speed" id="player-speed" aria-label="倍速">' + escapeHtml(formatRate(initialRate)) + '</button>' +
             (subtitles.length ? '<button class="pbtn pbtn-menu-icon" type="button" data-paction="cc" id="player-cc" aria-label="字幕">' + icon('cc') + '</button>' : '') +
             '<button class="pbtn pbtn-menu-icon pbtn-display" type="button" data-paction="display" id="player-rotate" aria-label="横屏播放" aria-pressed="false">' + icon('rotate') + '</button>' +
+            '<button class="pbtn pbtn-menu-icon pbtn-fullscreen" type="button" data-paction="fullscreen" id="player-fullscreen" aria-label="全屏">' + icon('fullscreen') + '</button>' +
           '</div>' +
           /* 底部横向进度条：左当前时间，右剩余时长。 */
           '<div class="player-scrub-row">' +
@@ -753,8 +751,8 @@ export function mountPlayer(item, episode) {
   }
 
   /*
-   * 左下角只剩“横屏”按钮；右上角的全屏按钮负责原生全屏。
-   * 物理横屏时隐藏它，避免和全屏按钮功能重复。
+   * 菜单里的“横屏”按钮负责旋转画面；它右边的全屏按钮负责原生全屏。
+   * 物理横屏时隐藏“横屏”按钮，避免和全屏按钮功能重复。
    */
   function updateDisplayButton() {
     if (!displayButton) return;

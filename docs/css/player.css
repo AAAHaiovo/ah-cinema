@@ -1,6 +1,6 @@
 /* AH 影视 · 播放器
    布局：底部横向进度条 + 居中横向播放组（后退 / 播放 / 前进）+
-   右侧静音钮 + 右上角选集/全屏/关闭 + 左下角菜单组。
+   右上角静音/选集/关闭 + 左下角菜单组 + 右下角全屏。
    视觉：iOS 18 风格深色半透明材质，只用 backdrop-filter 模糊，
    不加明显边框、颗粒或厚重阴影。 */
 
@@ -75,17 +75,35 @@
 }
 
 /* 强制横屏时整层控件跟着画面转 90°：
-   把选集 / 全屏 / 关闭放到旋转后的物理右上角，菜单组靠到物理左下角。 */
+   用户把手机转正后看到的是「关闭 / 静音 / 选集在左上，菜单与全屏在右下」。 */
 .player-page.is-landscape .player-top {
-  flex-direction: row-reverse;
-}
-
-.player-page.is-landscape .player-top-actions {
   flex-direction: row-reverse;
 }
 
 .player-page.is-landscape .player-menu {
   justify-content: flex-end;
+}
+
+/* 物理横屏不使用旋转，直接按同一套视觉位置排列：
+   顶部动作组靠左，菜单组与全屏靠右下，和点「横屏」后完全一致。 */
+.player-page.is-landscape-viewport .player-top {
+  flex-direction: row-reverse;
+}
+
+.player-page.is-landscape-viewport .player-menu {
+  justify-content: flex-end;
+}
+
+.player-page.is-landscape .player-menu .pbtn-fullscreen,
+.player-page.is-landscape-viewport .player-menu .pbtn-fullscreen {
+  margin-left: 0;
+}
+
+/* 物理横屏时“横屏”按钮隐藏，但保留占位，
+   让线路 / 倍速 / 全屏的坐标和强制横屏完全对齐。 */
+.player-page.is-landscape-viewport .pbtn-display[hidden] {
+  display: grid !important;
+  visibility: hidden;
 }
 
 /* 强制横屏时画面实际只有 100vw 高，按钮整体收小，避免上下控制区打架。 */
@@ -142,7 +160,7 @@
   pointer-events: none;
 }
 
-/* ---------- 顶部：标题 + 选集 / 全屏 / 关闭 ---------- */
+/* ---------- 顶部：标题 + 静音 / 选集 / 关闭 ---------- */
 
 .player-top {
   display: flex;
@@ -312,32 +330,11 @@
   animation: none;
 }
 
-/* ---------- 右侧静音钮（只切换静音，不调音量） ---------- */
-
-.pbtn-sound {
-  position: absolute;
-  top: 50%;
-  right: calc(var(--ah-safe-right) + 10px);
-  z-index: 4;
-  width: 40px;
-  height: 40px;
-  transform: translateY(-50%);
-  transition: opacity 220ms var(--ah-ease), transform 220ms var(--ah-ease),
-    background-color 160ms var(--ah-ease);
-}
+/* ---------- 静音钮（顶部动作组，只切换静音，不调音量） ---------- */
 
 .pbtn-sound .icon {
   width: 20px;
   height: 20px;
-}
-
-.pbtn-sound:active {
-  transform: translateY(-50%) scale(0.93);
-}
-
-.player-overlay.is-hidden .pbtn-sound {
-  opacity: 0;
-  transform: translateY(-50%) scale(0.94);
 }
 
 /* ---------- 底部：菜单组 + 横向进度条 ---------- */
@@ -352,7 +349,7 @@
   transform: translateY(10px);
 }
 
-/* 左下角菜单组；横向放不下时可滚动，不换行。 */
+/* 底部菜单组：竖屏时贴左，全屏被推到最右；横向放不下时可滚动，不换行。 */
 .player-menu {
   display: flex;
   align-items: center;
@@ -370,6 +367,11 @@
 
 .player-menu .pbtn {
   flex: 0 0 auto;
+}
+
+/* 竖屏时全屏单独贴到右下角；横屏规则会把 auto 外边距清掉，让整组靠右。 */
+.player-menu .pbtn-fullscreen {
+  margin-left: auto;
 }
 
 .pbtn-label {
@@ -863,7 +865,7 @@
   height: 36px;
 }
 
-/* 窄屏（iPhone SE 一代等）：收小播放组，右侧静音钮才不会压到快进键。 */
+/* 窄屏（iPhone SE 一代等）：收小播放组，给顶部动作组留出空间。 */
 @media (max-width: 340px) {
   .player-center {
     gap: 16px;
@@ -879,8 +881,8 @@
     height: 33px;
   }
 
-  .pbtn-sound {
-    right: calc(var(--ah-safe-right) + 8px);
+  .player-top-actions {
+    gap: 6px;
   }
 }
 
@@ -915,10 +917,6 @@
     padding-right: calc(var(--ah-safe-right) + 24px);
     padding-bottom: calc(var(--ah-safe-bottom) + 16px);
     padding-left: calc(var(--ah-safe-left) + 24px);
-  }
-
-  .pbtn-sound {
-    right: calc(var(--ah-safe-right) + 22px);
   }
 
   @media (hover: hover) {
