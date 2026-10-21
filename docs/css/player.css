@@ -75,21 +75,15 @@
 }
 
 /* 强制横屏时整层控件跟着画面转 90°：
-   用户把手机转正后看到的是「关闭 / 静音 / 选集在左上，菜单与全屏在右下」。 */
-.player-page.is-landscape .player-top {
-  flex-direction: row-reverse;
-}
-
+   用户把手机转正后看到的是「标题在左上，静音 / 选集 / 关闭在右上，
+   菜单与全屏在右下」。顶部动作组不反转，保持「标题在左、按钮在右」，
+   旋转后按钮正好落在画面右上角。 */
 .player-page.is-landscape .player-menu {
   justify-content: flex-end;
 }
 
-/* 物理横屏不使用旋转，直接按同一套视觉位置排列：
-   顶部动作组靠左，菜单组与全屏靠右下，和点「横屏」后完全一致。 */
-.player-page.is-landscape-viewport .player-top {
-  flex-direction: row-reverse;
-}
-
+/* 物理横屏不旋转：静音 / 选集 / 关闭直接在右上角，
+   菜单组与全屏靠右下，和强制横屏看到的视觉位置一致。 */
 .player-page.is-landscape-viewport .player-menu {
   justify-content: flex-end;
 }

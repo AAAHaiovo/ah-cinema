@@ -268,7 +268,7 @@ export function playerPage(item, episode) {
             '<div class="player-title">' + escapeHtml(item.title) + '</div>' +
             '<div class="player-subtitle">' + escapeHtml(subtitle) + '</div>' +
           '</div>' +
-          /* 顶部动作组：静音 + 选集 + 关闭（竖屏靠右，横屏靠左；静音在选集左边）。 */
+          /* 顶部动作组：静音 + 选集 + 关闭（竖屏和横屏都靠右上角；静音在选集左边）。 */
           '<div class="player-top-actions">' +
             '<button class="pbtn pbtn-sound" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
             (item.episodes && item.episodes.length ? '<button class="pbtn pbtn-episodes" type="button" data-paction="episodes" id="player-episodes" aria-label="选集">' + icon('list') + '</button>' : '') +
