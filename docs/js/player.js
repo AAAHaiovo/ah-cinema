@@ -232,13 +232,11 @@ export function playerPage(item, episode) {
   const embed = embedFor(item, episode);
   if (embed) return embedPage(item, episode, embed);
 
-  const sources = sourcesFor(item, episode);
   const subtitles = subtitlesFor(item, episode);
   const poster = safeAssetUrl(item.poster);
   const subtitle = episode
     ? formatEpisodeLabel(episode)
     : (item.originalTitle || item.source || '');
-  const quality = qualityOf(sources[0]);
   const initialRate = state.settings.defaultRate;
 
   const tracks = subtitles.map((track, index) =>
@@ -270,39 +268,30 @@ export function playerPage(item, episode) {
             '<div class="player-title">' + escapeHtml(item.title) + '</div>' +
             '<div class="player-subtitle">' + escapeHtml(subtitle) + '</div>' +
           '</div>' +
-          /* 右上角：投屏 + 关闭。 */
+          /* 右上角：选集 + 全屏 + 关闭。 */
           '<div class="player-top-actions">' +
-            '<button class="pbtn pbtn-cast" type="button" data-paction="cast" id="player-cast" aria-label="投屏">' + icon('cast') + '</button>' +
+            (item.episodes && item.episodes.length ? '<button class="pbtn pbtn-episodes" type="button" data-paction="episodes" id="player-episodes" aria-label="选集">' + icon('list') + '</button>' : '') +
+            '<button class="pbtn pbtn-fullscreen" type="button" data-paction="fullscreen" id="player-fullscreen" aria-label="全屏">' + icon('fullscreen') + '</button>' +
             '<button class="pbtn pbtn-close" type="button" data-paction="back" aria-label="关闭播放器">' + icon('close') + '</button>' +
           '</div>' +
         '</div>' +
 
-        /* 画面居中：后退 / 播放暂停 / 前进，竖向排列。 */
+        /* 画面中央：后退 / 播放暂停 / 前进，水平排列。 */
         '<div class="player-center">' +
           '<button class="pbtn pbtn-seek" type="button" data-paction="rewind" aria-label="后退 10 秒">' + icon('rewind') + '</button>' +
           '<button class="pbtn pbtn-play" type="button" data-paction="toggle" id="player-play" aria-label="播放">' + icon('play') + '</button>' +
           '<button class="pbtn pbtn-seek" type="button" data-paction="forward" aria-label="前进 10 秒">' + icon('forward') + '</button>' +
         '</div>' +
 
-        /* 右侧竖向音量条，底部扬声器键同时是静音键。 */
-        '<div class="player-volume" id="player-volume" aria-label="音量">' +
-          '<div class="player-volume-track" id="player-volume-track" role="slider" tabindex="0" aria-label="音量" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">' +
-            '<div class="player-volume-rail">' +
-              '<span class="player-volume-fill" id="player-volume-fill"></span>' +
-              '<span class="player-volume-thumb" id="player-volume-thumb"></span>' +
-            '</div>' +
-          '</div>' +
-          '<button class="pbtn pbtn-volume" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
-        '</div>' +
+        /* 声音只做静音开关，不再调节音量。 */
+        '<button class="pbtn pbtn-sound" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
 
         '<div class="player-bottom">' +
-          /* 左下角菜单组：线路 / 清晰度 / 倍速 / 字幕 / 选集 / 横竖屏。 */
+          /* 左下角菜单组：线路 / 倍速 / 字幕 / 横屏。 */
           '<div class="player-menu" id="player-menu">' +
             '<button class="pbtn pbtn-label pbtn-line" type="button" data-paction="line" id="player-line" aria-label="切换线路">' + icon('line') + '<span>线路</span></button>' +
-            '<button class="pbtn pbtn-label" type="button" data-paction="quality" id="player-quality" aria-label="清晰度">' + escapeHtml(quality) + '</button>' +
             '<button class="pbtn pbtn-label" type="button" data-paction="speed" id="player-speed" aria-label="倍速">' + escapeHtml(formatRate(initialRate)) + '</button>' +
             (subtitles.length ? '<button class="pbtn pbtn-menu-icon" type="button" data-paction="cc" id="player-cc" aria-label="字幕">' + icon('cc') + '</button>' : '') +
-            (item.episodes && item.episodes.length ? '<button class="pbtn pbtn-menu-icon" type="button" data-paction="episodes" aria-label="选集">' + icon('list') + '</button>' : '') +
             '<button class="pbtn pbtn-menu-icon pbtn-display" type="button" data-paction="display" id="player-rotate" aria-label="横屏播放" aria-pressed="false">' + icon('rotate') + '</button>' +
           '</div>' +
           /* 底部横向进度条：左当前时间，右剩余时长。 */
@@ -360,15 +349,11 @@ export function mountPlayer(item, episode) {
   const scrub = document.getElementById('player-scrub');
   const currentLabel = document.getElementById('player-current');
   const durationLabel = document.getElementById('player-duration');
-  const qualityButton = document.getElementById('player-quality');
   const speedButton = document.getElementById('player-speed');
   const lineButton = document.getElementById('player-line');
-  const castButton = document.getElementById('player-cast');
   const muteButton = document.getElementById('player-mute');
   const displayButton = document.getElementById('player-rotate');
-  const volumeTrack = document.getElementById('player-volume-track');
-  const volumeFill = document.getElementById('player-volume-fill');
-  const volumeThumb = document.getElementById('player-volume-thumb');
+  const fullscreenButton = document.getElementById('player-fullscreen');
   const buffering = document.getElementById('player-buffering');
   const errorBox = document.getElementById('player-error');
   const errorText = document.getElementById('player-error-text');
@@ -409,8 +394,7 @@ export function mountPlayer(item, episode) {
   let hlsFallbackTried = false;
   let proxyFallbackTried = false;
   let expectingMedia = false;
-  let volumeLevel = 1;
-  let draggingVolume = false;
+  let tapTimer = null;
   let wasLandscapeViewport = isLandscapeViewport();
 
   function destroyHls() {
@@ -570,7 +554,6 @@ export function mountPlayer(item, episode) {
         const duration = Number.isFinite(video.duration) ? video.duration : 0;
         video.currentTime = duration > 0 ? Math.min(seekTime, duration - 0.5) : seekTime;
       }
-      updateQualityLabel();
       updateSpeedLabel();
       updateProgressUI();
       if (typeof options.onReady === 'function') options.onReady();
@@ -753,104 +736,16 @@ export function mountPlayer(item, episode) {
     showToast(delta < 0 ? '已后退 10 秒' : '已前进 10 秒', 1200);
   }
 
-  /* 音量条是自绘的：iOS 不允许网页控制媒体音量，界面仍按用户拖动显示。 */
-  function updateVolumeUI() {
-    const level = video.muted ? 0 : volumeLevel;
-    const percent = Math.max(0, Math.min(100, Math.round(level * 100)));
-    if (volumeFill) volumeFill.style.height = percent + '%';
-    if (volumeThumb) volumeThumb.style.bottom = percent + '%';
-    if (volumeTrack) {
-      volumeTrack.setAttribute('aria-valuenow', String(percent));
-      volumeTrack.setAttribute('aria-valuetext', percent + '%');
-    }
-  }
-
+  /* 声音按钮只切换静音，不再提供音量调节。 */
   function updateMuteButton() {
-    if (muteButton) {
-      muteButton.innerHTML = icon(video.muted || volumeLevel <= 0 ? 'volumeMute' : 'volume');
-      muteButton.setAttribute('aria-label', video.muted ? '取消静音' : '静音');
-      muteButton.classList.toggle('is-active', video.muted || volumeLevel <= 0);
-    }
-    updateVolumeUI();
-  }
-
-  function setVolume(level) {
-    const next = Math.max(0, Math.min(1, level));
-    volumeLevel = next;
-    try {
-      video.volume = next;
-    } catch (error) {
-      /* iOS 会忽略音量写入，界面照样更新。 */
-    }
-    video.muted = next === 0;
-    updateMuteButton();
-  }
-
-  function volumeLevelFromEvent(event) {
-    if (!volumeTrack) return volumeLevel;
-    const rect = volumeTrack.getBoundingClientRect();
-    if (!rect.height) return volumeLevel;
-    return Math.max(0, Math.min(1, (rect.bottom - event.clientY) / rect.height));
-  }
-
-  function onVolumePointerDown(event) {
-    if (event.button !== undefined && event.button !== 0) return;
-    draggingVolume = true;
-    showControls(false);
-    try {
-      volumeTrack.setPointerCapture(event.pointerId);
-    } catch (error) {
-      /* 合成事件没有真实 pointerId。 */
-    }
-    setVolume(volumeLevelFromEvent(event));
-    event.preventDefault();
-  }
-
-  function onVolumePointerMove(event) {
-    if (!draggingVolume) return;
-    setVolume(volumeLevelFromEvent(event));
-    event.preventDefault();
-  }
-
-  function onVolumePointerUp() {
-    if (!draggingVolume) return;
-    draggingVolume = false;
-    showControls();
-    showToast('音量 ' + Math.round(volumeLevel * 100) + '%', 1000);
-  }
-
-  function onVolumeKeydown(event) {
-    const handled = ['ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'Home', 'End'];
-    if (!handled.includes(event.key)) return;
-    /* 阻止冒泡到播放器的全局快捷键，否则一次按键会调整两次音量。 */
-    event.preventDefault();
-    event.stopPropagation();
-
-    if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
-      setVolume(volumeLevel + 0.05);
-    } else if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
-      setVolume(volumeLevel - 0.05);
-    } else if (event.key === 'Home') {
-      setVolume(0);
-    } else {
-      setVolume(1);
-    }
-  }
-
-  function onVolumeChange() {
-    /* iOS 的 volume 恒为 1，不能拿它覆盖用户拖出来的界面值。 */
-    if (!draggingVolume && !isIOS() && !video.muted) {
-      volumeLevel = Number.isFinite(video.volume) ? video.volume : volumeLevel;
-    }
-    updateMuteButton();
+    if (!muteButton) return;
+    muteButton.innerHTML = icon(video.muted ? 'volumeMute' : 'volume');
+    muteButton.setAttribute('aria-label', video.muted ? '取消静音' : '静音');
+    muteButton.classList.toggle('is-active', video.muted);
   }
 
   function updateSpeedLabel() {
     if (speedButton) speedButton.textContent = formatRate(video.playbackRate || initialRate);
-  }
-
-  function updateQualityLabel() {
-    if (qualityButton && currentSource) qualityButton.textContent = qualityOf(currentSource);
   }
 
   function isNativeFullscreen() {
@@ -858,73 +753,44 @@ export function mountPlayer(item, episode) {
   }
 
   /*
-   * 一个按钮管「横屏 / 全屏」：
-   * 竖屏时先转横屏；已经是横屏就进全屏；全屏或强制横屏时再点则退出。
-   * 这样不会再出现旋转和全屏两个按钮挤在一起、功能重复的问题。
+   * 左下角只剩“横屏”按钮；右上角的全屏按钮负责原生全屏。
+   * 物理横屏时隐藏它，避免和全屏按钮功能重复。
    */
   function updateDisplayButton() {
     if (!displayButton) return;
-    const fullscreenActive = Boolean(document.fullscreenElement) || isNativeFullscreen();
-    const active = fullscreenActive || forcedLandscape;
-    let iconName = 'rotate';
-    let label = '横屏播放';
+    const portrait = !isLandscapeViewport();
+    const visible = forcedLandscape || portrait;
 
-    if (fullscreenActive) {
-      iconName = 'exitFullscreen';
-      label = '退出全屏';
-    } else if (forcedLandscape) {
-      iconName = 'rotate';
-      label = '恢复竖屏';
-    } else if (isLandscapeViewport()) {
-      iconName = 'fullscreen';
-      label = '全屏';
-    }
-
-    displayButton.innerHTML = icon(iconName);
-    displayButton.classList.toggle('is-active', active);
-    displayButton.setAttribute('aria-pressed', active ? 'true' : 'false');
-    displayButton.setAttribute('aria-label', label);
+    displayButton.hidden = !visible;
+    displayButton.innerHTML = icon('rotate');
+    displayButton.classList.toggle('is-active', forcedLandscape);
+    displayButton.setAttribute('aria-pressed', forcedLandscape ? 'true' : 'false');
+    displayButton.setAttribute('aria-label', forcedLandscape ? '恢复竖屏' : '横屏播放');
   }
 
   function toggleDisplayMode() {
-    /* 强制横屏时一次点击同时退出全屏和旋转，避免剩一个“看不见的横屏”。 */
     if (forcedLandscape) {
       exitAutoFullscreen();
       setForcedLandscape(false);
       return;
     }
-    if (isNativeFullscreen()) {
-      exitNativeFullscreen();
-      return;
-    }
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-      return;
-    }
     if (!isLandscapeViewport()) {
-      /* 切到横屏的同时进入全屏；桌面/安卓可用，iOS 会自动退回 CSS 横屏。 */
       setForcedLandscape(true);
-      return;
     }
-    toggleFullscreen();
+  }
+
+  function updateFullscreenButton() {
+    if (!fullscreenButton) return;
+    const active = Boolean(document.fullscreenElement) || isNativeFullscreen();
+    fullscreenButton.innerHTML = icon(active ? 'exitFullscreen' : 'fullscreen');
+    fullscreenButton.classList.toggle('is-active', active);
+    fullscreenButton.setAttribute('aria-label', active ? '退出全屏' : '全屏');
   }
 
   function toggleMute() {
-    if (video.muted || volumeLevel <= 0) {
-      if (volumeLevel <= 0) volumeLevel = 1;
-      try {
-        video.volume = volumeLevel;
-      } catch (error) {
-        /* 忽略。 */
-      }
-      video.muted = false;
-      updateMuteButton();
-      showToast('已取消静音');
-      return;
-    }
-    video.muted = true;
+    video.muted = !video.muted;
     updateMuteButton();
-    showToast('已静音');
+    showToast(video.muted ? '已静音' : '已取消静音');
   }
 
   function exitNativeFullscreen() {
@@ -982,30 +848,6 @@ export function mountPlayer(item, episode) {
     fallbackNativeFullscreen();
   }
 
-  /* 投屏：优先 Remote Playback，iOS 退回 AirPlay 选择器。 */
-  function openCast() {
-    showControls();
-    if (video.remote && typeof video.remote.prompt === 'function') {
-      try {
-        Promise.resolve(video.remote.prompt()).catch(() => {
-          showToast('没有找到可投屏的设备');
-        });
-        return;
-      } catch (error) {
-        /* 个别浏览器会同步抛错，继续尝试 iOS 的 AirPlay。 */
-      }
-    }
-    if (isIOS() && typeof video.webkitShowPlaybackTargetPicker === 'function') {
-      try {
-        video.webkitShowPlaybackTargetPicker();
-        return;
-      } catch (error) {
-        /* 继续给提示。 */
-      }
-    }
-    showToast('当前设备不支持投屏');
-  }
-
   function isLandscapeViewport() {
     if (window.matchMedia) return window.matchMedia('(orientation: landscape)').matches;
     return window.innerWidth > window.innerHeight;
@@ -1022,6 +864,7 @@ export function mountPlayer(item, episode) {
     const immersive = landscape || forcedLandscape || Boolean(document.fullscreenElement);
     setStatusBar(immersive ? 'black-translucent' : 'black');
     updateDisplayButton();
+    updateFullscreenButton();
   }
 
   /*
@@ -1156,41 +999,6 @@ export function mountPlayer(item, episode) {
     const nextIndex = Number(value);
     if (!Number.isInteger(nextIndex) || nextIndex === sourceIndex) return;
     switchSource(nextIndex);
-  }
-
-  async function openQuality() {
-    if (!sources.length) {
-      showToast('没有可用片源');
-      return;
-    }
-
-    if (hideTimer) {
-      clearTimeout(hideTimer);
-      hideTimer = null;
-    }
-
-    const qualities = [];
-    sources.forEach((source) => {
-      const quality = qualityOf(source);
-      if (!qualities.includes(quality)) qualities.push(quality);
-    });
-
-    const currentQuality = currentSource ? qualityOf(currentSource) : (qualities[0] || '');
-    const value = await openSheet({
-      title: '清晰度',
-      className: 'sheet-side',
-      value: currentQuality,
-      options: qualities.map((quality) => ({
-        value: quality,
-        label: quality
-      }))
-    });
-
-    showControls();
-
-    if (value === null || value === currentQuality) return;
-    const nextIndex = sources.findIndex((source) => qualityOf(source) === value);
-    if (nextIndex >= 0) switchSource(nextIndex);
   }
 
   async function openSpeed() {
@@ -1358,9 +1166,17 @@ export function mountPlayer(item, episode) {
     location.hash = '#/title/' + encodeURIComponent(item.id);
   }
 
+  /* 点到控件时取消还在等待第二次点击的空白单击，避免控件随后被自动隐藏。 */
+  function cancelPendingTap() {
+    if (!tapTimer) return;
+    clearTimeout(tapTimer);
+    tapTimer = null;
+  }
+
   function onPageClick(event) {
     const episodeButton = event.target.closest('[data-episode-id]');
     if (episodeButton) {
+      cancelPendingTap();
       event.preventDefault();
       selectEpisode(episodeButton.getAttribute('data-episode-id'));
       return;
@@ -1368,6 +1184,7 @@ export function mountPlayer(item, episode) {
 
     const actionButton = event.target.closest('[data-paction]');
     if (actionButton) {
+      cancelPendingTap();
       event.preventDefault();
       const action = actionButton.getAttribute('data-paction');
 
@@ -1376,13 +1193,11 @@ export function mountPlayer(item, episode) {
       else if (action === 'rewind') seekBy(-10);
       else if (action === 'forward') seekBy(10);
       else if (action === 'line') openLines();
-      else if (action === 'quality') openQuality();
       else if (action === 'speed') openSpeed();
       else if (action === 'episodes') openEpisodes();
       else if (action === 'close-episodes') closeEpisodes();
       else if (action === 'cc') toggleCC();
       else if (action === 'mute') toggleMute();
-      else if (action === 'cast') openCast();
       else if (action === 'display') toggleDisplayMode();
       else if (action === 'rotate') toggleForcedLandscape();
       else if (action === 'fullscreen') toggleFullscreen();
@@ -1392,9 +1207,25 @@ export function mountPlayer(item, episode) {
 
     if (event.target.closest('.player-error')) return;
 
-    if (event.target.closest('.player-volume, .player-drawer, .pbtn, input, button, .sheet, .dialog')) return;
+    if (event.target.closest('.player-drawer, .pbtn, input, button, .sheet, .dialog')) {
+      cancelPendingTap();
+      return;
+    }
 
-    toggleControls();
+    /*
+     * 空白处单击切换控件、双击暂停 / 继续。
+     * 单击延后 250ms 执行，等第二下点击确认是不是双击。
+     */
+    if (tapTimer) {
+      clearTimeout(tapTimer);
+      tapTimer = null;
+      togglePlay();
+      return;
+    }
+    tapTimer = window.setTimeout(() => {
+      tapTimer = null;
+      toggleControls();
+    }, 250);
   }
 
   function onKeydown(event) {
@@ -1425,14 +1256,6 @@ export function mountPlayer(item, episode) {
     } else if (event.key === 'ArrowRight') {
       event.preventDefault();
       seekBy(10);
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      setVolume(volumeLevel + 0.1);
-      showToast('音量 ' + Math.round(volumeLevel * 100) + '%');
-    } else if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      setVolume(volumeLevel - 0.1);
-      showToast('音量 ' + Math.round(volumeLevel * 100) + '%');
     } else if (event.key === 'f' || event.key === 'F') {
       toggleFullscreen();
     } else if (event.key === 'r' || event.key === 'R') {
@@ -1532,9 +1355,10 @@ export function mountPlayer(item, episode) {
     if (toastTimer) clearTimeout(toastTimer);
     if (nextTimer) clearTimeout(nextTimer);
     if (drawerTimer) clearTimeout(drawerTimer);
+    if (tapTimer) clearTimeout(tapTimer);
+    tapTimer = null;
     drawerOpen = false;
 
-    draggingVolume = false;
     exitAutoFullscreen();
     exitNativeFullscreen();
 
@@ -1566,8 +1390,8 @@ export function mountPlayer(item, episode) {
   resetOrientation();
   if (keepLandscape) setForcedLandscape(true, { toast: false, controls: false });
 
-  video.addEventListener('webkitbeginfullscreen', updateDisplayButton, { signal });
-  video.addEventListener('webkitendfullscreen', updateDisplayButton, { signal });
+  video.addEventListener('webkitbeginfullscreen', updateOrientationState, { signal });
+  video.addEventListener('webkitendfullscreen', updateOrientationState, { signal });
 
   video.addEventListener('loadedmetadata', () => {
     hideBuffering();
@@ -1575,7 +1399,6 @@ export function mountPlayer(item, episode) {
     video.playbackRate = video.playbackRate && video.playbackRate !== 1 ? video.playbackRate : initialRate;
     updateMuteButton();
     updateSpeedLabel();
-    updateQualityLabel();
     updateProgressUI();
 
     const duration = Number.isFinite(video.duration) ? video.duration : 0;
@@ -1632,7 +1455,7 @@ export function mountPlayer(item, episode) {
     if (video.paused) saveNow(video.ended);
   }, { signal });
 
-  video.addEventListener('volumechange', onVolumeChange, { signal });
+  video.addEventListener('volumechange', updateMuteButton, { signal });
   video.addEventListener('ratechange', updateSpeedLabel, { signal });
 
   video.addEventListener('ended', () => {
@@ -1692,38 +1515,25 @@ export function mountPlayer(item, episode) {
 
   scrub.addEventListener('change', () => saveNow(video.ended), { signal });
 
-  if (volumeTrack) {
-    volumeTrack.addEventListener('pointerdown', onVolumePointerDown, { signal });
-    volumeTrack.addEventListener('pointermove', onVolumePointerMove, { signal });
-    volumeTrack.addEventListener('pointerup', onVolumePointerUp, { signal });
-    volumeTrack.addEventListener('pointercancel', onVolumePointerUp, { signal });
-    volumeTrack.addEventListener('keydown', onVolumeKeydown, { signal });
-  }
-
   stage.addEventListener('pointermove', (event) => {
     if (event.pointerType === 'mouse') showControls();
   }, { signal });
 
-  if (qualityButton) qualityButton.disabled = sources.length === 0;
   if (lineButton) lineButton.disabled = sources.length === 0;
-  volumeLevel = Number.isFinite(video.volume) ? video.volume : 1;
   wasLandscapeViewport = isLandscapeViewport();
   updateOrientationState();
   updateMuteButton();
   updateSpeedLabel();
-  updateQualityLabel();
   updateProgressUI();
   updatePlayButton();
   updateDisplayButton();
+  updateFullscreenButton();
   setupMediaSession();
 
   if (!sources.length) {
     showError('这部影片暂时没有可播放的片源。');
     return cleanup;
   }
-
-  const errorQualityButton = errorBox ? errorBox.querySelector('[data-paction="quality"]') : null;
-  if (errorQualityButton && sources.length <= 1) errorQualityButton.hidden = true;
 
   attachCurrentSource().catch(() => {});
 

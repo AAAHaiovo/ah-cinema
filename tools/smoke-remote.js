@@ -424,7 +424,8 @@ async function main() {
     await evaluate('document.querySelectorAll(".episode-btn")[1].click()');
     record(results, '进入第二集播放页', await waitFor('Boolean(document.querySelector("#player-video"))'));
     record(results, '第二集拿到片源', await waitFor('(document.querySelector("#player-video")?.currentSrc || "").includes("/api/proxy")', 20000));
-    await evaluate('document.querySelector("#player-quality").click()');
+    record(results, '选集按钮在右上角', await evaluate('Boolean(document.querySelector(".player-top-actions #player-episodes"))'));
+    await evaluate('document.querySelector("#player-line").click()');
     record(results, '多线路可选', await waitFor('document.querySelectorAll(".sheet [data-value]").length === 2'));
     await wait(260);
     await screenshot('07-播放器-换线路浮卡-手机.png');

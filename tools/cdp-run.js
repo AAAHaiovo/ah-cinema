@@ -315,14 +315,14 @@ async function main() {
         src: document.querySelector('#player-video').currentSrc,
         error: !document.querySelector('#player-error').hidden,
         errorText: document.querySelector('#player-error-text').textContent,
-        quality: document.querySelector('#player-quality').textContent,
+        line: document.querySelector('#player-line').textContent,
         title: document.title,
         hash: location.hash
       })`));
 
       if (data.error) throw new Error('直链播放错误：' + data.errorText);
       if (!data.src.includes('media.w3.org/2010/05/sintel/trailer.mp4')) throw new Error('播放地址 ' + data.src);
-      if (data.quality !== '原始') throw new Error('清晰度按钮 ' + data.quality);
+      if (!data.line.includes('线路')) throw new Error('线路按钮 ' + data.line);
 
       /* 缓冲转圈必须和播放 / 暂停键里的图标一样大，而不是整个按钮那么大。 */
       const playSizes = JSON.parse(await evaluate(`(() => {
@@ -345,7 +345,7 @@ async function main() {
         throw new Error('缓冲转圈与暂停图标尺寸不一致 ' + JSON.stringify(playSizes));
       }
 
-      /* 新布局：底部横向进度条、居中竖排播放组、右侧音量、右上角投屏/关闭、左下角菜单。 */
+      /* 新布局：底部横向进度条、居中横向播放组、右侧静音、右上角选集/全屏/关闭、左下角菜单。 */
       const layout = JSON.parse(await evaluate(`(() => {
         const rect = (selector) => {
           const el = document.querySelector(selector);
@@ -358,9 +358,8 @@ async function main() {
         const play = rect('#player-play');
         const rewind = rect('[data-paction="rewind"]');
         const forward = rect('[data-paction="forward"]');
-        const volume = rect('#player-volume-track');
-        const volumeBox = rect('#player-volume');
-        const cast = rect('#player-cast');
+        const mute = rect('#player-mute');
+        const fullscreen = rect('#player-fullscreen');
         const close = document.querySelector('.player-top-actions .pbtn-close').getBoundingClientRect();
         const menu = rect('#player-menu');
         return JSON.stringify({
@@ -370,17 +369,18 @@ async function main() {
           current: [Math.round(current.left), Math.round(current.top)],
           duration: [Math.round(duration.left), Math.round(duration.top)],
           durationText: document.querySelector('#player-duration').textContent,
-          play: [Math.round(play.left + play.width / 2), Math.round(play.top + play.height / 2)],
-          playBottom: Math.round(play.bottom),
-          rewindBottom: Math.round(rewind.bottom),
-          forwardTop: Math.round(forward.top),
-          volume: [Math.round(volume.left), Math.round(volume.right), Math.round(volume.width), Math.round(volume.height)],
-          volumeCenter: Math.round((volumeBox.top + volumeBox.bottom) / 2),
-          cast: [Math.round(cast.left), Math.round(cast.top)],
+          play: [Math.round(play.left + play.width / 2), Math.round(play.top + play.height / 2), Math.round(play.width)],
+          rewind: [Math.round(rewind.left + rewind.width / 2), Math.round(rewind.top + rewind.height / 2), Math.round(rewind.width)],
+          forward: [Math.round(forward.left + forward.width / 2), Math.round(forward.top + forward.height / 2), Math.round(forward.width)],
+          seekText: document.querySelector('[data-paction="rewind"] .icon text').textContent + document.querySelector('[data-paction="forward"] .icon text').textContent,
+          mute: [Math.round(innerWidth - mute.right), Math.round(mute.top + mute.height / 2), Math.round(mute.width)],
+          fullscreen: [Math.round(fullscreen.left), Math.round(fullscreen.top)],
           close: [Math.round(close.left), Math.round(close.top)],
           menu: [Math.round(menu.left), Math.round(menu.bottom)],
           hasLine: Boolean(document.querySelector('#player-menu #player-line')),
-          hasQuality: Boolean(document.querySelector('#player-menu #player-quality')),
+          hasQuality: Boolean(document.querySelector('#player-quality, [data-paction="quality"]')),
+          hasCast: Boolean(document.querySelector('[data-paction="cast"], #player-cast')),
+          hasVolumeTrack: Boolean(document.querySelector('.player-volume-track, #player-volume-track')),
           statusBar: document.getElementById('meta-status-bar').getAttribute('content'),
           theme: document.getElementById('meta-theme-color').getAttribute('content')
         });
@@ -401,23 +401,35 @@ async function main() {
       if (Math.abs(layout.play[0] - width / 2) > 6 || Math.abs(layout.play[1] - height / 2) > 30) {
         throw new Error('播放键不在画面中央 ' + JSON.stringify(layout.play));
       }
-      if (layout.rewindBottom > layout.play[1] - 20 || layout.forwardTop < layout.play[1] + 20) {
-        throw new Error('±10 秒按钮没有上下排列 ' + JSON.stringify(layout));
+      /* 后退在左、前进在右，三者同一水平线，且都明显大于普通圆钮。 */
+      if (!(layout.rewind[0] < layout.play[0] - 30 && layout.forward[0] > layout.play[0] + 30)) {
+        throw new Error('±10 秒按钮没有放在播放键左右 ' + JSON.stringify({ rewind: layout.rewind, play: layout.play, forward: layout.forward }));
       }
-      if (layout.volume[2] >= layout.volume[3] || width - layout.volume[1] > 40) {
-        throw new Error('音量条不是右侧竖向 ' + JSON.stringify(layout.volume));
+      if (Math.abs(layout.rewind[1] - layout.play[1]) > 4 || Math.abs(layout.forward[1] - layout.play[1]) > 4) {
+        throw new Error('±10 秒按钮没有和播放键水平对齐 ' + JSON.stringify(layout));
       }
-      if (Math.abs(layout.volumeCenter - height / 2) > 4) throw new Error('音量条没有垂直居中 ' + layout.volumeCenter);
-      if (layout.close[1] > 90 || layout.close[0] < width * 0.7 || layout.cast[0] > layout.close[0]) {
-        throw new Error('关闭/投屏不在右上角 ' + JSON.stringify({ cast: layout.cast, close: layout.close }));
+      if (layout.rewind[2] < 54 || layout.forward[2] < 54 || layout.seekText !== '1010') {
+        throw new Error('±10 秒按钮或图标不对 ' + JSON.stringify(layout));
       }
-      if (layout.menu[0] > 30 || !layout.hasLine || !layout.hasQuality) {
-        throw new Error('菜单组不在左下角或缺少线路/清晰度 ' + JSON.stringify(layout));
+      if (layout.mute[0] > 30 || Math.abs(layout.mute[1] - height / 2) > 6) {
+        throw new Error('静音钮不在右侧中部 ' + JSON.stringify(layout.mute));
+      }
+      if (layout.close[1] > 90 || layout.close[0] < width * 0.7) {
+        throw new Error('关闭按钮不在右上角 ' + JSON.stringify(layout.close));
+      }
+      if (layout.fullscreen[0] > layout.close[0] || layout.fullscreen[1] > 90) {
+        throw new Error('全屏按钮不在右上角 ' + JSON.stringify(layout.fullscreen));
+      }
+      if (layout.menu[0] > 30 || !layout.hasLine) {
+        throw new Error('菜单组不在左下角或缺少线路 ' + JSON.stringify(layout));
+      }
+      if (layout.hasQuality || layout.hasCast || layout.hasVolumeTrack) {
+        throw new Error('清晰度/投屏/音量条没有移除 ' + JSON.stringify(layout));
       }
       if (!data.title.includes('trailer')) throw new Error('标题 ' + data.title);
       await clearToast();
       await screenshot('03-播放器-直链-手机.png');
-      return data.title + '；' + data.quality;
+      return data.title + '；线路 ' + data.line;
     });
 
     await step('播放器：播放/暂停、±10 秒、静音、倍速、横竖屏', async () => {
@@ -450,24 +462,48 @@ async function main() {
       const muted = await evaluate('document.querySelector("#player-video").muted');
       if (!muted) throw new Error('静音失败');
 
-      /* 静音键在右侧竖向音量条下方，并和整组一起垂直居中。 */
+      /* 静音键单独放在右侧中部，点第二次恢复声音。 */
       const muteSpot = JSON.parse(await evaluate(`(() => {
         const mute = document.querySelector('#player-mute');
-        const group = mute.closest('.player-volume');
         const rect = mute.getBoundingClientRect();
-        const track = document.querySelector('#player-volume-track').getBoundingClientRect();
-        const groupRect = group ? group.getBoundingClientRect() : null;
         return JSON.stringify({
-          inVolume: Boolean(group),
-          afterTrack: Boolean(track && rect.top >= track.bottom - 1),
+          sound: mute.classList.contains('pbtn-sound'),
           right: Math.round(innerWidth - rect.right),
-          groupCenter: groupRect ? Math.round((groupRect.top + groupRect.bottom) / 2) : -1,
-          center: Math.round(innerHeight / 2)
+          center: Math.round((rect.top + rect.bottom) / 2),
+          viewportCenter: Math.round(innerHeight / 2)
         });
       })()`));
-      if (!muteSpot.inVolume || !muteSpot.afterTrack || muteSpot.right > 50 || Math.abs(muteSpot.groupCenter - muteSpot.center) > 6) {
-        throw new Error('音量键不在右侧音量条下方 ' + JSON.stringify(muteSpot));
+      if (!muteSpot.sound || muteSpot.right > 30 || Math.abs(muteSpot.center - muteSpot.viewportCenter) > 6) {
+        throw new Error('静音钮不在右侧中部 ' + JSON.stringify(muteSpot));
       }
+
+      await click('[data-paction="mute"]');
+      await wait(200);
+      if (await evaluate('document.querySelector("#player-video").muted')) throw new Error('取消静音失败');
+
+      /* 双击画面空白处：暂停中双击开始播放，再双击暂停。 */
+      const beforeTap = await evaluate('document.querySelector("#player-video").currentTime');
+      await evaluate(`(() => {
+        const stage = document.querySelector('#player-stage');
+        stage.click();
+        stage.click();
+      })()`);
+      await wait(700);
+      const doubleStart = JSON.parse(await evaluate(`JSON.stringify({
+        paused: document.querySelector('#player-video').paused,
+        time: document.querySelector('#player-video').currentTime
+      })`));
+      if (doubleStart.paused || doubleStart.time - beforeTap < 0.2) {
+        throw new Error('双击没有开始播放 ' + JSON.stringify(Object.assign({ beforeTap }, doubleStart)));
+      }
+
+      await evaluate(`(() => {
+        const stage = document.querySelector('#player-stage');
+        stage.click();
+        stage.click();
+      })()`);
+      await wait(300);
+      if (!(await evaluate('document.querySelector("#player-video").paused'))) throw new Error('双击没有暂停');
 
       await click('[data-paction="speed"]');
       await waitFor('document.querySelector(".sheet")');
@@ -545,40 +581,57 @@ async function main() {
       await click('#player-rotate');
       await wait(350);
 
-      /* 物理横屏时，左下角菜单组里只剩一个显示按钮，它就是全屏，并且随控件一起隐藏。 */
+      /* 物理横屏时隐藏“横屏”按钮，右上角改为选集 / 全屏 / 关闭，全屏键随控件一起隐藏。 */
       await setViewport(844, 390, 2, true);
       await wait(500);
-      const displayMode = JSON.parse(await evaluate(`(() => {
-        const pin = document.querySelector('#player-rotate');
-        const menu = document.querySelector('#player-menu').getBoundingClientRect();
+      const landscapeLayout = JSON.parse(await evaluate(`(() => {
+        const rect = (selector) => document.querySelector(selector).getBoundingClientRect();
+        const fullscreen = rect('#player-fullscreen');
+        const close = rect('.player-top-actions .pbtn-close');
+        const menu = rect('#player-menu');
+        const rewind = rect('[data-paction="rewind"]');
+        const play = rect('#player-play');
+        const forward = rect('[data-paction="forward"]');
         return JSON.stringify({
-          label: pin.getAttribute('aria-label'),
-          pressed: pin.getAttribute('aria-pressed'),
-          duplicate: Boolean(document.querySelector('#player-fullscreen')),
-          inOverlay: Boolean(pin.closest('.player-overlay')),
-          inMenu: Boolean(pin.closest('.player-menu')),
-          corner: [Math.round(menu.left), Math.round(innerHeight - menu.bottom)]
+          rotateHidden: document.querySelector('#player-rotate').hidden,
+          fullscreenHidden: document.querySelector('#player-fullscreen').hidden,
+          fullscreen: [Math.round(innerWidth - fullscreen.right), Math.round(fullscreen.top)],
+          closeRight: Math.round(innerWidth - close.right),
+          menu: [Math.round(menu.left), Math.round(innerHeight - menu.bottom)],
+          order: [Math.round(rewind.left + rewind.width / 2), Math.round(play.left + play.width / 2), Math.round(forward.left + forward.width / 2)],
+          statusBar: document.getElementById('meta-status-bar').getAttribute('content')
         });
       })()`));
-      if (displayMode.label !== '全屏' || displayMode.pressed !== 'false' || displayMode.duplicate) {
-        throw new Error('横屏显示模式按钮 ' + JSON.stringify(displayMode));
+      if (!landscapeLayout.rotateHidden || landscapeLayout.fullscreenHidden) {
+        throw new Error('物理横屏的横屏/全屏按钮状态 ' + JSON.stringify(landscapeLayout));
       }
-      if (!displayMode.inOverlay || !displayMode.inMenu || displayMode.corner[0] > 24 || displayMode.corner[1] > 90) {
-        throw new Error('全屏按钮不在左下角菜单组 ' + JSON.stringify(displayMode));
+      if (landscapeLayout.fullscreen[0] > 90 || landscapeLayout.fullscreen[1] > 90 || landscapeLayout.closeRight > 24) {
+        throw new Error('全屏/关闭不在右上角 ' + JSON.stringify(landscapeLayout));
+      }
+      if (landscapeLayout.menu[0] > 24 || landscapeLayout.menu[1] > 90) {
+        throw new Error('菜单组不在左下角 ' + JSON.stringify(landscapeLayout.menu));
+      }
+      if (!(landscapeLayout.order[0] < landscapeLayout.order[1] && landscapeLayout.order[1] < landscapeLayout.order[2])) {
+        throw new Error('横屏 ±10 秒按钮不在播放键左右 ' + JSON.stringify(landscapeLayout.order));
+      }
+      if (landscapeLayout.statusBar !== 'black-translucent') {
+        throw new Error('物理横屏状态栏没有适配 ' + landscapeLayout.statusBar);
       }
 
       await evaluate(`document.querySelector('#player-overlay').classList.add('is-hidden')`);
       await wait(320);
       const hiddenMode = JSON.parse(await evaluate(`(() => {
         const overlay = document.querySelector('#player-overlay');
+        const fullscreen = document.querySelector('#player-fullscreen');
         return JSON.stringify({
           opacity: getComputedStyle(overlay).opacity,
-          pointer: getComputedStyle(overlay).pointerEvents
+          pointer: getComputedStyle(overlay).pointerEvents,
+          buttonPointer: getComputedStyle(fullscreen).pointerEvents
         });
       })()`));
       await evaluate(`document.querySelector('#player-overlay').classList.remove('is-hidden')`);
       await wait(240);
-      if (hiddenMode.opacity !== '0' || hiddenMode.pointer !== 'none') {
+      if (hiddenMode.opacity !== '0' || hiddenMode.pointer !== 'none' || hiddenMode.buttonPointer !== 'none') {
         throw new Error('全屏按钮没有随控件一起隐藏 ' + JSON.stringify(hiddenMode));
       }
       await clearToast();
@@ -896,8 +949,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v21') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v21')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v22') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v22')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;

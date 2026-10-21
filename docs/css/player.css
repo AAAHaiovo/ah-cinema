@@ -1,6 +1,6 @@
 /* AH 影视 · 播放器
-   布局：底部横向进度条 + 居中竖排播放组 + 右侧竖向音量条 +
-   右上角关闭/投屏 + 左下角菜单组。
+   布局：底部横向进度条 + 居中横向播放组（后退 / 播放 / 前进）+
+   右侧静音钮 + 右上角选集/全屏/关闭 + 左下角菜单组。
    视觉：iOS 18 风格深色半透明材质，只用 backdrop-filter 模糊，
    不加明显边框、颗粒或厚重阴影。 */
 
@@ -20,6 +20,8 @@
   overflow: hidden;
   background: #000;
   color: #fff;
+  /* 双击空白区用来暂停，禁止浏览器把它解释成缩放。 */
+  touch-action: manipulation;
   animation: player-in 240ms var(--ah-ease);
 }
 
@@ -73,7 +75,7 @@
 }
 
 /* 强制横屏时整层控件跟着画面转 90°：
-   把关闭 / 投屏放到旋转后的物理右上角，菜单组靠到物理左下角。 */
+   把选集 / 全屏 / 关闭放到旋转后的物理右上角，菜单组靠到物理左下角。 */
 .player-page.is-landscape .player-top {
   flex-direction: row-reverse;
 }
@@ -136,12 +138,11 @@
 }
 
 /* 覆盖层淡出后，里面的圆钮也不能再拦截点击。 */
-.player-overlay.is-hidden .pbtn,
-.player-overlay.is-hidden .player-volume-track {
+.player-overlay.is-hidden .pbtn {
   pointer-events: none;
 }
 
-/* ---------- 顶部：标题 + 关闭 / 投屏 ---------- */
+/* ---------- 顶部：标题 + 选集 / 全屏 / 关闭 ---------- */
 
 .player-top {
   display: flex;
@@ -234,8 +235,7 @@
   background: rgba(255, 255, 255, 0.22);
 }
 
-.pbtn:focus-visible,
-.player-volume-track:focus-visible {
+.pbtn:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.9);
   outline-offset: 2px;
 }
@@ -246,22 +246,23 @@
   stroke-width: 2.2;
 }
 
-.pbtn-cast .icon {
-  width: 24px;
-  height: 24px;
+.pbtn-fullscreen .icon,
+.pbtn-episodes .icon {
+  width: 22px;
+  height: 22px;
   stroke-width: 1.9;
 }
 
-/* ---------- 画面中央：后退 / 播放 / 前进 ---------- */
+/* ---------- 画面中央：后退 / 播放 / 前进（横向） ---------- */
 
 .player-center {
   position: absolute;
   inset: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 22px;
+  gap: 24px;
   pointer-events: none;
   transition: opacity 220ms var(--ah-ease), transform 220ms var(--ah-ease);
 }
@@ -276,13 +277,13 @@
 }
 
 .pbtn-seek {
-  width: 48px;
-  height: 48px;
+  width: 62px;
+  height: 62px;
 }
 
 .pbtn-seek .icon {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
 }
 
 .pbtn-play {
@@ -311,79 +312,32 @@
   animation: none;
 }
 
-/* ---------- 右侧竖向音量 ---------- */
+/* ---------- 右侧静音钮（只切换静音，不调音量） ---------- */
 
-.player-volume {
+.pbtn-sound {
   position: absolute;
   top: 50%;
-  right: calc(var(--ah-safe-right) + 12px);
+  right: calc(var(--ah-safe-right) + 10px);
   z-index: 4;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
+  width: 40px;
+  height: 40px;
   transform: translateY(-50%);
-  transition: opacity 220ms var(--ah-ease), transform 220ms var(--ah-ease);
+  transition: opacity 220ms var(--ah-ease), transform 220ms var(--ah-ease),
+    background-color 160ms var(--ah-ease);
 }
 
-.player-overlay.is-hidden .player-volume {
-  opacity: 0;
-}
-
-.player-volume-track {
-  position: relative;
-  width: 36px;
-  height: clamp(108px, 22vh, 172px);
-  border-radius: 999px;
-  background: var(--ah-glass);
-  box-shadow: var(--ah-glass-shadow);
-  -webkit-backdrop-filter: var(--ah-glass-blur);
-  backdrop-filter: var(--ah-glass-blur);
-  cursor: pointer;
-  touch-action: none;
-}
-
-.player-volume-rail {
-  position: absolute;
-  top: 13px;
-  bottom: 13px;
-  left: 50%;
-  width: 4px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateX(-50%);
-}
-
-.player-volume-fill {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 100%;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-}
-
-.player-volume-thumb {
-  position: absolute;
-  left: 50%;
-  bottom: 100%;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
-  transform: translate(-50%, 50%);
-}
-
-.pbtn-volume {
-  width: 38px;
-  height: 38px;
-}
-
-.pbtn-volume .icon {
+.pbtn-sound .icon {
   width: 20px;
   height: 20px;
+}
+
+.pbtn-sound:active {
+  transform: translateY(-50%) scale(0.93);
+}
+
+.player-overlay.is-hidden .pbtn-sound {
+  opacity: 0;
+  transform: translateY(-50%) scale(0.94);
 }
 
 /* ---------- 底部：菜单组 + 横向进度条 ---------- */
@@ -873,21 +827,17 @@
   }
 
   .player-center {
-    gap: 14px;
+    gap: 18px;
   }
 
   .pbtn-seek {
-    width: 42px;
-    height: 42px;
+    width: 54px;
+    height: 54px;
   }
 
   .pbtn-seek .icon {
-    width: 29px;
-    height: 29px;
-  }
-
-  .player-volume-track {
-    height: clamp(92px, 26vh, 138px);
+    width: 34px;
+    height: 34px;
   }
 
   .player-bottom {
@@ -900,21 +850,38 @@
 }
 
 .player-page.is-landscape .player-center {
-  gap: 14px;
+  gap: 20px;
 }
 
 .player-page.is-landscape .pbtn-seek {
-  width: 42px;
-  height: 42px;
+  width: 56px;
+  height: 56px;
 }
 
 .player-page.is-landscape .pbtn-seek .icon {
-  width: 29px;
-  height: 29px;
+  width: 36px;
+  height: 36px;
 }
 
-.player-page.is-landscape .player-volume-track {
-  height: clamp(92px, 26vh, 138px);
+/* 窄屏（iPhone SE 一代等）：收小播放组，右侧静音钮才不会压到快进键。 */
+@media (max-width: 340px) {
+  .player-center {
+    gap: 16px;
+  }
+
+  .pbtn-seek {
+    width: 52px;
+    height: 52px;
+  }
+
+  .pbtn-seek .icon {
+    width: 33px;
+    height: 33px;
+  }
+
+  .pbtn-sound {
+    right: calc(var(--ah-safe-right) + 8px);
+  }
 }
 
 /* ---------- 桌面 ---------- */
@@ -926,7 +893,17 @@
   }
 
   .player-center {
-    gap: 26px;
+    gap: 32px;
+  }
+
+  .pbtn-seek {
+    width: 68px;
+    height: 68px;
+  }
+
+  .pbtn-seek .icon {
+    width: 44px;
+    height: 44px;
   }
 
   .player-top {
@@ -940,12 +917,8 @@
     padding-left: calc(var(--ah-safe-left) + 24px);
   }
 
-  .player-volume {
+  .pbtn-sound {
     right: calc(var(--ah-safe-right) + 22px);
-  }
-
-  .player-volume-track {
-    height: clamp(140px, 26vh, 200px);
   }
 
   @media (hover: hover) {
