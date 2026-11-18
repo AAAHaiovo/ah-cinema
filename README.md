@@ -1,6 +1,6 @@
 # AH 影视
 
-个人自用的影视 PWA。前端是纯静态的原生 HTML / CSS / JavaScript，**不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。v0.5.0 起增加**可选的**源管理与多源点播搜索，需要一个自己的 Vercel / 腾讯云 EdgeOne Pages / SCF / 本地 Node 服务来转发源请求（浏览器跨域所限）。v0.6.0 起首页直接显示已启用源的最新影片；v0.7.0 起支持按源分类筛选和上一页 / 下一页翻页；v0.8.0 改进播放失败的诊断与 HLS 自动兜底；v0.8.0 把分类整理成「电影 / 电视剧 / 动漫 / 综艺 / 纪录片 + 子类型」，翻页按源站真实页数显示并支持跳页，同时支持源站的 Apple CMS XML 接口（`/at/xml/`）；v0.8.1 把「更多」改成 iOS 风格的内嵌展开网格，并给桌面 / 主屏图标加上超椭圆圆角；v0.8.2 在服务端按 `type_id` 二次过滤分类结果（即使源站忽略 `t` 参数），HTTPS 视频默认直连、失败才切代理，减少播放卡顿；v0.8.3 优化播放器与日常使用：横屏选集紧凑网格、返回键回到简介、搜索记录可多选删除或一键清空、下滑隐藏分类栏、界面文字禁止长按复制、播放器图标重绘与过渡动画、每次进入重置横竖屏，以及更完整的全屏处理；v0.8.4 把搜索记录的删除改成原位勾选（「清除」旁边的「全部清除」一键清空），选集改为右侧滑出抽屉并在打开时把当前集滚到列表中间，播放器图标再加大加粗；v0.8.5 重做观影界面：毛玻璃圆形按钮、居中大播放键、带剩余时间的胶囊进度条（如 `-04:03`），并把「横屏 / 全屏」合并成同一个按状态切换的按钮（物理横屏下点它就是全屏）；v0.8.6 继续微调播放器：按钮缩小、图标加粗，缓冲转圈与播放图标同尺寸，重画 ±10 循环箭头，降低毛玻璃模糊，进度条下移，右下角显示模式按钮常驻；v0.8.7 再修 ±10 箭头与转圈尺寸，进一步缩小模糊和按钮、下移进度条，并让 Service Worker 绕过 HTTP 缓存、发现新版本时自动刷新页面；v0.8.8 按标准图标重画 ±10 秒（闭合圆环 + 压在上面的实心箭头），静音键移到左下角，清晰度 / 倍速改成贴右下角的浮动卡片，全屏按钮回到控件行并随控件一起隐藏，进度条去掉高斯模糊、改用 App 同款红色进度，播放键放大且缓冲转圈与它同尺寸，并把首页改成固定外壳：顶栏和底部栏永不移动，只有分类栏在下滑时收起、上滑时出现；粘贴链接的入口在「我的视频」；v0.8.9 按参考图重排播放器：底部横向进度条两端显示当前时间与剩余时长，画面中央竖排「后退 10 秒 / 播放暂停 / 前进 10 秒」，右上角投屏与关闭，右侧竖向音量条，左下角保留线路与清晰度菜单组；切到横屏时尽量自动全屏，横屏状态栏改为透明样式，回到竖屏恢复原生状态栏；悬浮控件统一改用 iOS 18 风格的深色高斯模糊，缓冲转圈缩小到暂停图标大小；v0.8.10 再按参考图精简播放器：线路与清晰度只保留「线路」，±10 秒按钮移到播放键左右并重绘为开口圆环 + 箭头 + 数字 10，删除投屏，声音只保留静音开关，选集移到右上角，新增 iPhone 全屏按钮，双击画面空白处可暂停 / 继续；v0.8.11 修正 ±10 箭头（箭尾短杆连接圆环、箭头尖端朝外），全屏移到右下角横屏键右侧，静音移到右上角选集左侧，并让物理横屏与强制横屏的控制位置保持一致；v0.8.12 按参考图再画 ±10 图标（实心箭头顺着圆环端点伸出、指向斜上），并修复物理横屏转回竖屏后播放器按钮点不动的问题（视口稳定后重建布局，控件隐藏时第一次触摸即可唤出）；v0.8.13 把横屏（物理横屏与强制横屏）的静音 / 选集 / 关闭移到画面右上角，与竖屏一致。；v0.8.14 让横屏时的关闭键回到左上角（静音 / 选集仍在右上角），去掉播放器进度条周围的高斯模糊，把 iOS 26 主屏幕模式的顶栏内容下移以避开系统模糊带，并在服务地址欠费 / 云函数停用时给出中文提示。
+个人自用的影视 PWA。前端是纯静态的原生 HTML / CSS / JavaScript，**不需要登录、不需要构建工具**；Windows 浏览器和 iPhone 主屏幕都能用。v0.5.0 起增加**可选的**源管理与多源点播搜索，需要一个自己的 Vercel / 腾讯云 EdgeOne Pages / SCF / 本地 Node 服务来转发源请求（浏览器跨域所限）。v0.6.0 起首页直接显示已启用源的最新影片；v0.7.0 起支持按源分类筛选和上一页 / 下一页翻页；v0.8.0 改进播放失败的诊断与 HLS 自动兜底；v0.8.0 把分类整理成「电影 / 电视剧 / 动漫 / 综艺 / 纪录片 + 子类型」，翻页按源站真实页数显示并支持跳页，同时支持源站的 Apple CMS XML 接口（`/at/xml/`）；v0.8.1 把「更多」改成 iOS 风格的内嵌展开网格，并给桌面 / 主屏图标加上超椭圆圆角；v0.8.2 在服务端按 `type_id` 二次过滤分类结果（即使源站忽略 `t` 参数），HTTPS 视频默认直连、失败才切代理，减少播放卡顿；v0.8.3 优化播放器与日常使用：横屏选集紧凑网格、返回键回到简介、搜索记录可多选删除或一键清空、下滑隐藏分类栏、界面文字禁止长按复制、播放器图标重绘与过渡动画、每次进入重置横竖屏，以及更完整的全屏处理；v0.8.4 把搜索记录的删除改成原位勾选（「清除」旁边的「全部清除」一键清空），选集改为右侧滑出抽屉并在打开时把当前集滚到列表中间，播放器图标再加大加粗；v0.8.5 重做观影界面：毛玻璃圆形按钮、居中大播放键、带剩余时间的胶囊进度条（如 `-04:03`），并把「横屏 / 全屏」合并成同一个按状态切换的按钮（物理横屏下点它就是全屏）；v0.8.6 继续微调播放器：按钮缩小、图标加粗，缓冲转圈与播放图标同尺寸，重画 ±10 循环箭头，降低毛玻璃模糊，进度条下移，右下角显示模式按钮常驻；v0.8.7 再修 ±10 箭头与转圈尺寸，进一步缩小模糊和按钮、下移进度条，并让 Service Worker 绕过 HTTP 缓存、发现新版本时自动刷新页面；v0.8.8 按标准图标重画 ±10 秒（闭合圆环 + 压在上面的实心箭头），静音键移到左下角，清晰度 / 倍速改成贴右下角的浮动卡片，全屏按钮回到控件行并随控件一起隐藏，进度条去掉高斯模糊、改用 App 同款红色进度，播放键放大且缓冲转圈与它同尺寸，并把首页改成固定外壳：顶栏和底部栏永不移动，只有分类栏在下滑时收起、上滑时出现；粘贴链接的入口在「我的视频」；v0.8.9 按参考图重排播放器：底部横向进度条两端显示当前时间与剩余时长，画面中央竖排「后退 10 秒 / 播放暂停 / 前进 10 秒」，右上角投屏与关闭，右侧竖向音量条，左下角保留线路与清晰度菜单组；切到横屏时尽量自动全屏，横屏状态栏改为透明样式，回到竖屏恢复原生状态栏；悬浮控件统一改用 iOS 18 风格的深色高斯模糊，缓冲转圈缩小到暂停图标大小；v0.8.10 再按参考图精简播放器：线路与清晰度只保留「线路」，±10 秒按钮移到播放键左右并重绘为开口圆环 + 箭头 + 数字 10，删除投屏，声音只保留静音开关，选集移到右上角，新增 iPhone 全屏按钮，双击画面空白处可暂停 / 继续；v0.8.11 修正 ±10 箭头（箭尾短杆连接圆环、箭头尖端朝外），全屏移到右下角横屏键右侧，静音移到右上角选集左侧，并让物理横屏与强制横屏的控制位置保持一致；v0.8.12 按参考图再画 ±10 图标（实心箭头顺着圆环端点伸出、指向斜上），并修复物理横屏转回竖屏后播放器按钮点不动的问题（视口稳定后重建布局，控件隐藏时第一次触摸即可唤出）；v0.8.13 把横屏（物理横屏与强制横屏）的静音 / 选集 / 关闭移到画面右上角，与竖屏一致。；v0.8.14 让横屏时的关闭键回到左上角（静音 / 选集仍在右上角），去掉播放器进度条周围的高斯模糊，把 iOS 26 主屏幕模式的顶栏内容下移以避开系统模糊带，并在服务地址欠费 / 云函数停用时给出中文提示；v0.8.15 按《AH 母品牌图标规范 v1.0》更新 AH 标识与 App 图标（圆角笔画末端、22.5% 圆角矩形 + 超椭圆角部），保留品牌红底白字，并补充 48px 填实版 favicon。
 
 **线上地址**：<https://aaahaiovo.github.io/ah-cinema/>（纯静态备用入口；iPhone 用 Safari 打开 → 分享 → 添加到主屏幕）
 
@@ -129,6 +129,32 @@ node tools/e2e.js
 
 ---
 
+## 部署到 Render（国内可直连、免费、无需域名）
+
+`*.onrender.com` 在国内可以直连（实测 1～2 秒响应），不需要域名，也不用备案。仓库根目录的 `render.yaml` 已经写好配置。
+
+1. 用 GitHub 登录 <https://dashboard.render.com/>。
+2. **New → Blueprint** → 连接 `AAAHaiovo/ah-cinema` 仓库，Render 会自动读取 `render.yaml`。
+3. 按提示填写两个环境变量：
+   - `AH_API_TOKEN`：App 的「访问口令」填这个。生成：
+     ```bash
+     node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+     ```
+   - `AH_SIGNING_SECRET`：另一个随机值，只放 Render，**不要**填进 App。
+4. 点 **Apply**，等部署完成（首次约 2～5 分钟）。如果 `ah-cinema` 这个名字被占用，Render 会自动加后缀，以控制台给出的 `https://<name>.onrender.com` 为准。
+5. 打开 `https://<name>.onrender.com/api/health`，确认 `ok:true`、`missingEnv:[]`、`authRequired:true`、`proxyReady:true`。
+6. App → 我的 → 源管理：服务地址填 `https://<name>.onrender.com`（不带 `/api`），口令填 `AH_API_TOKEN`，点「保存并检测」。
+7. 也可以直接用这个域名打开 App（静态页和 API 同源），再添加到主屏幕。
+
+限制与注意：
+
+- **免费实例 15 分钟无请求会休眠**，下次打开需要 30～60 秒冷启动。可以用 UptimeRobot 每 10 分钟访问一次 `/api/health` 保持常醒；一个月 744 小时，正好在 750 小时免费额度内。
+- 免费规格：512 MB 内存、0.1 CPU、每月 5 GB 出站流量。API 和 m3u8 代理流量很小，HTTPS 视频直链不经过服务器。
+- 免费实例没有持久磁盘，重启或重新部署后本地文件会丢；本项目不依赖本地文件，不受影响。
+- 修改 `server/` 后推送到 GitHub，Render 会自动重新部署。
+
+---
+
 ## 部署到 Vercel（海外 / 备用入口）
 
 Vercel 免费 Hobby 计划不需要信用卡；静态 PWA 和 `/api/*` 在同一个域名下。没配置源时，它就是一个普通的静态 App。注意 `*.vercel.app` 在国内常被 DNS 污染；国内使用请优先选下一节的 **EdgeOne Pages**。
@@ -141,12 +167,37 @@ Vercel 免费 Hobby 计划不需要信用卡；静态 PWA 和 `/api/*` 在同一
    - `AH_SIGNING_SECRET`：另一个随机值，只放 Vercel，**不要**填进 App。
    - `AH_ENV=production`
    - 可选：`AH_ALLOWED_ORIGINS=https://aaahaiovo.github.io`、`AH_SEARCH_MAX_PAGES=2`、`AH_PROXY_TTL_SECONDS=43200`。
+   - 建议：`AH_PROXY_MAX_BYTES=4500000`。Vercel 函数单次响应上限约 4.5 MB，超过会直接报错；提前拦截能给出清楚的中文提示。
    - **不要**设置 `AH_DEV_NO_AUTH` 或 `AH_DEV_ALLOW_PRIVATE`。
 5. Deploy 完成后打开 `https://<项目名>.vercel.app/api/health`，确认 `ok:true`、`authRequired:true`、`proxyReady:true`。缺少口令或签名密钥时，受保护接口会直接 503，不会变成公开代理。
 6. 打开 App → 我的 → 源管理：服务地址留空（同源），口令填 `AH_API_TOKEN`，点「保存并检测」。
 7. 添加你有权使用的 Apple CMS 地址并勾选授权，然后到搜索页按回车搜索。
 
 > GitHub Pages 版仍然保留。要在 Pages 版里用多源搜索，在源管理把服务地址填成 Vercel 地址、口令相同即可（CORS 已允许 `aaahaiovo.github.io`）。
+
+### 绑定免费域名，让 Vercel 在国内可用
+
+`*.vercel.app` 被 DNS 污染，但**自定义域名指向 Vercel 可以正常访问**（实测 `nextjs.org`、`vercel.com` 在国内都通）。用免费域名绕开污染，不用改代码：
+
+1. **注册免费域名**：打开 <https://dash.domain.digitalplat.org/>，邮箱注册并按提示完成 GitHub 验证（给 FreeDomain 仓库点 Star）。申请一个 `*.dpdns.org` 子域名，例如 `ah-cinema.dpdns.org`。每账号默认 1 个，有效期 1 年，到期前 180 天内可免费续期。
+2. **托管到 Cloudflare**：打开 <https://dash.cloudflare.com/> → Add a site → 输入 `ah-cinema.dpdns.org` → 选 Free 计划 → 记下分配的两个 nameserver。
+3. 回到 DigitalPlat，把这个域名的 NS 改成 Cloudflare 的两个 nameserver。等 Cloudflare 显示 **Active**（通常 3～15 分钟，慢则 24 小时）。
+4. **在 Cloudflare 添加 DNS 记录**，代理状态必须选 **DNS only（灰色云朵）**：
+   - `CNAME`，名称 `@`，目标 `cname.vercel-dns.com`
+   - `CNAME`，名称 `www`，目标 `cname.vercel-dns.com`
+   - 如果 Vercel 添加域名时显示的是 A 记录（如 `76.76.21.21`），以 Vercel 控制台的提示为准。
+5. **在 Vercel 绑定域名**：项目 → Settings → Domains → 添加 `ah-cinema.dpdns.org`（需要的话再加 `www`），按提示验证。SSL 证书会自动签发。
+6. 打开 `https://ah-cinema.dpdns.org/api/health`，确认返回 `"ok":true`、`"missingEnv":[]`、`"authRequired":true`、`"proxyReady":true`。
+7. **App 里切换服务地址**：我的 → 源管理 → 服务地址填 `https://ah-cinema.dpdns.org`（**不带 `/api`**），口令填 Vercel 环境变量里的 `AH_API_TOKEN`，点「保存并检测」。
+
+> DigitalPlat 注册如果一直失败，可以换 **localhost.cc**：<https://localhost.cc/> 用邮箱或 GitHub 登录，免费认领 `*.localhost.cc` 子域名，支持 A / CNAME / TXT，秒级生效；在 DNS 里给 `api` 加一条 CNAME 指向 `cname.vercel-dns.com`，再到 Vercel 添加 `api.<你的名字>.localhost.cc`。它是 2026 年的新平台，长期稳定性还没有验证。另一个长期选项是 **EU.org**（免费、支持自定义 NS，人工审核约 3～7 个工作日）。**deSEC 的免费 `dedyn.io` 注册已于 2026 年暂停，不要再用。**
+
+注意事项：
+
+- Cloudflare 的橙色云朵（代理）不要开，Vercel 需要直连；开了容易出现 522 或重定向循环。
+- 如果 Vercel 项目是很久以前部署的，先在 Deployments 里对最新提交点 **Redeploy**，并确认 `AH_ENV=production`、`AH_API_TOKEN`、`AH_SIGNING_SECRET` 都还在。改过环境变量后也必须 Redeploy 才生效。
+- 忘了口令：Vercel → Settings → Environment Variables → 编辑 `AH_API_TOKEN`，改成一个新值后 Redeploy，再填进 App。
+- 免费域名没有 SLA，记得每年续期；想更稳可以买一个便宜域名（`.top` 等）。
 
 ---
 
@@ -281,7 +332,7 @@ GitHub Pages 免费版需要 **public（公开）仓库**。代码会公开；�
 ```bash
 git init
 git add .
-git commit -m "AH 影视 v0.8.14"
+git commit -m "AH 影视 v0.8.15"
 git branch -M main
 git remote add origin https://github.com/<你的用户名>/ah-cinema.git
 git push -u origin main
@@ -301,9 +352,9 @@ https://<你的用户名>.github.io/ah-cinema/
 
 App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也能正常工作；`docs/.nojekyll` 已放好，GitHub Pages 不会用 Jekyll 处理这些文件。
 
-> **更新后还是旧版本？** Service Worker 会缓存应用壳。v0.8.7 起会绕过 HTTP 缓存，并在检测到新版本接管时自动刷新一次页面；仍然没变时，iPhone 上把 App 从后台完全退出再重开，或先用 Safari 打开线上地址刷新；Windows 上按 `Ctrl + Shift + R`。缓存版本变化（`ah-cinema-v20`）后会自动清理旧缓存。
+> **更新后还是旧版本？** Service Worker 会缓存应用壳。v0.8.7 起会绕过 HTTP 缓存，并在检测到新版本接管时自动刷新一次页面；仍然没变时，iPhone 上把 App 从后台完全退出再重开，或先用 Safari 打开线上地址刷新；Windows 上按 `Ctrl + Shift + R`。缓存版本变化（`ah-cinema-v27`）后会自动清理旧缓存。
 >
-> **主屏图标还是旧样式？** iOS 会按 URL 缓存 `apple-touch-icon`。图标地址带版本号（当前 `?v=088`）；如果主屏仍是直角旧图标，删除旧图标后重新「添加到主屏幕」即可。
+> **主屏图标还是旧样式？** iOS 会按 URL 缓存 `apple-touch-icon`。图标地址带版本号（当前 `?v=095`）；如果主屏仍是旧图标，删除旧图标后重新「添加到主屏幕」即可。
 
 ---
 
@@ -350,8 +401,8 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 │  │                        # remote-api / remote-library / category-tree
 │  ├─ vendor/hls.min.js     # 自托管 hls.js 1.5.x（Apache-2.0，另有 LICENSE）
 │  ├─ data/catalog.json     # 内置片库，v0.4.0 起为空
-│  ├─ assets/               # AH 标识
-│  └─ icons/                # 红白 PWA 图标（192 / 512 / 独立 maskable / Apple 180）
+│  ├─ assets/               # AH 标识（规范 v1.0 圆角笔画版）
+│  └─ icons/                # 红白 PWA 图标（48 填实版 / 192 / 512 / 独立 maskable / Apple 180）
 ├─ api/                     # Vercel Serverless Functions（health / search / detail /
 │  │                        # browse / categories / source-test / subscription / proxy）
 ├─ server/                  # API 实现与单测（lib / handlers / tests）
@@ -374,9 +425,7 @@ App 使用相对路径和 hash 路由，放在 `/<仓库名>/` 子路径下也�
 │  ├─ cdp-run.js            # 用 Chrome 跑 15 项界面回归并截图
 │  ├─ smoke-remote.js       # 源管理 + 首页片库 + 多源搜索 + 详情 + 播放冒烟测试
 │  ├─ cdp-test.js           # 启动诊断
-│  ├─ recolor-icon.ps1      # 生成品牌红 + 白 AH 图标（含 maskable）
-│  ├─ resize-icons.ps1      # 重新生成 192 / 180 图标
-│  └─ round-icons.ps1       # 给 any / apple-touch 图标加 iOS 超椭圆圆角
+│  └─ build-brand-icons.js  # 按母品牌规范 v1.0 从 AH 标记生成全部 PWA 图标
 ├─ vercel.json              # Output Directory = docs
 ├─ edgeone.json             # EdgeOne Pages 构建配置（输出 docs，Node 20）
 ├─ package.json             # express / esbuild；本地测试与 EdgeOne 打包
@@ -413,7 +462,7 @@ node tools/cdp-run.js
 - 粘贴 B 站视频页，官方嵌入式 iframe 地址与尺寸
 - 无效链接拒绝、网页链接需确认且取消后不添加
 - 分页（27 条 / 每页 24 条）与跳页校验
-- Service Worker、缓存版本 `ah-cinema-v26`、manifest 图标
+- Service Worker、缓存版本 `ah-cinema-v27`、manifest 图标
 - 断网重载仍能打开应用壳
 - 本机文件：写入 IndexedDB 的 blob、刷新后恢复、删除后清空
 - 手机横屏与桌面布局
@@ -430,7 +479,7 @@ node tools/cdp-run.js
 - XML 源：搜索、详情、简介与多线路解析
 - 选源 → 远程详情 → 刷新片源入口 → 播放 → 拿到签名代理地址
 
-当前结果：界面回归 **15/15 通过**，源管理与多源搜索 **76/76 通过**（版本 v0.8.14，Service Worker `ah-cinema-v26`），无未捕获异常、无控制台错误。服务端单测另跑：
+当前结果：界面回归 **15/15 通过**，源管理与多源搜索 **76/76 通过**（版本 v0.8.15，Service Worker `ah-cinema-v27`），无未捕获异常、无控制台错误。服务端单测另跑：
 
 ```bash
 npm test        # 63/63，含 CORS、代理、SCF、XML 解析、片库 URL 与分类过滤用例
@@ -469,4 +518,4 @@ App 本身**不附带任何影片**，也不推荐、代找或内置任何片源
 - 测试用公开示例：**Sintel** 预告片 © Blender Foundation，CC BY 3.0，片源由 W3C 提供；**《将军号》** 为公共领域电影，B 站嵌入仅用于测试官方播放器；CC0 短片 **flower.mp4** 用于 mock 源与代理测试。
 - **hls.js** 1.5.x，Apache-2.0，自托管于 `docs/vendor/`，许可证见同目录 `hls.LICENSE`。
 - Apple CMS 搜索 / 详情解析、m3u8 重写与签名代理为独立实现，只参考公开的接口形态，不复制 LibreTV（AGPL）代码。
-- AH 标识来自项目内的 `AH标识图/`，App 图标使用品牌红 `#C92F36` 底 + 白色 AH；界面顶栏与启动页使用同一套标记。
+- AH 标识按项目内的《AH 母品牌图标规范 v1.0》绘制：圆角笔画末端、22.5% 圆角矩形 + 超椭圆角部；App 图标保留品牌红 `#C92F36` 底 + 白色 AH，界面顶栏与启动页使用同一套单色标记。
