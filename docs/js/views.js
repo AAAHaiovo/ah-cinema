@@ -54,7 +54,7 @@ import {
 import { localItems, localCount } from './local-library.js';
 import { cachedSources } from './sources.js';
 
-const APP_VERSION = '0.8.16';
+const APP_VERSION = '0.9.0';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -317,6 +317,44 @@ export function renderHomeBrowse(browse) {
     countNote + browsePager(view);
 }
 
+export function renderHomeHero(group) {
+  if (!group) {
+    return '<section class="hero hero--empty">' +
+      '<div class="hero-empty-inner">' +
+        '<span class="brand-mark" aria-hidden="true"></span>' +
+        '<h2>把片源加进来</h2>' +
+        '<p>添加你自己已授权的 Apple CMS 源，首页就会变成你的私人放映室。</p>' +
+        '<a class="btn btn-primary btn-small" href="#/sources">去源管理</a>' +
+      '</div>' +
+    '</section>';
+  }
+
+  const poster = /^https:\/\//i.test(group.pic || '') ? group.pic : '';
+  const meta = [group.year, group.typeName, group.area].filter(Boolean);
+  const remarks = String(group.remarks || '').trim();
+  const key = escapeHtml(group.key || '');
+  const names = Array.from(new Set((group.sources || [])
+    .map((ref) => ref.sourceName)
+    .filter(Boolean)))
+    .slice(0, 3)
+    .join(' · ');
+
+  return '<section class="hero' + (poster ? '' : ' hero--no-image') + '">' +
+    (poster ? '<img class="hero-img" src="' + escapeHtml(poster) + '" alt="" loading="eager" decoding="async">' : '') +
+    '<div class="hero-scrim"></div>' +
+    '<div class="hero-body">' +
+      '<div class="eyebrow hero-eyebrow">本周精选 · ' + escapeHtml(names || '来自你的源') + '</div>' +
+      '<h1 class="hero-title">' + escapeHtml(group.title || '未命名影片') + '</h1>' +
+      (meta.length ? '<div class="hero-meta">' + meta.map((part) => '<span>' + escapeHtml(part) + '</span>').join('') + '</div>' : '') +
+      (remarks ? '<p class="hero-desc">' + escapeHtml(remarks) + '</p>' : '') +
+      '<div class="hero-actions">' +
+        '<button class="btn btn-light btn-large" type="button" data-action="browse-open" data-group-key="' + key + '">' + icon('play') + '播放</button>' +
+        '<button class="btn btn-glass btn-large" type="button" data-action="browse-open" data-group-key="' + key + '">详情</button>' +
+      '</div>' +
+    '</div>' +
+  '</section>';
+}
+
 export function renderHome(route) {
   const items = localItems();
   const meta = getMeta();
@@ -335,12 +373,21 @@ export function renderHome(route) {
 
   const continueSection = continueItems.length
     ? '<section class="section">' +
-        '<div class="section-head"><h2 class="section-title">继续观看</h2><a class="section-link" href="#/history">全部</a></div>' +
+        '<div class="section-head"><h2 class="section-title">继续观看' +
+          '<span class="section-hint">' + continueItems.length + ' 部未看完</span>' +
+        '</h2><a class="section-link" href="#/history">全部' + icon('chevronRight') + '</a></div>' +
         '<div class="continue-row">' +
         continueItems.map(({ item, record, episode }) => continueCard(item, record, episode)).join('') +
         '</div>' +
       '</section>'
     : '';
+
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 5 ? '夜深了' : hour < 11 ? '早上好' : hour < 14 ? '中午好' : hour < 18 ? '下午好' : '晚上好';
+  const week = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
+  const dateLabel = (now.getMonth() + 1) + ' 月 ' + now.getDate() + ' 日 周' + week;
+  const sub = (continueItems.length ? continueItems.length + ' 部待续 · ' : '') + '来自你添加的源';
 
   const mineEntry = '<a class="mine-entry" href="#/local">' +
     '<span class="mine-entry-icon">' + icon('film') + '</span>' +
@@ -352,12 +399,20 @@ export function renderHome(route) {
     '</a>';
 
   return '<div class="page home-page">' +
-    pageHeading('首页', '来自你添加的源',
-      '<a class="icon-btn" href="#/search" aria-label="搜索">' + icon('search') + '</a>') +
+    '<div class="home-head">' +
+      '<div>' +
+        '<div class="eyebrow">' + greeting + ' · ' + dateLabel + '</div>' +
+        '<h1 class="page-title">放映室</h1>' +
+        '<p class="page-sub">' + escapeHtml(sub) + '</p>' +
+      '</div>' +
+      '<a class="home-add" href="#/local">' + icon('plus') + '<span>添加视频</span></a>' +
+    '</div>' +
+    '<div id="home-hero">' + renderHomeHero(null) + '</div>' +
     continueSection +
     '<section class="section">' +
-      '<div class="section-head"><h2 class="section-title">最新影片</h2>' +
-        '<button class="text-btn" type="button" data-action="browse-refresh">刷新</button></div>' +
+      '<div class="section-head"><h2 class="section-title">最新影片' +
+        '<span class="section-hint">来自你添加的源</span>' +
+      '</h2><button class="text-btn" type="button" data-action="browse-refresh">刷新</button></div>' +
       '<div id="home-browse" class="home-browse">' + renderHomeBrowse({ status: 'loading', groups: [] }) + '</div>' +
     '</section>' +
     mineEntry +
@@ -699,7 +754,7 @@ export function renderMe() {
   return '<div class="page">' +
     pageHeading('我的') +
     '<div class="profile-card">' +
-      '<img class="profile-icon" src="./icons/icon-192.png" alt="AH 影视图标">' +
+      '<span class="profile-icon" aria-hidden="true"><span class="brand-mark"></span></span>' +
       '<div class="profile-main"><div class="profile-name">AH 影视</div><div class="profile-sub">粘贴链接播放 · v' + APP_VERSION + '</div></div>' +
       '<a class="icon-btn" href="#/settings" aria-label="设置">' + icon('gear') + '</a>' +
     '</div>' +
@@ -708,11 +763,15 @@ export function renderMe() {
       '<a class="stat" href="#/history"><b>' + historyCount() + '</b><span>历史</span></a>' +
       '<a class="stat" href="#/local"><b>' + localCount() + '</b><span>我的视频</span></a>' +
     '</div>' +
+    '<div class="settings-caption menu-caption">我的内容</div>' +
     '<div class="menu-group">' +
       '<a class="menu-row" href="#/local">' + icon('film') + '<span class="menu-label">我的视频</span><span class="menu-value">' + localCount() + '</span>' + icon('chevronRight', 'chevron') + '</a>' +
       '<a class="menu-row" href="#/sources">' + icon('server') + '<span class="menu-label">源管理</span><span class="menu-value">' + cachedSources().length + ' 个源</span>' + icon('chevronRight', 'chevron') + '</a>' +
-      '<a class="menu-row" href="#/favorites">' + icon('heart') + '<span class="menu-label">我的收藏</span><span class="menu-value">' + favoriteCount() + '</span>' + icon('chevronRight', 'chevron') + '</a>' +
+      '<a class="menu-row menu-row--rose" href="#/favorites">' + icon('heart') + '<span class="menu-label">我的收藏</span><span class="menu-value">' + favoriteCount() + '</span>' + icon('chevronRight', 'chevron') + '</a>' +
       '<a class="menu-row" href="#/history">' + icon('clock') + '<span class="menu-label">观看历史</span><span class="menu-value">' + historyCount() + '</span>' + icon('chevronRight', 'chevron') + '</a>' +
+    '</div>' +
+    '<div class="settings-caption menu-caption">应用</div>' +
+    '<div class="menu-group">' +
       '<a class="menu-row" href="#/settings">' + icon('gear') + '<span class="menu-label">设置</span>' + icon('chevronRight', 'chevron') + '</a>' +
       '<a class="menu-row" href="#/about">' + icon('info') + '<span class="menu-label">关于 AH 影视</span>' + icon('chevronRight', 'chevron') + '</a>' +
     '</div>' +
@@ -788,9 +847,6 @@ export function renderSettings() {
       '<button class="settings-row" type="button" data-action="import">' +
         '<span class="settings-icon">' + icon('upload') + '</span><span class="settings-label">导入备份</span><span class="settings-value">JSON</span>' +
       '</button>' +
-      '<a class="settings-row" href="#/local">' +
-        '<span class="settings-icon">' + icon('film') + '</span><span class="settings-label">我的视频</span><span class="settings-value">' + localCount() + ' 个</span>' + icon('chevronRight', 'chevron') +
-      '</a>' +
       '<input type="file" id="import-file" accept="application/json,.json" hidden>' +
       '<div class="settings-row">' +
         '<span class="settings-icon">' + icon('database') + '</span><span class="settings-label">本地数据占用</span><span class="settings-value" id="storage-usage">计算中…</span>' +

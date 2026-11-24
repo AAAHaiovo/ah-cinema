@@ -99,6 +99,7 @@ export function tabForRoute(name) {
   if (name === 'search') return 'search';
   if (name === 'history') return 'history';
   if (name === 'settings') return 'settings';
-  if (name === 'me' || name === 'favorites' || name === 'about' || name === 'sources') return 'me';
+  if (name === 'favorites') return 'favorites';
+  if (name === 'me' || name === 'about' || name === 'sources') return 'me';
   return null;
 }

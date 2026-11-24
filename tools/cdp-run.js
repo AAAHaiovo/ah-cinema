@@ -528,19 +528,33 @@ async function main() {
       await wait(200);
       if (await evaluate('document.querySelector("#player-video").muted')) throw new Error('取消静音失败');
 
-      /* 双击画面空白处：暂停中双击开始播放，再双击暂停。 */
+      /* 双击画面空白处：暂停中双击开始播放，再双击暂停。
+         先把视频拉回中段并暂停，避免前一步刚好播到结尾导致无法继续前进。 */
+      const seekTarget = await evaluate(`(() => {
+        const video = document.querySelector('#player-video');
+        if (!video) return 0;
+        const duration = Number(video.duration) || 0;
+        const target = duration > 12 ? 8 : 0;
+        video.pause();
+        video.currentTime = target;
+        return target;
+      })()`);
+      await waitFor('Math.abs(document.querySelector("#player-video").currentTime - ' + seekTarget + ') < 0.8', 3000);
       const beforeTap = await evaluate('document.querySelector("#player-video").currentTime');
       await evaluate(`(() => {
         const stage = document.querySelector('#player-stage');
         stage.click();
         stage.click();
       })()`);
-      await wait(700);
+      const doubleStarted = await waitFor(
+        '(() => { const v = document.querySelector("#player-video"); return !v.paused && v.currentTime > ' + beforeTap + ' + 0.2; })()',
+        6000
+      );
       const doubleStart = JSON.parse(await evaluate(`JSON.stringify({
         paused: document.querySelector('#player-video').paused,
         time: document.querySelector('#player-video').currentTime
       })`));
-      if (doubleStart.paused || doubleStart.time - beforeTap < 0.2) {
+      if (!doubleStarted) {
         throw new Error('双击没有开始播放 ' + JSON.stringify(Object.assign({ beforeTap }, doubleStart)));
       }
 
@@ -549,8 +563,7 @@ async function main() {
         stage.click();
         stage.click();
       })()`);
-      await wait(300);
-      if (!(await evaluate('document.querySelector("#player-video").paused'))) throw new Error('双击没有暂停');
+      if (!(await waitFor('document.querySelector("#player-video").paused', 3000))) throw new Error('双击没有暂停');
 
       await click('[data-paction="speed"]');
       await waitFor('document.querySelector(".sheet")');
@@ -1094,8 +1107,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v28') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v28')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v29') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v29')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;

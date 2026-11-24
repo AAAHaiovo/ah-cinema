@@ -271,7 +271,7 @@ export function continueCard(item, record, episode) {
 
 export function emptyState({ title, text, action = '', mark = true }) {
   return '<div class="empty">' +
-    (mark ? '<span class="empty-mark brand-mark" aria-hidden="true"></span>' : '') +
+    (mark ? '<span class="empty-mark" aria-hidden="true"><span class="brand-mark"></span></span>' : '') +
     '<h3>' + escapeHtml(title) + '</h3>' +
     '<p>' + escapeHtml(text) + '</p>' +
     (action || '') +

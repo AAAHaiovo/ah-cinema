@@ -66,6 +66,7 @@ import {
   renderBootError,
   renderRemoteSection,
   renderHomeBrowse,
+  renderHomeHero,
   emptyRemoteState
 } from './views.js';
 
@@ -300,10 +301,11 @@ function setDocumentTitle(resolved) {
 function updateActiveTab(tabName) {
   document.querySelectorAll('.tab').forEach((tab) => {
     const current = tab.getAttribute('data-tab');
-    /* 设置页在手机上归在「我的」下面，底栏保留一个高亮；
-       桌面的设置项则在侧栏单独高亮。 */
+    const inBottomBar = Boolean(tab.closest('#tabbar'));
+    /* 设置 / 收藏在手机上归在「我的」下面，底栏保留一个高亮；
+       桌面的侧栏有独立入口时则高亮对应的那一项。 */
     const active = current === tabName
-      || (tabName === 'settings' && current === 'me' && Boolean(tab.closest('#tabbar')));
+      || ((tabName === 'settings' || tabName === 'favorites') && current === 'me' && inBottomBar);
     tab.classList.toggle('is-active', active);
     if (active) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');
@@ -739,6 +741,23 @@ function renderBrowse() {
 
   section.innerHTML = renderHomeBrowse(browseState);
   browseLastTopGroup = browseState.topGroup;
+
+  /* 首页主视觉：默认用第一页的第一部影片；切换分类时保留当前主视觉。 */
+  const hero = document.getElementById('home-hero');
+  if (hero) {
+    const defaultGroup = browseState.page === 1 && !browseState.topGroup ? browseState.groups[0] : null;
+    if (defaultGroup) {
+      if (hero.dataset.key !== defaultGroup.key) {
+        hero.innerHTML = renderHomeHero(defaultGroup);
+        hero.dataset.key = defaultGroup.key;
+      }
+    } else if (!hero.dataset.key && browseState.groups[0]) {
+      hero.innerHTML = renderHomeHero(browseState.groups[0]);
+      hero.dataset.key = browseState.groups[0].key;
+    } else if (!hero.dataset.key) {
+      hero.innerHTML = renderHomeHero(null);
+    }
+  }
 
   const bar = section.querySelector('.browse-filterbar');
   if (bar && browseBarHidden) {

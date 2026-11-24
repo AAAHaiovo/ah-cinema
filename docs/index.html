@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="./css/app.css">
   <link rel="stylesheet" href="./css/shell.css">
   <link rel="stylesheet" href="./css/player.css">
+  <link rel="stylesheet" href="./css/v2.css">
 </head>
 <body>
   <div id="app">
@@ -46,15 +47,18 @@
       <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.3" r="3.7"/><path d="M4.8 20c.7-3.7 3.6-5.8 7.2-5.8s6.5 2.1 7.2 5.8"/></symbol>
       <symbol id="i-settings" viewBox="0 0 24 24"><path d="M9.32 5.53A7 7 0 0 1 10.43 5.18L10.54 2.77A9.35 9.35 0 0 1 13.46 2.77L13.57 5.18A7 7 0 0 1 14.68 5.53A7 7 0 0 1 15.71 6.06L17.5 4.44A9.35 9.35 0 0 1 19.56 6.5L17.94 8.29A7 7 0 0 1 18.47 9.32A7 7 0 0 1 18.82 10.43L21.23 10.54A9.35 9.35 0 0 1 21.23 13.46L18.82 13.57A7 7 0 0 1 18.47 14.68A7 7 0 0 1 17.94 15.71L19.56 17.5A9.35 9.35 0 0 1 17.5 19.56L15.71 17.94A7 7 0 0 1 14.68 18.47A7 7 0 0 1 13.57 18.82L13.46 21.23A9.35 9.35 0 0 1 10.54 21.23L10.43 18.82A7 7 0 0 1 9.32 18.47A7 7 0 0 1 8.29 17.94L6.5 19.56A9.35 9.35 0 0 1 4.44 17.5L6.06 15.71A7 7 0 0 1 5.53 14.68A7 7 0 0 1 5.18 13.57L2.77 13.46A9.35 9.35 0 0 1 2.77 10.54L5.18 10.43A7 7 0 0 1 5.53 9.32A7 7 0 0 1 6.06 8.29L4.44 6.5A9.35 9.35 0 0 1 6.5 4.44L8.29 6.06A7 7 0 0 1 9.32 5.53Z"/><circle cx="12" cy="12" r="3"/></symbol>
       <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5.5 6.5 6.5L9 18.5"/></symbol>
+      <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10A4.2 4.2 0 0 1 12 7.2 4.2 4.2 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     </svg>
 
     <!-- 桌面侧栏 -->
     <aside class="sidebar" id="sidebar" aria-label="主导航">
       <a class="sidebar-brand" href="#/" aria-label="AH 影视首页">
-        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-tile"><span class="brand-mark" aria-hidden="true"></span></span>
         <span class="brand-text"><strong class="brand-name">AH 影视</strong><small class="brand-sub">沉静放映室</small></span>
       </a>
-      <nav class="tabbar-links side-nav" aria-label="主要页面">
+      <nav class="side-group" aria-label="浏览">
+        <div class="side-label">浏览</div>
         <a class="tab" href="#/" data-tab="home" aria-label="首页">
           <svg class="tab-icon" aria-hidden="true"><use href="#i-home"/></svg><span>首页</span><i class="tab-dot"></i>
         </a>
@@ -64,37 +68,47 @@
         <a class="tab" href="#/search" data-tab="search" aria-label="搜索">
           <svg class="tab-icon" aria-hidden="true"><use href="#i-search"/></svg><span>搜索</span><i class="tab-dot"></i>
         </a>
-        <a class="tab" href="#/history" data-tab="history" aria-label="历史">
-          <svg class="tab-icon" aria-hidden="true"><use href="#i-history"/></svg><span>历史</span><i class="tab-dot"></i>
+        <a class="tab" href="#/history" data-tab="history" aria-label="观看历史">
+          <svg class="tab-icon" aria-hidden="true"><use href="#i-history"/></svg><span>观看历史</span><i class="tab-dot"></i>
+        </a>
+      </nav>
+      <nav class="side-group" aria-label="我的">
+        <div class="side-label">我的</div>
+        <a class="tab" href="#/favorites" data-tab="favorites" aria-label="我的收藏">
+          <svg class="tab-icon" aria-hidden="true"><use href="#i-heart"/></svg><span>我的收藏</span><i class="tab-dot"></i>
         </a>
         <a class="tab" href="#/me" data-tab="me" aria-label="我的">
           <svg class="tab-icon" aria-hidden="true"><use href="#i-user"/></svg><span>我的</span><i class="tab-dot"></i>
         </a>
       </nav>
+      <div class="side-spacer"></div>
       <a class="tab side-settings" href="#/settings" data-tab="settings" aria-label="设置">
         <svg class="tab-icon" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span><i class="tab-dot"></i>
       </a>
+      <div class="side-foot">
+        <div class="side-foot-title">本机放映</div>
+        <div class="side-foot-text">片库与观看记录只存在这台设备上，不经过服务器。</div>
+      </div>
       <div class="sidebar-note">
-        <span>源片库 · 本机播放</span>
-        <span class="sidebar-version">v0.8.16</span>
+        <span class="sidebar-version">v0.9.0 · 界面 v2</span>
       </div>
     </aside>
 
     <header class="app-header" id="app-header" hidden>
       <div class="app-header-inner">
-        <span class="brand-mark topbar-logo" aria-hidden="true"></span>
         <nav class="breadcrumb" aria-label="当前位置">
           <a class="crumb-app" href="#/">AH 影视</a>
           <svg class="crumb-sep" aria-hidden="true"><use href="#i-chevron"/></svg>
           <span class="crumb-current" id="crumb-current">首页</span>
         </nav>
+        <span class="topbar-mobile-title">AH 影视</span>
         <div class="header-actions">
-          <button class="icon-btn" type="button" data-action="toggle-theme" id="theme-toggle" aria-label="切换主题">
-            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"/></svg>
-          </button>
-          <a class="icon-btn header-settings" href="#/settings" aria-label="设置">
-            <svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg>
+          <a class="topbar-search" href="#/search" aria-label="搜索">
+            <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+            <span>搜索影片或链接</span>
           </a>
+          <button class="icon-btn" type="button" data-action="toggle-theme" id="theme-toggle" aria-label="切换主题"></button>
+          <a class="avatar" href="#/me" aria-label="我的账户">AH</a>
         </div>
       </div>
     </header>
