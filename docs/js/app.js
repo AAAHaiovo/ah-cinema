@@ -106,7 +106,8 @@ const els = {
   view: document.getElementById('view'),
   header: document.getElementById('app-header'),
   tabbar: document.getElementById('tabbar'),
-  themeToggle: document.getElementById('theme-toggle')
+  themeToggle: document.getElementById('theme-toggle'),
+  crumb: document.getElementById('crumb-current')
 };
 
 const themeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
@@ -174,6 +175,9 @@ function hideSplash() {
   els.splash.classList.add('is-hidden');
   els.splash.setAttribute('aria-hidden', 'true');
 }
+
+const splashSkip = document.getElementById('splash-skip');
+if (splashSkip) splashSkip.addEventListener('click', hideSplash);
 
 function failBoot(error) {
   if (bootFailed) return;
@@ -251,6 +255,18 @@ async function boot() {
 
 function setDocumentTitle(resolved) {
   const base = 'AH 影视';
+  const simpleNames = {
+    home: '首页',
+    search: '搜索',
+    history: '观看历史',
+    favorites: '收藏',
+    local: '我的视频',
+    me: '我的',
+    sources: '源管理',
+    settings: '设置',
+    about: '关于',
+    notfound: '页面不存在'
+  };
   const simpleTitles = {
     home: base,
     search: '搜索 · ' + base,
@@ -264,24 +280,30 @@ function setDocumentTitle(resolved) {
     notfound: '页面不存在 · ' + base
   };
 
+  let crumb = simpleNames[resolved.name] || '';
+
   if (resolved.name === 'detail') {
     const item = getItem(resolved.itemId);
+    crumb = item ? item.title : '页面不存在';
     document.title = item ? item.title + ' · ' + base : '页面不存在 · ' + base;
-    return;
-  }
-
-  if (resolved.name === 'player') {
+  } else if (resolved.name === 'player') {
     const item = getItem(resolved.itemId);
+    crumb = item ? '正在播放 · ' + item.title : '页面不存在';
     document.title = item ? '正在播放 · ' + item.title : '页面不存在 · ' + base;
-    return;
+  } else {
+    document.title = simpleTitles[resolved.name] || base;
   }
 
-  document.title = simpleTitles[resolved.name] || base;
+  if (els.crumb) els.crumb.textContent = crumb || base;
 }
 
 function updateActiveTab(tabName) {
   document.querySelectorAll('.tab').forEach((tab) => {
-    const active = tab.getAttribute('data-tab') === tabName;
+    const current = tab.getAttribute('data-tab');
+    /* 设置页在手机上归在「我的」下面，底栏保留一个高亮；
+       桌面的设置项则在侧栏单独高亮。 */
+    const active = current === tabName
+      || (tabName === 'settings' && current === 'me' && Boolean(tab.closest('#tabbar')));
     tab.classList.toggle('is-active', active);
     if (active) tab.setAttribute('aria-current', 'page');
     else tab.removeAttribute('aria-current');

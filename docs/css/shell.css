@@ -1,0 +1,391 @@
+/* AH 影视 · 新外壳
+   参考 index(1).html 的结构：桌面侧栏 + 顶栏 / 手机顶栏 + 底部标签栏。
+   只覆盖外壳，页面内容、播放器、弹层等仍由 app.css / player.css 负责。 */
+
+:root {
+  --ah-sidebar-w: 248px;
+}
+
+.svg-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* 外壳图标（<use>）统一线稿 */
+.sidebar .icon,
+.sidebar .tab-icon,
+.app-header .icon,
+.breadcrumb .crumb-sep,
+#tabbar .tab-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------------- 启动页 ---------------- */
+
+.splash {
+  gap: 0;
+  padding: 32px;
+}
+
+.splash-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 13px;
+  animation: splash-rise 620ms var(--ah-ease) both;
+}
+
+.splash .splash-mark {
+  width: 88px;
+  height: 88px;
+  margin: 0;
+  color: var(--ah-text);
+}
+
+.splash-name {
+  font-family: var(--ah-font-display);
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.splash-tagline {
+  margin: 0;
+  color: var(--ah-text-2);
+  font-size: 12.5px;
+  letter-spacing: 0.07em;
+}
+
+.splash-status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 30px;
+  color: var(--ah-text-3);
+  font-size: 12px;
+}
+
+.splash-status .spinner {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border-width: 1.5px;
+}
+
+.splash-skip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(30px + var(--ah-safe-bottom));
+  transform: translateX(-50%);
+  height: 36px;
+  padding: 0 20px;
+  border: 1px solid var(--ah-line);
+  border-radius: var(--ah-radius-pill);
+  background: var(--ah-bg-elevated);
+  color: var(--ah-text-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: transform 140ms var(--ah-ease), background-color 160ms var(--ah-ease);
+}
+
+.splash-skip:hover {
+  background: var(--ah-surface-2);
+}
+
+.splash-skip:active {
+  transform: translateX(-50%) scale(0.96);
+}
+
+@keyframes splash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------------- 顶栏 ---------------- */
+
+.app-header {
+  background: var(--ah-bg);
+  border-bottom: 1px solid var(--ah-line);
+}
+
+.app-header-inner {
+  height: calc(var(--ah-header-h) + 4px);
+  padding: 0 18px;
+  gap: 11px;
+  justify-content: flex-start;
+}
+
+.topbar-logo {
+  width: 24px;
+  height: 24px;
+  color: var(--ah-text);
+}
+
+.breadcrumb {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ah-text-3);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+
+.crumb-app {
+  flex: none;
+  color: var(--ah-text-3);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.crumb-sep {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  opacity: 0.5;
+}
+
+.crumb-current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ah-text);
+  font-size: 14.5px;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.header-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.header-actions .icon-btn {
+  width: 40px;
+  height: 40px;
+}
+
+.header-actions .icon {
+  width: 22px;
+  height: 22px;
+}
+
+/* ---------------- 手机底部标签栏 ---------------- */
+
+#tabbar {
+  padding: 5px calc(6px + var(--ah-safe-right)) calc(5px + var(--ah-safe-bottom)) calc(6px + var(--ah-safe-left));
+  border-top: 1px solid var(--ah-line);
+  background: var(--ah-bg-elevated);
+}
+
+#tabbar .tab {
+  min-height: 46px;
+  padding: 5px 0 3px;
+  gap: 2px;
+  font-size: 10.5px;
+  border-radius: 12px;
+}
+
+#tabbar .tab-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.tab-dot {
+  width: 4px;
+  height: 4px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: transparent;
+  transition: background-color 160ms var(--ah-ease);
+}
+
+.tab.is-active .tab-dot {
+  background: currentColor;
+}
+
+/* ---------------- 桌面侧栏 ---------------- */
+
+.sidebar {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 45;
+    width: var(--ah-sidebar-w);
+    display: flex;
+    flex-direction: column;
+    padding: calc(20px + var(--ah-safe-top)) 14px calc(16px + var(--ah-safe-bottom));
+    border-right: 1px solid var(--ah-line);
+    background: var(--ah-bg-elevated);
+  }
+
+  .sidebar .sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-height: 44px;
+    padding: 2px 10px 0;
+  }
+
+  .sidebar .sidebar-brand .brand-mark {
+    width: 32px;
+    height: 32px;
+  }
+
+  .brand-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.15;
+  }
+
+  .sidebar .brand-name {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .brand-sub {
+    margin-top: 3px;
+    color: var(--ah-text-3);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+  }
+
+  .side-nav {
+    flex: 0 0 auto;
+    gap: 4px;
+    margin-top: 26px;
+  }
+
+  .side-nav .tab {
+    min-height: 46px;
+    padding: 0 12px;
+    gap: 12px;
+    border-radius: 12px;
+    font-size: 14.5px;
+  }
+
+  .side-nav .tab-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .sidebar .tab.is-active {
+    color: var(--ah-accent);
+  }
+
+  .sidebar .tab-dot {
+    display: none;
+  }
+
+  .side-settings {
+    flex: 0 0 auto;
+    min-height: 46px;
+    margin-top: auto;
+    padding: 0 12px;
+    gap: 12px;
+    border-radius: 12px;
+    font-size: 14.5px;
+  }
+
+  .side-settings .tab-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .sidebar .sidebar-note {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 12px;
+    padding: 12px 12px 0;
+    border-top: 1px solid var(--ah-line);
+    color: var(--ah-text-3);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  @media (hover: hover) {
+    .side-nav .tab:hover,
+    .side-settings:hover {
+      background: var(--ah-surface-2);
+    }
+
+    .side-nav .tab.is-active:hover {
+      background: var(--ah-accent-soft);
+    }
+  }
+}
+
+/* ---------------- 桌面：侧栏 + 顶栏布局 ---------------- */
+
+@media (min-width: 900px) {
+  /* app.css 在桌面隐藏顶栏；新外壳保留它，作为主内容区的面包屑栏 */
+  #app-header {
+    display: block;
+    margin-left: var(--ah-sidebar-w);
+  }
+
+  body.no-tabbar #app-header {
+    display: none;
+    margin-left: 0;
+  }
+
+  /* 手机底部栏在桌面由侧栏代替 */
+  #tabbar {
+    display: none;
+  }
+
+  #view {
+    margin-left: var(--ah-sidebar-w);
+  }
+
+  body.no-tabbar #view {
+    margin-left: 0;
+  }
+
+  body.no-tabbar .sidebar {
+    display: none;
+  }
+
+  /* 桌面侧栏里已经有「设置」，顶栏不再重复放齿轮 */
+  .header-settings {
+    display: none;
+  }
+
+  .toast {
+    left: calc(50% + 124px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-center {
+    animation: none;
+  }
+
+  .tab-dot {
+    transition: none;
+  }
+}

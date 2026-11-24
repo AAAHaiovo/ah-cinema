@@ -98,6 +98,7 @@ export function tabForRoute(name) {
   if (name === 'local') return 'local';
   if (name === 'search') return 'search';
   if (name === 'history') return 'history';
-  if (name === 'me' || name === 'favorites' || name === 'settings' || name === 'about' || name === 'sources') return 'me';
+  if (name === 'settings') return 'settings';
+  if (name === 'me' || name === 'favorites' || name === 'about' || name === 'sources') return 'me';
   return null;
 }

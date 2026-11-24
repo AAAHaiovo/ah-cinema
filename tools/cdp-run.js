@@ -463,7 +463,16 @@ async function main() {
     });
 
     await step('播放器：播放/暂停、±10 秒、静音、倍速、横竖屏', async () => {
-      await click('[data-paction="toggle"]');
+      /* 等媒体真正可播再点播放键：网络慢时元素已经出现，但点击太早
+         play() 会被浏览器拒绝，误报成“没有开始播放”。
+         第一次播放用真实鼠标事件点，让无头 Chrome 把它当成用户手势。 */
+      await waitFor('document.querySelector("#player-video") && document.querySelector("#player-video").readyState >= 2', 20000);
+      const playSpot = JSON.parse(await evaluate(`JSON.stringify((() => {
+        const r = document.querySelector('[data-paction="toggle"]').getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      })())`));
+      await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: playSpot.x, y: playSpot.y, button: 'left', clickCount: 1 });
+      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: playSpot.x, y: playSpot.y, button: 'left', clickCount: 1 });
       await wait(900);
       const playing = JSON.parse(await evaluate(`JSON.stringify({
         paused: document.querySelector('#player-video').paused,
@@ -1085,8 +1094,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v27') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v27')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v28') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v28')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;
@@ -1213,12 +1222,17 @@ async function main() {
       await setViewport(1280, 800, 1, false);
       await wait(400);
       const desktop = JSON.parse(await evaluate(`JSON.stringify({
-        sidebar: getComputedStyle(document.querySelector('#tabbar')).width,
+        sidebar: getComputedStyle(document.querySelector('#sidebar')).width,
         viewMargin: getComputedStyle(document.querySelector('#view')).marginLeft,
-        header: getComputedStyle(document.querySelector('#app-header')).display
+        header: getComputedStyle(document.querySelector('#app-header')).display,
+        tabbar: getComputedStyle(document.querySelector('#tabbar')).display,
+        crumb: document.getElementById('crumb-current').textContent
       })`));
-      if (desktop.header !== 'none') throw new Error('桌面端不应显示顶栏');
-      if (desktop.viewMargin !== '220px') throw new Error('桌面内容区应让出侧栏 ' + desktop.viewMargin);
+      if (desktop.header === 'none') throw new Error('桌面端应显示顶栏');
+      if (desktop.tabbar !== 'none') throw new Error('桌面端不应显示底部标签栏');
+      if (desktop.sidebar !== '248px') throw new Error('桌面侧栏宽度异常 ' + desktop.sidebar);
+      if (desktop.viewMargin !== '248px') throw new Error('桌面内容区应让出侧栏 ' + desktop.viewMargin);
+      if (desktop.crumb !== '收藏') throw new Error('顶栏面包屑没有跟随路由：' + desktop.crumb);
       await screenshot('13-收藏-桌面.png');
 
       await clearCustom();

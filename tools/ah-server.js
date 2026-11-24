@@ -21,7 +21,10 @@ const ROUTES = {
   '/api/proxy': require('../server/handlers/proxy')
 };
 
-const port = Number(process.argv[2] || 4173);
+/* 云平台（Render 等）通过 PORT 注入端口，并要求监听 0.0.0.0；
+   本地开发默认仍只监听 127.0.0.1，避免把开发服务暴露到局域网。 */
+const port = Number(process.env.PORT || process.argv[2] || 4173);
+const host = process.env.HOST || (process.env.AH_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
 const handleStatic = createStaticHandler();
 
 const server = http.createServer((req, res) => {
@@ -48,7 +51,8 @@ const server = http.createServer((req, res) => {
   handleStatic(req, res);
 });
 
-server.listen(port, '127.0.0.1', () => {
-  console.log('AH 影视本地服务：http://127.0.0.1:' + port + '/');
-  console.log('API：http://127.0.0.1:' + port + '/api/health');
+server.listen(port, host, () => {
+  const shown = host === '0.0.0.0' ? '127.0.0.1' : host;
+  console.log('AH 影视服务：http://' + shown + ':' + port + '/');
+  console.log('API：http://' + shown + ':' + port + '/api/health');
 });

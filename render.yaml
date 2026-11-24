@@ -1,0 +1,25 @@
+# Render 部署配置：静态 PWA + 现有 Node 后端，同源提供。
+# 在 Render 控制台 New → Blueprint 选择本仓库即可。
+services:
+  - type: web
+    name: ah-cinema
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: npm install
+    startCommand: node tools/ah-server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: AH_ENV
+        value: production
+      # 口令在创建 Blueprint 时由控制台提示填写；签名密钥由 Render 自动生成。
+      - key: AH_API_TOKEN
+        sync: false
+      - key: AH_SIGNING_SECRET
+        generateValue: true
+      # Render 函数的单次响应体上限比本地低，提前拦截并给出中文提示。
+      - key: AH_PROXY_MAX_BYTES
+        value: "4500000"
+      - key: NODE_VERSION
+        value: "22"

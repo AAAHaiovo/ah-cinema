@@ -1,6 +1,6 @@
 /* AH 影视 Service Worker：缓存应用壳；视频与大文件直接走网络。 */
 
-const CACHE_NAME = 'ah-cinema-v27';
+const CACHE_NAME = 'ah-cinema-v28';
 
 const SHELL = [
   './',
@@ -8,6 +8,7 @@ const SHELL = [
   './manifest.webmanifest',
   './css/tokens.css',
   './css/app.css',
+  './css/shell.css',
   './css/player.css',
   './js/theme-boot.js',
   './js/db.js',
