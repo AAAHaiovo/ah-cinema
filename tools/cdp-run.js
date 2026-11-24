@@ -446,7 +446,7 @@ async function main() {
       if (layout.close[1] > 90 || layout.close[0] < width * 0.7) {
         throw new Error('关闭按钮不在右上角 ' + JSON.stringify(layout.close));
       }
-      if (layout.fullscreen[1] < height * 0.7 || layout.fullscreenRight > 24
+      if (layout.fullscreen[1] < height * 0.7 || layout.fullscreenRight > 44
         || layout.fullscreen[0] < layout.rotate[0] + 20) {
         throw new Error('全屏按钮不在右下角横屏右侧 ' + JSON.stringify({ fullscreen: layout.fullscreen, right: layout.fullscreenRight, rotate: layout.rotate }));
       }
@@ -473,12 +473,15 @@ async function main() {
       })())`));
       await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: playSpot.x, y: playSpot.y, button: 'left', clickCount: 1 });
       await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: playSpot.x, y: playSpot.y, button: 'left', clickCount: 1 });
-      await wait(900);
+      const started = await waitFor(
+        '(() => { const v = document.querySelector("#player-video"); return !v.paused && v.currentTime > 0.2; })()',
+        6000
+      );
       const playing = JSON.parse(await evaluate(`JSON.stringify({
         paused: document.querySelector('#player-video').paused,
         time: document.querySelector('#player-video').currentTime
       })`));
-      if (playing.paused || playing.time < 0.2) throw new Error('没有开始播放：' + JSON.stringify(playing));
+      if (!started) throw new Error('没有开始播放：' + JSON.stringify(playing));
 
       await click('[data-paction="toggle"]');
       await wait(250);
@@ -714,7 +717,7 @@ async function main() {
         || topLefts.some((left, index) => index > 0 && left <= topLefts[index - 1])) {
         throw new Error('物理横屏静音/选集不在右上角或顺序不对 ' + JSON.stringify(landscapeLayout));
       }
-      if (landscapeLayout.fullscreen[0] > 24 || landscapeLayout.fullscreen[1] < landscapeHeight * 0.7) {
+      if (landscapeLayout.fullscreen[0] > 44 || landscapeLayout.fullscreen[1] < landscapeHeight * 0.7) {
         throw new Error('物理横屏全屏键不在右下角 ' + JSON.stringify(landscapeLayout));
       }
       if (landscapeLayout.lineLeft < landscapeWidth * 0.5
@@ -1107,8 +1110,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v29') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v29')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v30') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v30')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;

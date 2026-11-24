@@ -1323,7 +1323,7 @@ body {
 /* ---------- 8. 分类筛选 / 分页 ---------- */
 
 .browse-filterbar {
-  margin-bottom: 18px;
+  margin: 0 0 18px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1361,6 +1361,12 @@ body {
   border: 1px solid var(--ah-line);
   background: var(--v2-fill);
   color: var(--ah-text-2);
+}
+
+@media (max-width: 899px) {
+  .browse-scroll {
+    display: none;
+  }
 }
 
 .browse-expand:hover,
@@ -1915,6 +1921,20 @@ button.settings-row:hover {
   padding: 22px var(--ah-page-pad) 0;
 }
 
+.detail-topbar .icon-btn {
+  width: 40px;
+  height: 40px;
+  background: var(--v2-glass);
+  border: 1px solid var(--ah-line);
+  color: var(--ah-text);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+.detail-topbar .detail-fav.is-active {
+  color: #D93068;
+}
+
 .detail-actions {
   gap: 10px;
 }
@@ -1944,10 +1964,44 @@ button.settings-row:hover {
 }
 
 .detail-section h2 {
-  margin-bottom: 12px;
+  margin: 0;
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.022em;
+}
+
+.detail-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.detail-refresh {
+  flex: none;
+  color: var(--ah-accent);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.detail-last-watch {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 18px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--ah-text-2);
+  font-size: 12px;
+}
+
+.detail-last-watch .icon {
+  width: 15px;
+  height: 15px;
+  opacity: 0.7;
 }
 
 .synopsis {
@@ -1956,22 +2010,37 @@ button.settings-row:hover {
   line-height: 1.8;
 }
 
+/* 片源与授权：一张轻量事实卡，而不是整行表格。 */
 .info-list {
-  border-top: 1px solid var(--ah-line);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 16px 22px;
+  margin: 0;
+  padding: 18px;
+  border: 1px solid var(--ah-line);
+  border-radius: var(--ah-radius-card);
+  background: var(--ah-surface);
+  box-shadow: var(--v2-hair);
 }
 
 .info-row {
-  padding: 11px 0;
-  border-bottom: 1px solid var(--ah-line);
+  display: block;
+  padding: 0;
+  border: 0;
   font-size: 12.5px;
 }
 
 .info-row dt {
   color: var(--ah-text-3);
+  font-size: 11px;
+  letter-spacing: 0.04em;
 }
 
 .info-row dd {
+  margin-top: 4px;
   color: var(--ah-text);
+  font-size: 13.5px;
+  line-height: 1.5;
 }
 
 .episode-grid {
@@ -2229,6 +2298,8 @@ button.settings-row:hover {
 }
 
 .player-menu {
+  min-height: 44px;
+  padding: 4px 16px;
   border-radius: 12px;
   background: rgba(24, 24, 28, 0.82);
   -webkit-backdrop-filter: blur(18px);
@@ -2245,9 +2316,23 @@ button.settings-row:hover {
   border-radius: 50%;
 }
 
-.player-drawer-panel {
-  border-radius: 18px 18px 0 0;
-  background: var(--ah-surface);
+/* 选集：回到 App 的品牌红，并让抽屉在浅色主题下也保持深色玻璃。 */
+.pbtn-episodes.is-active {
+  background: rgba(201, 47, 54, 0.3);
+}
+
+.player-episode.is-current {
+  background: rgba(201, 47, 54, 0.2);
+  color: #fff;
+}
+
+.player-episode.is-current .player-episode-index {
+  color: #FF8A8F;
+}
+
+.player-episode-now {
+  background: #C92F36;
+  color: #fff;
 }
 
 /* ---------- 16. 响应式细节 ---------- */

@@ -54,7 +54,7 @@ import {
 import { localItems, localCount } from './local-library.js';
 import { cachedSources } from './sources.js';
 
-const APP_VERSION = '0.9.0';
+const APP_VERSION = '0.9.1';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -978,11 +978,8 @@ export function renderDetail(itemId) {
 
   const episodeSection = renderEpisodes(item, latest);
 
-  const remoteNote = item.remote
-    ? '<div class="detail-progress-note detail-embed-note detail-remote-note">' + icon('info') +
-        '<span>内容来自你添加的源：' + escapeHtml((item.remoteSource && item.remoteSource.name) || item.source || '未知源') + '。App 不存储视频文件。</span>' +
-        '<button class="text-btn" type="button" data-action="refresh-remote" data-item-id="' + escapeHtml(item.id) + '">刷新片源</button>' +
-      '</div>'
+  const remoteRefresh = item.remote
+    ? '<button class="text-btn detail-refresh" type="button" data-action="refresh-remote" data-item-id="' + escapeHtml(item.id) + '">刷新片源</button>'
     : '';
 
   const localSourceText = item.local
@@ -1050,14 +1047,7 @@ export function renderDetail(itemId) {
         '<a class="btn btn-primary detail-play" href="' + playTarget + '">' + icon('play') + '<span>' + escapeHtml(label) + '</span></a>' +
         '<button class="btn btn-secondary detail-fav' + (favorite ? ' is-active' : '') + '" type="button" data-action="favorite" data-item-id="' + escapeHtml(item.id) + '" aria-pressed="' + favorite + '">' + icon(favorite ? 'heartFill' : 'heart') + '<span>' + (favorite ? '已收藏' : '收藏') + '</span></button>' +
       '</div>' +
-      (latest && !latest.completed && !latest.external ? '<div class="detail-progress-note">' + icon('clock') + '<span>上次看到 ' + escapeHtml(formatTime(latest.time)) + (episode ? ' · ' + escapeHtml(formatEpisodeLabel(episode)) : '') + '</span></div>' : '') +
-      remoteNote +
-      (embed ? '<div class="detail-progress-note detail-embed-note">' + icon('info') + '<span>本片通过哔哩哔哩官方嵌入式播放器播放；清晰度、倍速与字幕请使用播放器内控件。本 App 不转存视频。</span></div>' : '') +
-      (item.local ? '<div class="detail-progress-note detail-embed-note">' + icon('info') + '<span>' + (item.localKind === 'file'
-        ? '这个视频只保存在这台设备，不会上传。清理浏览器数据前请保留原文件。'
-        : item.localKind === 'embed'
-          ? '通过 B 站官方嵌入式播放器打开；视频仍托管在哔哩哔哩，本 App 不下载、不转存。'
-          : 'App 会直接播放这个网络地址，不下载、不转存。') + '</span></div>' : '') +
+      (latest && !latest.completed && !latest.external ? '<div class="detail-progress-note detail-last-watch">' + icon('clock') + '<span>上次看到 ' + escapeHtml(formatTime(latest.time)) + (episode ? ' · ' + escapeHtml(formatEpisodeLabel(episode)) : '') + '</span></div>' : '') +
       '<section class="detail-section">' +
         '<h2>简介</h2>' +
         '<p class="synopsis' + (longSynopsis ? ' is-clamped' : '') + '" id="synopsis">' + escapeHtml(synopsis) + '</p>' +
@@ -1065,8 +1055,8 @@ export function renderDetail(itemId) {
       '</section>' +
       episodeSection +
       '<section class="detail-section">' +
-        '<h2>片源与授权</h2>' +
-        '<dl class="info-list">' +
+        '<div class="detail-section-head"><h2>片源与授权</h2>' + remoteRefresh + '</div>' +
+        '<dl class="info-list facts">' +
         infoRows.map(([key, value]) => '<div class="info-row"><dt>' + escapeHtml(key) + '</dt><dd>' + value + '</dd></div>').join('') +
         '</dl>' +
       '</section>' +

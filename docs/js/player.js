@@ -1096,6 +1096,8 @@ export function mountPlayer(item, episode) {
 
     drawerOpen = true;
     drawer.hidden = false;
+    const trigger = document.getElementById('player-episodes');
+    if (trigger) trigger.classList.add('is-active');
     /* 先让浏览器完成一帧布局，再打开过渡类，滑入动画才会生效。 */
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -1112,6 +1114,8 @@ export function mountPlayer(item, episode) {
 
     drawerOpen = false;
     drawer.classList.remove('is-open');
+    const trigger = document.getElementById('player-episodes');
+    if (trigger) trigger.classList.remove('is-active');
     if (drawerTimer) clearTimeout(drawerTimer);
     drawerTimer = window.setTimeout(() => {
       drawerTimer = null;
