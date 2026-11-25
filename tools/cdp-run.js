@@ -416,7 +416,38 @@ async function main() {
       await screenshot('04-播放器-横屏-手机.png');
       await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
       await wait(600);
-      return 'v3 观看页；播放 / 暂停 / ±10 / 静音 / 倍速正常';
+
+      /* 竖屏 App 内全屏：底部控制条必须完整落在视口内。 */
+      await evaluate('document.getElementById("player-overlay").classList.remove("is-hidden")');
+      await evaluate('document.querySelector("#player-fullscreen").click()');
+      await wait(350);
+      const appFullscreen = JSON.parse(await evaluate(`JSON.stringify((() => {
+        const page = document.getElementById('player-page');
+        const ctrl = document.getElementById('player-overlay').getBoundingClientRect();
+        const stage = document.getElementById('player-stage').getBoundingClientRect();
+        return {
+          active: page.classList.contains('is-app-fullscreen'),
+          body: document.body.classList.contains('player-app-fullscreen'),
+          ctrlBottom: Math.round(ctrl.bottom),
+          ctrlRight: Math.round(ctrl.right),
+          stageHeight: Math.round(stage.height),
+          viewport: [innerWidth, innerHeight]
+        };
+      })())`));
+      if (!appFullscreen.active || !appFullscreen.body) {
+        throw new Error('竖屏 App 内全屏未生效 ' + JSON.stringify(appFullscreen));
+      }
+      if (appFullscreen.ctrlBottom > appFullscreen.viewport[1] + 1
+        || appFullscreen.ctrlRight > appFullscreen.viewport[0] + 1) {
+        throw new Error('全屏控制条超出视口 ' + JSON.stringify(appFullscreen));
+      }
+      await screenshot('04b-播放器-竖屏-App内全屏.png');
+      await evaluate('document.querySelector("#player-fullscreen").click()');
+      await wait(300);
+      if (await evaluate('document.getElementById("player-page").classList.contains("is-app-fullscreen")')) {
+        throw new Error('App 内全屏未退出');
+      }
+      return 'v3 观看页；播放 / 暂停 / ±10 / 静音 / 倍速正常；竖屏全屏控制条完整';
     });
 
     await step('断点续播与观看历史', async () => {
@@ -446,8 +477,21 @@ async function main() {
       await waitFor('document.querySelector(".history-row")');
       const historyText = await evaluate('document.querySelector(".history-row").textContent.replace(/\\s+/g, " ").trim()');
       if (!historyText.includes('trailer')) throw new Error('历史记录 ' + historyText);
+      const historyLayout = JSON.parse(await evaluate(`JSON.stringify((() => {
+        const row = document.querySelector('.history-row');
+        const thumb = row.querySelector('.history-thumb');
+        const group = document.querySelector('.history-group__title');
+        return {
+          group: group ? group.textContent.replace(/\\s+/g, ' ').trim() : '',
+          time: row.querySelector('.history-time') ? row.querySelector('.history-time').textContent.trim() : '',
+          inset: Math.round(thumb.getBoundingClientRect().left - row.getBoundingClientRect().left)
+        };
+      })())`));
+      if (!historyLayout.group.includes('今天')) throw new Error('历史分组 ' + historyLayout.group);
+      if (!historyLayout.time.includes('观看于')) throw new Error('历史时间 ' + historyLayout.time);
+      if (historyLayout.inset < 12) throw new Error('历史缩略图离边框太近 ' + historyLayout.inset + 'px');
       await screenshot('05-历史-手机.png');
-      return '续播 ' + resumed.toFixed(1) + 's；' + historyText;
+      return '续播 ' + resumed.toFixed(1) + 's；' + historyLayout.group + ' · ' + historyText;
     });
 
     await step('我的视频链接列表、详情页与收藏', async () => {
@@ -725,8 +769,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v33') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v33')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v34') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v34')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;

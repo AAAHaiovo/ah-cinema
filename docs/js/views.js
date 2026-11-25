@@ -38,7 +38,6 @@ import {
   formatTime,
   formatDuration,
   formatRuntime,
-  formatRelative,
   formatEpisodeLabel,
   formatBytes,
   itemMeta,
@@ -55,7 +54,7 @@ import {
 import { localItems, localCount } from './local-library.js';
 import { cachedSources } from './sources.js';
 
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -626,6 +625,38 @@ export function renderSearch(route) {
     '</div>';
 }
 
+/* 历史按观看时间分组：今天 / 昨天 / 一周内 / 一个月内 / 具体日期。 */
+function historyDayStart(timestamp) {
+  const date = new Date(timestamp);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+function historyGroupInfo(timestamp) {
+  const value = Number(timestamp);
+  if (!Number.isFinite(value) || value <= 0) return { key: 'unknown', label: '更早' };
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const date = new Date(value);
+  const day = historyDayStart(value);
+  const days = Math.max(0, Math.round((today - day) / 86400000));
+
+  if (days === 0) return { key: 'today', label: '今天' };
+  if (days === 1) return { key: 'yesterday', label: '昨天' };
+  if (days <= 7) return { key: 'week', label: '一周内' };
+  if (days <= 30) return { key: 'month', label: '一个月内' };
+  return {
+    key: 'date-' + day,
+    label: date.getFullYear() + '年' + (date.getMonth() + 1) + '月' + date.getDate() + '日'
+  };
+}
+
+function historyClock(timestamp) {
+  const date = new Date(Number(timestamp));
+  if (!Number.isFinite(date.getTime())) return '';
+  return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
+}
+
 export function renderHistory() {
   const records = latestProgressList()
     .map((record) => {
@@ -639,34 +670,57 @@ export function renderHistory() {
     ? '<button class="text-btn danger" type="button" data-action="clear-history">清空</button>'
     : '';
 
-  const list = records.map(({ record, item, episode }) => {
-    const percent = progressPercent(record);
-    const status = record.external
-      ? '在哔哩哔哩播放器打开'
-      : record.completed
-        ? '已看完' + (record.duration > 0 ? ' · ' + formatTime(record.duration) : '')
-        : '看到 ' + formatTime(record.time) + (record.duration > 0 ? ' / ' + formatTime(record.duration) : '');
-    const episodeLabel = formatEpisodeLabel(episode);
+  const groups = [];
+  const groupMap = new Map();
+  records.forEach((entry) => {
+    const info = historyGroupInfo(entry.record.updatedAt);
+    let group = groupMap.get(info.key);
+    if (!group) {
+      group = { key: info.key, label: info.label, entries: [] };
+      groupMap.set(info.key, group);
+      groups.push(group);
+    }
+    group.entries.push(entry);
+  });
 
-    return '<div class="history-row">' +
-      '<a class="history-link" href="' + watchHref(item, record.episodeId) + '">' +
-        '<div class="history-thumb">' +
-          thumbMedia(item) +
-          '<div class="history-progress"><i style="width:' + percent.toFixed(2) + '%"></i></div>' +
-        '</div>' +
-        '<div class="history-main">' +
-          '<div class="history-title">' + escapeHtml(item.title) + '</div>' +
-          '<div class="history-sub">' + escapeHtml((episodeLabel ? episodeLabel + ' · ' : '') + status) + '</div>' +
-          '<div class="history-time">' + escapeHtml(formatRelative(record.updatedAt)) + '</div>' +
-        '</div>' +
-      '</a>' +
-      '<button class="icon-btn history-remove" type="button" data-action="remove-progress" data-progress-id="' + escapeHtml(record.id) + '" aria-label="移除这条记录">' + icon('trash') + '</button>' +
-      '</div>';
+  const list = groups.map((group) => {
+    const rows = group.entries.map(({ record, item, episode }) => {
+      const percent = progressPercent(record);
+      const status = record.external
+        ? '在哔哩哔哩播放器打开'
+        : record.completed
+          ? '已看完' + (record.duration > 0 ? ' · ' + formatTime(record.duration) : '')
+          : '看到 ' + formatTime(record.time) + (record.duration > 0 ? ' / ' + formatTime(record.duration) : '');
+      const episodeLabel = formatEpisodeLabel(episode);
+      const clock = historyClock(record.updatedAt);
+
+      return '<div class="history-row">' +
+        '<a class="history-link" href="' + watchHref(item, record.episodeId) + '">' +
+          '<div class="history-thumb">' +
+            thumbMedia(item) +
+            '<div class="history-progress"><i style="width:' + percent.toFixed(2) + '%"></i></div>' +
+          '</div>' +
+          '<div class="history-main">' +
+            '<div class="history-title">' + escapeHtml(item.title) + '</div>' +
+            '<div class="history-sub">' + escapeHtml((episodeLabel ? episodeLabel + ' · ' : '') + status) + '</div>' +
+            '<div class="history-time">' + (clock ? '观看于 ' + clock : '观看记录') + '</div>' +
+          '</div>' +
+        '</a>' +
+        '<button class="icon-btn history-remove" type="button" data-action="remove-progress" data-progress-id="' + escapeHtml(record.id) + '" aria-label="移除这条记录">' + icon('trash') + '</button>' +
+        '</div>';
+    }).join('');
+
+    return '<section class="history-group" aria-label="' + escapeHtml(group.label) + '">' +
+      '<h2 class="history-group__title">' + escapeHtml(group.label) +
+        '<span>' + group.entries.length + ' 部</span>' +
+      '</h2>' +
+      '<div class="history-list">' + rows + '</div>' +
+      '</section>';
   }).join('');
 
-  return '<div class="page">' +
+  return '<div class="page history-page">' +
     pageHeading('历史', records.length ? records.length + ' 部看过' : '播放进度会自动记录在这里', clearButton) +
-    (records.length ? '<div class="history-list">' + list + '</div>' : emptyState({
+    (records.length ? '<div class="history-groups">' + list + '</div>' : emptyState({
       title: '还没有观看记录',
       text: '打开一个链接，看到一半退出，下次就能从这里接着看。',
       action: '<a class="btn btn-primary" href="#/">去首页粘贴链接</a>'

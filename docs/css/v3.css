@@ -2546,3 +2546,266 @@ body.no-tabbar #view {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* ---------- 9. 首页分类固定 ---------- */
+
+/* 分类栏不再跟着内容滚动，而是固定在顶栏下方；
+   页面顶部按它的实际高度留白（--home-filter-h 由脚本量出）。 */
+.home-page {
+  padding-top: calc(26px + var(--home-filter-h, 0px) + 18px);
+  animation: home-page-in 220ms var(--ah-ease);
+  transition: padding-top 240ms var(--ah-ease);
+}
+
+@keyframes home-page-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 899px) {
+  .home-page {
+    padding-top: calc(16px + var(--home-filter-h, 0px) + 14px);
+  }
+}
+
+.home-page .browse-filterbar,
+.home-page .browse-filterbar.is-collapsed {
+  position: fixed;
+  top: calc(var(--ah-header-h) + var(--ah-safe-top));
+  left: 0;
+  right: 0;
+  z-index: 44;
+  margin: 0;
+  padding: 8px var(--ah-page-pad) 10px;
+  border-bottom: 1px solid var(--ah-line);
+  /* 分类栏里有可横向滑动的行，iOS 上用实色背景更稳，也不会透出正文。 */
+  background: var(--ah-bg);
+  box-shadow: 0 12px 28px -24px rgba(0, 0, 0, 0.55);
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  max-height: calc(100dvh - var(--ah-header-h) - var(--ah-safe-top) - 12px);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  transition: top 280ms var(--ah-ease), background-color 240ms var(--ah-ease);
+}
+
+.home-page .browse-filterbar.is-meta-only {
+  padding-top: 6px;
+  padding-bottom: 8px;
+}
+
+body.header-hidden .home-page .browse-filterbar {
+  top: var(--ah-safe-top);
+}
+
+@media (min-width: 900px) {
+  .home-page .browse-filterbar,
+  .home-page .browse-filterbar.is-collapsed {
+    left: var(--ah-sidebar-w);
+    top: var(--ah-header-h);
+    padding-left: max(var(--ah-page-pad), calc((100vw - var(--ah-sidebar-w) - var(--ah-page-max)) / 2 + var(--ah-page-pad)));
+    padding-right: max(var(--ah-page-pad), calc((100vw - var(--ah-sidebar-w) - var(--ah-page-max)) / 2 + var(--ah-page-pad)));
+  }
+
+  body.header-hidden .home-page .browse-filterbar,
+  body.header-hidden .home-page .browse-filterbar.is-collapsed {
+    top: 0;
+  }
+}
+
+@media (display-mode: standalone) {
+  .home-page .browse-filterbar,
+  .home-page .browse-filterbar.is-collapsed {
+    top: calc(var(--ah-header-h) + var(--ah-safe-top) + min(32px, calc(var(--ah-safe-top) * 1000)));
+  }
+
+  body.header-hidden .home-page .browse-filterbar,
+  body.header-hidden .home-page .browse-filterbar.is-collapsed {
+    top: var(--ah-safe-top);
+  }
+}
+
+/* 展开的全部分类：更松的网格、更大的点击区域，避免拥挤。 */
+.home-page .browse-category-panel {
+  margin-top: 10px;
+  padding: 14px 12px 12px;
+  border: 1px solid var(--ah-line);
+  border-top: 1px solid var(--ah-line);
+  border-radius: var(--ah-radius-card);
+  background: var(--ah-surface);
+  box-shadow: var(--v3-shadow-2);
+}
+
+.home-page .browse-category-head {
+  margin-bottom: 12px;
+  padding: 0 2px;
+  font-size: 12.5px;
+}
+
+.home-page .browse-category-grid {
+  grid-template-columns: repeat(auto-fill, minmax(94px, 1fr));
+  gap: 10px;
+  max-height: min(42vh, 340px);
+  padding: 2px;
+}
+
+.home-page .category-cell {
+  min-height: 44px;
+  padding: 9px 10px;
+  border: 1px solid var(--ah-line);
+  border-radius: 12px;
+  background: var(--ah-surface-2);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.home-page .category-cell.is-active {
+  border-color: var(--ah-accent);
+  background: var(--ah-accent);
+  color: #fff;
+}
+
+/* ---------- 10. 历史 ---------- */
+
+.history-groups {
+  margin-top: 2px;
+}
+
+.history-group {
+  margin-top: 26px;
+}
+
+.history-group:first-child {
+  margin-top: 4px;
+}
+
+.history-group__title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 0 4px;
+  color: var(--ah-text-2);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.history-group__title span {
+  color: var(--ah-text-3);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.history-page .history-list {
+  gap: 10px;
+}
+
+.history-page .history-row {
+  padding: 12px 10px 12px 14px;
+  border-radius: 18px;
+  background: var(--ah-surface);
+  box-shadow: var(--v3-shadow-1);
+  transition: transform 200ms var(--ah-ease), border-color 200ms var(--ah-ease), background-color 200ms var(--ah-ease);
+}
+
+.history-page .history-row:active {
+  transform: scale(0.99);
+  background: var(--ah-surface-2);
+}
+
+.history-page .history-link {
+  gap: 14px;
+}
+
+.history-page .history-thumb {
+  flex: 0 0 96px;
+  width: 96px;
+  border-radius: 11px;
+  box-shadow: 0 5px 14px -8px rgba(0, 0, 0, 0.55);
+}
+
+.history-page .history-main {
+  padding: 3px 0;
+}
+
+.history-page .history-title {
+  font-size: 15.5px;
+  letter-spacing: -0.01em;
+}
+
+.history-page .history-sub {
+  margin-top: 5px;
+  font-size: 12px;
+}
+
+.history-page .history-time {
+  margin-top: 7px;
+  color: var(--ah-text-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-page .history-remove {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  margin-left: 2px;
+  border-radius: 12px;
+}
+
+@media (max-width: 420px) {
+  .history-page .history-row {
+    padding-left: 12px;
+  }
+
+  .history-page .history-link {
+    gap: 12px;
+  }
+
+  .history-page .history-thumb {
+    flex-basis: 88px;
+    width: 88px;
+  }
+}
+
+/* ---------- 11. 播放器全屏 ---------- */
+
+/* iOS 的 100vh 会把浏览器工具栏也算进去，改用动态视口高度。 */
+.player-page.watch.is-app-fullscreen {
+  width: 100vw;
+  height: 100vh;
+  width: 100dvw;
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+.player-page.watch.is-app-fullscreen .player__ctrl {
+  padding: 0 10px calc(8px + env(safe-area-inset-bottom));
+}
+
+.player-page.watch.is-app-fullscreen .ctrlrow {
+  gap: 2px;
+  max-width: 100%;
+}
+
+.player-page.watch.is-app-fullscreen .ctime {
+  margin-left: 2px;
+  font-size: 10.5px;
+}
+
+.player-page.watch.is-app-fullscreen .cbtn {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 360px) {
+  .player-page.watch.is-app-fullscreen .ctime {
+    font-size: 9.5px;
+  }
+
+  .player-page.watch.is-app-fullscreen .cbtn {
+    width: 30px;
+    height: 30px;
+  }
+}

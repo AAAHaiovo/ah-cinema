@@ -398,12 +398,12 @@ function renderRoute() {
   if (!els.view) return;
   clearHeroCarousel();
   setHeaderHidden(false);
-  browseBarHidden = false;
 
   closeOverlay();
 
   const route = parseRoute();
   const resolved = resolveRoute(route);
+  if (resolved.name !== 'home' && homeFilterObserver) homeFilterObserver.disconnect();
   const nextKey = routeKey(route);
 
   if (currentRoute && isTabbedRoute(currentRoute.name) && !document.body.classList.contains('no-tabbar')) {
@@ -484,8 +484,8 @@ function renderRoute() {
   els.view.innerHTML = html;
 
   if (resolved.name === 'home') {
-    browseBarHidden = false;
     ensureBrowse();
+    observeHomeFilter();
   }
 
   if (resolved.name === 'search') {
@@ -769,10 +769,10 @@ let browseAbort = null;
 let browseRunId = 0;
 let browseKey = '';
 let browseLastTopGroup = '';
-let browseBarHidden = false;
 let lastScrollY = 0;
 let scrollFrame = 0;
 let heroTimer = null;
+let homeFilterObserver = null;
 
 function clearHeroCarousel() {
   if (heroTimer) {
@@ -896,6 +896,36 @@ function centerActiveChip(container) {
   }
 }
 
+/* 首页分类栏固定在顶栏下方：用实际高度给页面顶部留出空间。
+   展开分类面板时只让它浮在内容上方，不再把整页往下推。 */
+function measureHomeFilter() {
+  const page = document.querySelector('.home-page');
+  if (!page) return;
+  const bar = page.querySelector('.browse-filterbar');
+  if (!bar) {
+    page.style.removeProperty('--home-filter-h');
+    return;
+  }
+
+  let height = bar.getBoundingClientRect().height;
+  const panel = bar.querySelector('.browse-category-panel');
+  if (panel) {
+    const style = window.getComputedStyle(panel);
+    height -= panel.getBoundingClientRect().height
+      + (parseFloat(style.marginTop) || 0)
+      + (parseFloat(style.marginBottom) || 0);
+  }
+  page.style.setProperty('--home-filter-h', Math.max(0, Math.ceil(height)) + 'px');
+}
+
+function observeHomeFilter() {
+  if (!homeFilterObserver) homeFilterObserver = new ResizeObserver(measureHomeFilter);
+  homeFilterObserver.disconnect();
+  const bar = document.querySelector('.home-page .browse-filterbar');
+  if (bar) homeFilterObserver.observe(bar);
+  measureHomeFilter();
+}
+
 /* 重绘时保住两行分类的横向位置；一级分类切换时子分类回到开头。 */
 function renderBrowse() {
   const section = document.getElementById('home-browse');
@@ -909,6 +939,7 @@ function renderBrowse() {
 
   section.innerHTML = renderHomeBrowse(browseState);
   browseLastTopGroup = browseState.topGroup;
+  observeHomeFilter();
 
   /* 首页主视觉：默认页用前 3 部影片轮播；切换分类时保留当前主视觉。 */
   const hero = document.getElementById('home-hero');
@@ -936,12 +967,6 @@ function renderBrowse() {
       hero.dataset.filled = '1';
       clearHeroCarousel();
     }
-  }
-
-  const bar = section.querySelector('.browse-filterbar');
-  if (bar && browseBarHidden) {
-    bar.classList.add('is-collapsed');
-    bar.setAttribute('aria-hidden', 'true');
   }
 
   window.requestAnimationFrame(() => {
@@ -1061,20 +1086,26 @@ function buildBrowseSources(ready, topGroup, subCategory) {
 
 function scrollBrowseIntoView() {
   const target = document.getElementById('home-browse');
-  if (!target) return;
-  /* 分类标签本来就吸顶时不要跳动；只有翻页或已滚过分类栏时才回到片库开头。 */
-  const viewTop = els.view ? els.view.getBoundingClientRect().top : 0;
-  if (target.getBoundingClientRect().top >= viewTop) return;
-  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
-}
+  if (!target || !els.view) return;
 
-/* 首页分类栏：下滑时收起、上滑或回到顶部时出现。 */
-function setBrowseBarHidden(hidden) {
-  browseBarHidden = Boolean(hidden);
-  document.querySelectorAll('#home-browse .browse-filterbar').forEach((bar) => {
-    bar.classList.toggle('is-collapsed', browseBarHidden);
-    bar.setAttribute('aria-hidden', browseBarHidden ? 'true' : 'false');
+  /* 分类栏固定后，片库开头要停在分类栏下方，不能被固定栏挡住。 */
+  const page = document.querySelector('.home-page');
+  const bar = page ? page.querySelector('.browse-filterbar') : null;
+  const measured = page ? parseFloat(getComputedStyle(page).getPropertyValue('--home-filter-h')) : 0;
+  const filterHeight = Number.isFinite(measured) && measured > 0
+    ? measured
+    : (bar ? bar.getBoundingClientRect().height : 0);
+
+  const viewTop = els.view.getBoundingClientRect().top;
+  const targetTop = target.getBoundingClientRect().top;
+  const safeTop = viewTop + filterHeight + 10;
+  /* 还没滚动到片库时不要跳到片库；已经在片库附近才对齐到分类栏下方。 */
+  if (targetTop >= safeTop - 1) return;
+
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  els.view.scrollTo({
+    top: Math.max(0, (els.view.scrollTop || 0) + (targetTop - safeTop)),
+    behavior: reduce ? 'auto' : 'smooth'
   });
 }
 
@@ -1089,18 +1120,18 @@ function updateBrowseBarOnScroll() {
   scrollFrame = 0;
   if (!els.view) return;
 
-  /* 分类栏固定在原位；只让最上方的状态栏随滚动方向收起 / 出现。 */
+  /* 首页的顶栏和分类栏都固定不动；其他页面顶栏才随滚动收起 / 出现。 */
   const y = els.view.scrollTop || 0;
   const delta = y - lastScrollY;
   const hidden = document.body.classList.contains('header-hidden');
+  const pinnedHome = Boolean(document.querySelector('.home-page'));
 
   if (y < 28 || delta < -6) {
     if (hidden) setHeaderHidden(false);
-  } else if (delta > 6 && y > 60 && !hidden) {
+  } else if (!pinnedHome && delta > 6 && y > 60 && !hidden) {
     setHeaderHidden(true);
   }
 
-  browseBarHidden = false;
   lastScrollY = y;
 }
 

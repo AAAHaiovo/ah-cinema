@@ -446,6 +446,9 @@ export function mountPlayer(item, episode) {
   let pointerShowedControls = false;
   let pointerFlagTimer = null;
   let orientationTimer = null;
+  let orientationLocked = false;
+  let longPressTimer = null;
+  let longPressFired = false;
   let wasLandscapeViewport = isLandscapeViewport();
 
   function destroyHls() {
@@ -816,13 +819,52 @@ export function mountPlayer(item, episode) {
   function updateDisplayButton() {
     if (!displayButton) return;
     const portrait = !isLandscapeViewport();
-    const visible = forcedLandscape || portrait;
+    const systemLandscape = !portrait && (Boolean(document.fullscreenElement) || orientationLocked);
+    const visible = forcedLandscape || portrait || systemLandscape;
+    const active = forcedLandscape || orientationLocked;
 
     displayButton.hidden = !visible;
     displayButton.innerHTML = icon('rotate');
-    displayButton.classList.toggle('is-active', forcedLandscape);
-    displayButton.setAttribute('aria-pressed', forcedLandscape ? 'true' : 'false');
-    displayButton.setAttribute('aria-label', forcedLandscape ? '恢复竖屏' : '横屏播放');
+    displayButton.classList.toggle('is-active', active);
+    displayButton.setAttribute('aria-pressed', active ? 'true' : 'false');
+    displayButton.setAttribute('aria-label', active ? '恢复竖屏' : '横屏播放');
+  }
+
+  /* 真正的手机横屏：Android / 桌面优先锁定屏幕方向；
+     iPhone 只能借系统视频全屏旋转，这是 iOS 的限制。 */
+  function enterLandscapeMode() {
+    if (isIOS()) {
+      if (enterNativeFullscreen()) {
+        showToast('已进入系统横屏');
+        return;
+      }
+      setForcedLandscape(true, { autoFullscreen: false });
+      return;
+    }
+
+    if (screen.orientation && typeof screen.orientation.lock === 'function'
+      && page && typeof page.requestFullscreen === 'function') {
+      Promise.resolve(page.requestFullscreen({ navigationUI: 'hide' }))
+        .then(() => screen.orientation.lock('landscape'))
+        .then(() => {
+          orientationLocked = true;
+          updateOrientationState();
+          /* 个别浏览器锁定成功但视口没有马上转过来，短暂等待后用 CSS 兜底。 */
+          window.setTimeout(() => {
+            if (!cleaned && !isLandscapeViewport()) {
+              setForcedLandscape(true, { autoFullscreen: false });
+            }
+          }, 480);
+        })
+        .catch(() => {
+          if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+          orientationLocked = false;
+          setForcedLandscape(true, { autoFullscreen: false });
+        });
+      return;
+    }
+
+    setForcedLandscape(true, { autoFullscreen: false });
   }
 
   function toggleDisplayMode() {
@@ -831,9 +873,19 @@ export function mountPlayer(item, episode) {
       setForcedLandscape(false);
       return;
     }
-    if (!isLandscapeViewport()) {
-      setForcedLandscape(true);
+
+    if (isLandscapeViewport()) {
+      if (document.fullscreenElement || orientationLocked) {
+        exitAutoFullscreen();
+        showToast('已恢复竖屏');
+      } else {
+        showToast('当前已经是横屏');
+      }
+      showControls();
+      return;
     }
+
+    enterLandscapeMode();
   }
 
   function updateFullscreenButton() {
@@ -881,8 +933,71 @@ export function mountPlayer(item, episode) {
     }
   }
 
+  /* 长按全屏按钮：交给系统播放器，iPhone 上就是系统全屏。 */
+  function enterNativeFullscreen() {
+    if (isNativeFullscreen()) return true;
+
+    if (typeof video.webkitEnterFullscreen === 'function') {
+      try {
+        video.webkitEnterFullscreen();
+        return true;
+      } catch (error) {
+        /* 继续尝试标准接口。 */
+      }
+    }
+
+    if (typeof video.requestFullscreen === 'function') {
+      Promise.resolve(video.requestFullscreen()).catch(() => {
+        showToast('当前浏览器不支持系统全屏');
+      });
+      return true;
+    }
+
+    showToast('当前浏览器不支持系统全屏');
+    return false;
+  }
+
+  function cancelFullscreenLongPress() {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  }
+
+  function onFullscreenPointerDown(event) {
+    if (event.button !== undefined && event.button > 0) return;
+    cancelFullscreenLongPress();
+    longPressFired = false;
+    longPressTimer = window.setTimeout(() => {
+      longPressTimer = null;
+      longPressFired = true;
+      enterNativeFullscreen();
+    }, 550);
+  }
+
+  function onFullscreenPointerUp() {
+    cancelFullscreenLongPress();
+  }
+
+  /* 长按已经触发了系统全屏，抬起时的合成 click 不再执行 App 内全屏。 */
+  function onFullscreenClickCapture(event) {
+    if (!longPressFired) return;
+    longPressFired = false;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
   function toggleFullscreen() {
-    /* App 内全屏：不调用系统全屏，避免 iPhone 进入原生播放器后丢失自定义控件。 */
+    /* 轻触：App 内全屏，保留自定义控件；长按请用系统全屏。 */
+    if (document.fullscreenElement) {
+      exitAutoFullscreen();
+      return;
+    }
+    if (isNativeFullscreen()) {
+      exitNativeFullscreen();
+      return;
+    }
+
     const active = page.classList.toggle('is-app-fullscreen');
     document.body.classList.toggle('player-app-fullscreen', active);
     updateFullscreenButton();
@@ -902,8 +1017,9 @@ export function mountPlayer(item, episode) {
   /* 横屏全屏时用透明状态栏；回到竖屏恢复原生黑底状态栏。 */
   function updateOrientationState() {
     const landscape = isLandscapeViewport();
+    if (!document.fullscreenElement && !isNativeFullscreen()) orientationLocked = false;
     page.classList.toggle('is-landscape-viewport', landscape);
-    const immersive = landscape || forcedLandscape || Boolean(document.fullscreenElement);
+    const immersive = landscape || forcedLandscape || orientationLocked || Boolean(document.fullscreenElement);
     setStatusBar(immersive ? 'black-translucent' : 'black');
     updateDisplayButton();
     updateFullscreenButton();
@@ -927,6 +1043,7 @@ export function mountPlayer(item, episode) {
   }
 
   function exitAutoFullscreen() {
+    orientationLocked = false;
     try {
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     } catch (error) {
@@ -939,6 +1056,7 @@ export function mountPlayer(item, episode) {
         /* 未锁定过会抛错。 */
       }
     }
+    updateOrientationState();
   }
 
   function setForcedLandscape(next, options) {
@@ -950,8 +1068,11 @@ export function mountPlayer(item, episode) {
     document.body.classList.toggle('player-forced-landscape', enabled);
     updateOrientationState();
 
-    if (enabled) requestAutoFullscreen();
-    else if (!opts.keepFullscreen) exitAutoFullscreen();
+    if (enabled) {
+      if (opts.autoFullscreen !== false) requestAutoFullscreen();
+    } else if (!opts.keepFullscreen) {
+      exitAutoFullscreen();
+    }
 
     if (opts.toast !== false) {
       showToast(enabled ? '横屏播放，向左转手机观看' : '已恢复竖屏');
@@ -1028,6 +1149,9 @@ export function mountPlayer(item, episode) {
   /* 新进入播放页时清掉上一次的横屏 / 全屏状态，避免沿用上次的朝向。 */
   function resetOrientation() {
     forcedLandscape = false;
+    orientationLocked = false;
+    cancelFullscreenLongPress();
+    longPressFired = false;
     page.classList.remove('is-landscape');
     page.classList.remove('is-landscape-viewport');
     document.body.classList.remove('player-forced-landscape');
@@ -1517,9 +1641,12 @@ export function mountPlayer(item, episode) {
     if (tapTimer) clearTimeout(tapTimer);
     if (orientationTimer) clearTimeout(orientationTimer);
     if (pointerFlagTimer) clearTimeout(pointerFlagTimer);
+    cancelFullscreenLongPress();
     tapTimer = null;
     orientationTimer = null;
     pointerFlagTimer = null;
+    longPressFired = false;
+    orientationLocked = false;
     pointerShowedControls = false;
     drawerOpen = false;
     page.style.transform = '';
@@ -1544,6 +1671,14 @@ export function mountPlayer(item, episode) {
 
   page.addEventListener('click', onPageClick, { signal });
   page.addEventListener('pointerdown', onPagePointerDown, { signal, passive: true });
+  if (fullscreenButton) {
+    fullscreenButton.addEventListener('pointerdown', onFullscreenPointerDown, { signal });
+    fullscreenButton.addEventListener('pointerup', onFullscreenPointerUp, { signal });
+    fullscreenButton.addEventListener('pointerleave', onFullscreenPointerUp, { signal });
+    fullscreenButton.addEventListener('pointercancel', onFullscreenPointerUp, { signal });
+    fullscreenButton.addEventListener('click', onFullscreenClickCapture, { signal, capture: true });
+    fullscreenButton.addEventListener('contextmenu', (event) => event.preventDefault(), { signal });
+  }
   document.addEventListener('keydown', onKeydown, { signal });
   document.addEventListener('visibilitychange', onVisibilityChange, { signal });
   window.addEventListener('pagehide', onPageHide, { signal });

@@ -222,38 +222,46 @@ async function main() {
     const subScroll = JSON.parse(subMetrics);
     record(results, '子分类行可横向滑动', subScroll.scrollWidth > subScroll.clientWidth && subScroll.max > 0, subMetrics);
 
-    /* 手机宽度下验证：分类栏固定；最上方的状态栏下滑隐藏、上滑出现。 */
+    /* 手机宽度下验证：首页顶栏与分类栏固定，不随内容滚动。 */
     await send('Emulation.setDeviceMetricsOverride', {
       width: 390, height: 844, deviceScaleFactor: 2, mobile: true
     });
     await wait(250);
+    await screenshot('00-首页-分类固定-手机.png');
     const beforeScroll = JSON.parse(await evaluate(`(() => {
       const header = document.querySelector('.app-header').getBoundingClientRect();
       const tabbar = document.querySelector('#tabbar').getBoundingClientRect();
+      const filter = document.querySelector('#home-browse .browse-filterbar');
+      const filterRect = filter ? filter.getBoundingClientRect() : null;
       return JSON.stringify({
         headerTop: Math.round(header.top),
+        filterTop: filterRect ? Math.round(filterRect.top) : null,
         tabbarGap: Math.round(innerHeight - tabbar.bottom),
         docScroll: document.scrollingElement ? document.scrollingElement.scrollTop : -1,
         viewOverflow: getComputedStyle(document.getElementById('view')).overflowY
       });
     })()`));
     await evaluate('document.getElementById("view").scrollTo(0, 1200)');
-    record(results, '下滑时顶栏隐藏、分类栏固定', await waitFor(
-      'document.body.classList.contains("header-hidden") && !document.querySelector("#home-browse .browse-filterbar")?.classList.contains("is-collapsed")',
-      3000
-    ));
+    await wait(420);
     const afterDown = JSON.parse(await evaluate(`(() => {
       const header = document.querySelector('.app-header').getBoundingClientRect();
       const tabbar = document.querySelector('#tabbar').getBoundingClientRect();
+      const filter = document.querySelector('#home-browse .browse-filterbar');
+      const filterRect = filter ? filter.getBoundingClientRect() : null;
       return JSON.stringify({
         headerTop: Math.round(header.top),
+        filterTop: filterRect ? Math.round(filterRect.top) : null,
         tabbarGap: Math.round(innerHeight - tabbar.bottom),
         docScroll: document.scrollingElement ? document.scrollingElement.scrollTop : -1,
         viewScroll: Math.round(document.getElementById('view').scrollTop),
         headerHidden: document.body.classList.contains('header-hidden'),
-        categoryCollapsed: document.querySelector('#home-browse .browse-filterbar')?.classList.contains('is-collapsed')
+        categoryCollapsed: filter ? filter.classList.contains('is-collapsed') : null
       });
     })()`));
+    record(results, '下滑时顶栏与分类栏固定', afterDown.headerTop === beforeScroll.headerTop
+      && afterDown.filterTop === beforeScroll.filterTop && afterDown.headerHidden === false,
+      JSON.stringify({ before: beforeScroll, after: afterDown }));
+    await screenshot('00-首页-滚动后分类固定-手机.png');
     record(results, '下滑时底部栏不动', afterDown.tabbarGap === beforeScroll.tabbarGap,
       JSON.stringify({ before: beforeScroll.tabbarGap, after: afterDown.tabbarGap }));
     record(results, '下滑时分类栏不收起', afterDown.categoryCollapsed === false, String(afterDown.categoryCollapsed));
@@ -262,17 +270,22 @@ async function main() {
     record(results, '#view 是唯一滚动容器', beforeScroll.viewOverflow === 'auto' && afterDown.viewScroll > 0,
       JSON.stringify({ overflow: beforeScroll.viewOverflow, scrollTop: afterDown.viewScroll }));
     await evaluate('document.getElementById("view").scrollTo(0, 500)');
-    record(results, '上滑时顶栏恢复', await waitFor(
-      '!document.body.classList.contains("header-hidden")',
-      3000
-    ));
     await wait(420);
     const afterUp = JSON.parse(await evaluate(`(() => {
       const header = document.querySelector('.app-header').getBoundingClientRect();
       const tabbar = document.querySelector('#tabbar').getBoundingClientRect();
-      return JSON.stringify({ headerTop: Math.round(header.top), tabbarGap: Math.round(innerHeight - tabbar.bottom), categoryCollapsed: document.querySelector('#home-browse .browse-filterbar')?.classList.contains('is-collapsed') });
+      const filter = document.querySelector('#home-browse .browse-filterbar');
+      const filterRect = filter ? filter.getBoundingClientRect() : null;
+      return JSON.stringify({
+        headerTop: Math.round(header.top),
+        filterTop: filterRect ? Math.round(filterRect.top) : null,
+        tabbarGap: Math.round(innerHeight - tabbar.bottom),
+        categoryCollapsed: filter ? filter.classList.contains('is-collapsed') : null
+      });
     })()`));
-    record(results, '上滑后顶栏 / 底栏回位', afterUp.headerTop === beforeScroll.headerTop && afterUp.tabbarGap === beforeScroll.tabbarGap && !afterUp.categoryCollapsed,
+    record(results, '上滑后顶栏 / 分类栏 / 底栏回位', afterUp.headerTop === beforeScroll.headerTop
+      && afterUp.filterTop === beforeScroll.filterTop
+      && afterUp.tabbarGap === beforeScroll.tabbarGap && !afterUp.categoryCollapsed,
       JSON.stringify(afterUp));
 
     await evaluate('window.scrollTo(0, 1200)');
@@ -303,8 +316,27 @@ async function main() {
     );
     record(results, '动作分类第 2 页仍是动作片', JSON.parse(actionSecond).length === 4 && /动作测试/.test(actionSecond), actionSecond.slice(0, 120));
 
+    await send('Emulation.setDeviceMetricsOverride', {
+      width: 390, height: 844, deviceScaleFactor: 2, mobile: true
+    });
+    await wait(250);
+    const headBeforeExpand = await evaluate('Math.round(document.querySelector(".home-head").getBoundingClientRect().top)');
     await evaluate('document.querySelector(".browse-filter-row[data-row=sub] [data-action=browse-expand]").click()');
     record(results, '展开全部分类网格', await waitFor('Boolean(document.querySelector("#browse-category-panel .category-cell"))', 5000));
+    await wait(280);
+    const expandLayout = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const cell = document.querySelector('#browse-category-panel .category-cell');
+      const rect = cell.getBoundingClientRect();
+      return {
+        headTop: Math.round(document.querySelector('.home-head').getBoundingClientRect().top),
+        cellHeight: Math.round(rect.height),
+        cellWidth: Math.round(rect.width)
+      };
+    })())`));
+    record(results, '展开分类不挤动页面、点击区域宽松',
+      expandLayout.headTop === headBeforeExpand && expandLayout.cellHeight >= 42 && expandLayout.cellWidth >= 90,
+      JSON.stringify({ before: headBeforeExpand, after: expandLayout }));
+    await screenshot('00-首页-展开分类-手机.png');
     await evaluate(
       `Array.from(document.querySelectorAll('#browse-category-panel .category-cell')).find((option) => option.textContent.trim().startsWith('长尾测试')).click()`
     );
@@ -423,19 +455,35 @@ async function main() {
     await evaluate('document.querySelectorAll(".ep")[1].click()');
     record(results, '进入第二集播放页', await waitFor('Boolean(document.querySelector("#player-video"))'));
     record(results, '第二集拿到片源', await waitFor('(document.querySelector("#player-video")?.currentSrc || "").includes("/api/proxy")', 20000));
-    record(results, '选集在视频下方文字下，静音 / 全屏在控制条', await evaluate(`(() => {
+    const playerLayout = JSON.parse(await evaluate(`JSON.stringify((() => {
       const rail = document.querySelector('.watch__info .watch__episodes');
       const mute = document.querySelector('#player-mute');
       const fullscreen = document.querySelector('#player-fullscreen');
       const ctrl = document.querySelector('.player__ctrl');
-      const topEpisodes = document.querySelector('#player-episodes');
-      const topFullscreen = document.querySelectorAll('.watch__tools [data-paction="fullscreen"]').length;
-      if (!rail || !mute || !fullscreen || !ctrl || topEpisodes || topFullscreen) return false;
-      const r = rail.getBoundingClientRect();
-      const m = mute.getBoundingClientRect();
-      const f = fullscreen.getBoundingClientRect();
-      return r.width > 0 && r.top > innerHeight * 0.4 && m.top > innerHeight * 0.4 && f.left > innerWidth * 0.5;
-    })()`));
+      const desc = document.querySelector('.watch__info .watch__desc');
+      const r = rail ? rail.getBoundingClientRect() : null;
+      const m = mute ? mute.getBoundingClientRect() : null;
+      const f = fullscreen ? fullscreen.getBoundingClientRect() : null;
+      const c = ctrl ? ctrl.getBoundingClientRect() : null;
+      const d = desc ? desc.getBoundingClientRect() : null;
+      return {
+        rail: r ? [Math.round(r.width), Math.round(r.top)] : null,
+        mute: m ? [Math.round(m.width), Math.round(m.top), Math.round(m.bottom)] : null,
+        fullscreen: f ? [Math.round(f.width), Math.round(f.left)] : null,
+        ctrl: c ? [Math.round(c.top), Math.round(c.bottom)] : null,
+        descBottom: d ? Math.round(d.bottom) : null,
+        topEpisodes: Boolean(document.querySelector('#player-episodes')),
+        topFullscreen: document.querySelectorAll('.watch__tools [data-paction="fullscreen"]').length,
+        viewport: [innerWidth, innerHeight]
+      };
+    })())`));
+    record(results, '选集在视频下方文字下，静音 / 全屏在控制条',
+      Boolean(playerLayout.rail && playerLayout.mute && playerLayout.fullscreen && playerLayout.ctrl && playerLayout.descBottom !== null)
+      && !playerLayout.topEpisodes && playerLayout.topFullscreen === 0
+      && playerLayout.rail[0] > 0 && playerLayout.rail[1] > playerLayout.descBottom
+      && playerLayout.mute[1] >= playerLayout.ctrl[0] && playerLayout.mute[2] <= playerLayout.ctrl[1] + 1
+      && playerLayout.fullscreen[1] > playerLayout.viewport[0] * 0.5,
+      JSON.stringify(playerLayout));
 
     await evaluate('document.querySelector("#player-line").click()');
     record(results, '多线路可选', await waitFor('document.querySelectorAll(".sheet [data-value]").length === 2'));
