@@ -556,6 +556,23 @@ async function main() {
     record(results, '全屏中央播放键随画面上移且图标居中',
       fsTools.bigCenter < fsTools.stageCenter - 20 && fsTools.iconMargin === '0px',
       JSON.stringify({ bigCenter: fsTools.bigCenter, stageCenter: fsTools.stageCenter, iconMargin: fsTools.iconMargin }));
+
+    const spinnerAlign = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const buffering = document.getElementById('player-buffering');
+      const wasHidden = buffering.hidden;
+      buffering.hidden = false;
+      const spinner = buffering.querySelector('.player-spinner').getBoundingClientRect();
+      const big = document.querySelector('.player__bigplay').getBoundingClientRect();
+      buffering.hidden = wasHidden;
+      return {
+        spinner: [Math.round(spinner.left + spinner.width / 2), Math.round(spinner.top + spinner.height / 2)],
+        big: [Math.round(big.left + big.width / 2), Math.round(big.top + big.height / 2)]
+      };
+    })())`));
+    record(results, '缓冲转圈与暂停键圆心重合',
+      Math.abs(spinnerAlign.spinner[0] - spinnerAlign.big[0]) <= 1
+      && Math.abs(spinnerAlign.spinner[1] - spinnerAlign.big[1]) <= 1,
+      JSON.stringify(spinnerAlign));
     await screenshot('15-播放器-全屏右上角-手机.png');
 
     await evaluate('document.querySelector(\'.player__fs-tools [data-paction="episodes"]\').click()');

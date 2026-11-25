@@ -2100,7 +2100,19 @@ function onDocumentContextMenu(event) {
   event.preventDefault();
 }
 
+/* 固定页面：阻止双指缩放手势（iOS Safari 会忽略 viewport 的 user-scalable=no）。 */
+function lockPageZoom() {
+  const stopGesture = (event) => event.preventDefault();
+  document.addEventListener('gesturestart', stopGesture, { passive: false });
+  document.addEventListener('gesturechange', stopGesture, { passive: false });
+  document.addEventListener('gestureend', stopGesture, { passive: false });
+  document.addEventListener('touchmove', (event) => {
+    if (event.touches && event.touches.length > 1) event.preventDefault();
+  }, { passive: false });
+}
+
 function setupGlobalListeners() {
+  lockPageZoom();
   document.addEventListener('click', onDocumentClick);
   document.addEventListener('change', onDocumentChange);
   document.addEventListener('input', onDocumentInput);

@@ -115,10 +115,18 @@
 
 /* ---------- 2. 基础 ---------- */
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* 固定版式：允许上下左右滚动，不允许双指缩放。 */
+  touch-action: pan-x pan-y;
+}
+
 body {
   font-size: 14px;
   background: var(--ah-bg);
   color: var(--ah-text);
+  touch-action: pan-x pan-y;
 }
 
 .page {
@@ -2885,6 +2893,11 @@ body.player-app-fullscreen {
   .player-page.watch.is-app-fullscreen:not(.is-landscape) .player__bigplay {
     top: calc(50% - 5vh);
   }
+
+  /* 缓冲转圈与暂停键同心：容器底部留 10vh，圆心正好上移 5vh。 */
+  .player-page.watch.is-app-fullscreen:not(.is-landscape) .player-buffering {
+    padding-bottom: 10vh;
+  }
 }
 
 /* 播放三角形按视觉重心居中，不再额外向右偏 3px。 */
@@ -2892,69 +2905,124 @@ body.player-app-fullscreen {
   margin-left: 0;
 }
 
-/* 选集抽屉：右侧滑出，深色玻璃 + 品牌蓝，与应用其余弹层一致。 */
+/* 选集抽屉：右侧滑出，深色玻璃 + 品牌蓝，参照 iPhone / Samsung 的分层卡片。 */
 .player-page.watch .player-drawer {
   z-index: 12;
 }
 
+.player-page.watch .player-drawer-scrim {
+  background: rgba(0, 0, 0, 0.34);
+  -webkit-backdrop-filter: blur(9px) saturate(120%);
+  backdrop-filter: blur(9px) saturate(120%);
+}
+
 .player-page.watch .player-drawer-panel {
-  width: min(82%, 340px);
-  padding: calc(env(safe-area-inset-top, 0px) + 18px) 14px calc(env(safe-area-inset-bottom, 0px) + 16px) 16px;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 24px 0 0 24px;
-  background: rgba(12, 12, 18, 0.88);
-  box-shadow: -24px 0 64px -32px rgba(0, 0, 0, 0.92);
+  width: min(86%, 360px);
+  padding: calc(env(safe-area-inset-top, 0px) + 20px) 14px calc(env(safe-area-inset-bottom, 0px) + 18px) 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 26px 0 0 26px;
+  background:
+    radial-gradient(120% 55% at 100% 0%, rgba(110, 155, 255, 0.16), rgba(110, 155, 255, 0) 62%),
+    linear-gradient(180deg, rgba(30, 30, 38, 0.96), rgba(10, 10, 14, 0.97));
+  -webkit-backdrop-filter: blur(34px) saturate(180%);
+  backdrop-filter: blur(34px) saturate(180%);
+  box-shadow:
+    -40px 0 100px -42px rgba(0, 0, 0, 0.96),
+    inset 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.player-page.watch .player-drawer-head {
+  padding: 0 2px 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.player-page.watch .player-drawer-heading {
+  min-width: 0;
 }
 
 .player-page.watch .player-drawer-title {
-  font-size: 20px;
-  letter-spacing: -0.02em;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
 .player-page.watch .player-drawer-meta {
-  margin-top: 4px;
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.48);
   font-size: 12px;
+  font-weight: 450;
+}
+
+.player-page.watch .player-drawer-close {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .player-page.watch .player-episode-list {
-  gap: 4px;
-  padding: 12px 0 24px;
+  gap: 6px;
+  padding: 16px 0 28px;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 9px, #000 calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0, #000 9px, #000 calc(100% - 18px), transparent 100%);
 }
 
 .player-page.watch .player-episode {
-  min-height: 50px;
+  min-height: 54px;
   gap: 12px;
-  padding: 8px 12px;
-  border-radius: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.035);
   font-size: 14px;
 }
 
+.player-page.watch .player-episode:hover {
+  border-color: rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.player-page.watch .player-episode-label {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
 .player-page.watch .player-episode-index {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
   display: grid;
   place-content: center;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.55);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .player-page.watch .player-episode.is-current {
-  background: var(--ah-accent-soft);
-  box-shadow: inset 3px 0 0 var(--ah-accent);
+  border-color: rgba(110, 155, 255, 0.45);
+  background: linear-gradient(90deg, rgba(110, 155, 255, 0.22), rgba(110, 155, 255, 0.07));
+  box-shadow:
+    0 14px 34px -26px rgba(110, 155, 255, 0.95),
+    inset 3px 0 0 var(--ah-accent);
   color: #fff;
 }
 
 .player-page.watch .player-episode.is-current .player-episode-index {
   background: var(--ah-accent);
   color: var(--ah-on-fill);
+  box-shadow: 0 5px 16px -7px var(--ah-accent);
 }
 
 .player-page.watch .player-episode-now {
+  padding: 3px 9px;
+  border-radius: 999px;
   background: var(--ah-accent);
   color: var(--ah-on-fill);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
 }
 
 /* 换线路：交回 App 统一的底部面板，不再用播放器专用小浮卡。 */

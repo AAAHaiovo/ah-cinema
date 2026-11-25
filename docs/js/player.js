@@ -287,6 +287,10 @@ export function playerPage(item, episode) {
     '<track kind="subtitles" label="' + escapeHtml(track.label || ('字幕 ' + (index + 1))) + '" srclang="' + escapeHtml(track.srclang || 'zh') + '" src="' + escapeHtml(safeAssetUrl(track.src)) + '">'
   ).join('');
 
+  const currentEpisodeIndex = episode && item.episodes
+    ? item.episodes.findIndex((entry) => entry.id === episode.id)
+    : -1;
+
   const episodeRail = item.episodes && item.episodes.length
     ? '<div class="watch__episodes" aria-label="选集">' +
         item.episodes.map((entry, index) => {
@@ -369,7 +373,9 @@ export function playerPage(item, episode) {
                 '<div class="player-drawer-head">' +
                   '<div class="player-drawer-heading">' +
                     '<h2 class="player-drawer-title" id="player-drawer-title">选集</h2>' +
-                    '<p class="player-drawer-meta">共 ' + item.episodes.length + ' 集</p>' +
+                    '<p class="player-drawer-meta">共 ' + item.episodes.length + ' 集' +
+                      (currentEpisodeIndex >= 0 ? ' · 正在播放第 ' + (currentEpisodeIndex + 1) + ' 集' : '') +
+                    '</p>' +
                   '</div>' +
                   '<button class="pbtn player-drawer-close" type="button" data-paction="close-episodes" aria-label="关闭">' + icon('close') + '</button>' +
                 '</div>' +
@@ -888,8 +894,21 @@ export function mountPlayer(item, episode) {
         .catch(() => {
           if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
           orientationLocked = false;
+          /* iPhone 不能强行转动网页，硬转会让画面变成侧躺；
+             这里只进全屏并提示用户把手机横过来，交给物理旋转。 */
+          if (isIOS()) {
+            setAppFullscreen(true, { auto: true, toast: false });
+            showToast('请把手机横过来观看', 2200);
+            return;
+          }
           setForcedLandscape(true, { autoFullscreen: false });
         });
+      return;
+    }
+
+    if (isIOS()) {
+      setAppFullscreen(true, { auto: true, toast: false });
+      showToast('请把手机横过来观看', 2200);
       return;
     }
 

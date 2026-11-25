@@ -271,6 +271,18 @@ async function main() {
       return data.pageSub + '；内置条目 ' + catalogCount;
     });
 
+    await step('页面固定不可缩放', async () => {
+      const viewport = await evaluate(`document.querySelector('meta[name="viewport"]')?.getAttribute('content') || ''`);
+      if (!/user-scalable=no/.test(viewport) || !/maximum-scale=1/.test(viewport)) {
+        throw new Error('viewport 未锁定 ' + viewport);
+      }
+      const touchAction = await evaluate('getComputedStyle(document.body).touchAction');
+      if (!/pan-x/.test(touchAction) && touchAction !== 'manipulation') {
+        throw new Error('touch-action 未限制 ' + touchAction);
+      }
+      return viewport;
+    });
+
     await step('黑夜 / 白天主题与状态栏配色', async () => {
       let theme = await evaluate('document.documentElement.dataset.theme');
       if (theme !== 'dark') {
@@ -453,6 +465,25 @@ async function main() {
       await send('Network.setUserAgentOverride', {
         userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
       });
+
+      /* 模拟 iPhone 不支持页面全屏 / 方向锁定：横屏按钮不能把画面侧转。 */
+      await evaluate(`(() => {
+        window.__ahRealRequestFullscreen = Element.prototype.requestFullscreen;
+        Element.prototype.requestFullscreen = () => Promise.reject(new Error('test-unsupported'));
+      })()`);
+      await evaluate('document.querySelector("#player-rotate").click()');
+      await wait(500);
+      const iosFallback = JSON.parse(await evaluate(`JSON.stringify((() => {
+        const page = document.getElementById('player-page');
+        return {
+          app: page.classList.contains('is-app-fullscreen'),
+          sideways: page.classList.contains('is-landscape')
+        };
+      })())`));
+      if (!iosFallback.app || iosFallback.sideways) {
+        throw new Error('iPhone 横屏按钮侧转了画面 ' + JSON.stringify(iosFallback));
+      }
+
       await send('Emulation.setDeviceMetricsOverride', {
         width: 844, height: 390, deviceScaleFactor: 3, mobile: true
       });
@@ -463,10 +494,11 @@ async function main() {
         return {
           active: page.classList.contains('is-app-fullscreen'),
           body: document.body.classList.contains('player-app-fullscreen'),
+          sideways: page.classList.contains('is-landscape'),
           stage: [Math.round(stage.width), Math.round(stage.height)]
         };
       })())`));
-      if (!rotated.active || !rotated.body || rotated.stage[0] < 800) {
+      if (!rotated.active || !rotated.body || rotated.sideways || rotated.stage[0] < 800) {
         throw new Error('物理横屏没有铺满 ' + JSON.stringify(rotated));
       }
 
@@ -476,6 +508,12 @@ async function main() {
       await wait(700);
       const backToPortrait = await evaluate('document.getElementById("player-page").classList.contains("is-app-fullscreen")');
       if (backToPortrait) throw new Error('转回竖屏后仍是横屏全屏');
+      await evaluate(`(() => {
+        if (window.__ahRealRequestFullscreen) {
+          Element.prototype.requestFullscreen = window.__ahRealRequestFullscreen;
+          delete window.__ahRealRequestFullscreen;
+        }
+      })()`);
       await send('Network.setUserAgentOverride', { userAgent: originalUA });
 
       return 'v3 观看页；播放 / 暂停 / ±10 / 静音 / 倍速正常；竖屏全屏控制条完整；物理横屏自动铺满';
@@ -809,8 +847,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v36') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v36')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v37') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v37')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;
