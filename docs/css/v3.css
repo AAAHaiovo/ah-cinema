@@ -3064,16 +3064,14 @@ body.player-app-fullscreen {
   border-radius: 14px;
 }
 
-/* 强制横屏：进度条贴近屏幕底边，图标加大加粗。 */
+/* 强制横屏：进度条在功能图标上方，整体贴近屏幕底边，图标加大加粗。 */
 .player-page.watch.is-landscape .player__ctrl {
-  display: flex;
-  flex-direction: column-reverse;
-  padding: 0 18px calc(4px + var(--ah-safe-bottom, 0px));
+  display: block;
+  padding: 0 18px calc(2px + var(--ah-safe-bottom, 0px));
 }
 
 .player-page.watch.is-landscape .ctrlrow {
-  margin-top: 0;
-  margin-bottom: 2px;
+  margin-top: 2px;
   gap: 6px;
 }
 
@@ -3096,4 +3094,24 @@ body.player-app-fullscreen {
 
 .player-page.watch.is-landscape .scrub {
   height: 20px;
+}
+
+
+/* App 内全屏 + 强制横屏同时存在时，横屏尺寸必须优先。 */
+.player-page.watch.is-app-fullscreen.is-landscape {
+  top: 0;
+  left: 0;
+  right: auto;
+  bottom: auto;
+  width: 100vh;
+  height: 100vw;
+  max-width: none;
+  max-height: none;
+}
+
+@supports (width: 100dvh) {
+  .player-page.watch.is-app-fullscreen.is-landscape {
+    width: 100dvh;
+    height: 100dvw;
+  }
 }

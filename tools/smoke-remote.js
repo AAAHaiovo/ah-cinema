@@ -642,6 +642,26 @@ async function main() {
       forcedLandscape.button[0] >= 40 && forcedLandscape.icon[0] >= 21,
       JSON.stringify(forcedLandscape));
     await screenshot('18-播放器-App内横屏-手机.png');
+
+    await evaluate('document.querySelector("#player-fullscreen").click()');
+    await wait(350);
+    const comboLayout = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const page = document.getElementById('player-page');
+      const stage = document.getElementById('player-stage');
+      return {
+        app: page.classList.contains('is-app-fullscreen'),
+        landscape: page.classList.contains('is-landscape'),
+        page: [Math.round(parseFloat(getComputedStyle(page).width)), Math.round(parseFloat(getComputedStyle(page).height))],
+        stage: [Math.round(parseFloat(getComputedStyle(stage).width)), Math.round(parseFloat(getComputedStyle(stage).height))]
+      };
+    })())`));
+    record(results, '全屏后再横屏仍然铺满', comboLayout.app && comboLayout.landscape
+      && comboLayout.page[0] >= 700 && comboLayout.page[1] <= 500
+      && comboLayout.stage[0] >= 700 && comboLayout.stage[1] <= 500,
+      JSON.stringify(comboLayout));
+    await screenshot('18b-播放器-全屏加横屏-手机.png');
+    await evaluate('document.querySelector("#player-fullscreen").click()');
+    await wait(300);
     await evaluate('document.querySelector("#player-rotate").click()');
     await wait(400);
 
