@@ -466,22 +466,23 @@ async function main() {
         userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
       });
 
-      /* 模拟 iPhone 不支持页面全屏 / 方向锁定：横屏按钮不能把画面侧转。 */
+      /* 模拟 iPhone 不支持页面全屏 / 方向锁定：点横屏按钮也必须在 App 内横过来。 */
       await evaluate(`(() => {
         window.__ahRealRequestFullscreen = Element.prototype.requestFullscreen;
         Element.prototype.requestFullscreen = () => Promise.reject(new Error('test-unsupported'));
       })()`);
       await evaluate('document.querySelector("#player-rotate").click()');
-      await wait(500);
+      await wait(650);
       const iosFallback = JSON.parse(await evaluate(`JSON.stringify((() => {
         const page = document.getElementById('player-page');
         return {
           app: page.classList.contains('is-app-fullscreen'),
-          sideways: page.classList.contains('is-landscape')
+          landscape: page.classList.contains('is-landscape'),
+          watch: [Math.round(parseFloat(getComputedStyle(page).width)), Math.round(parseFloat(getComputedStyle(page).height))]
         };
       })())`));
-      if (!iosFallback.app || iosFallback.sideways) {
-        throw new Error('iPhone 横屏按钮侧转了画面 ' + JSON.stringify(iosFallback));
+      if (!iosFallback.landscape || iosFallback.watch[0] < 700 || iosFallback.watch[1] > 500) {
+        throw new Error('iPhone 横屏按钮没有进入 App 内横屏 ' + JSON.stringify(iosFallback));
       }
 
       await send('Emulation.setDeviceMetricsOverride', {
@@ -847,8 +848,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v37') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v37')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v38') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v38')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;

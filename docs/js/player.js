@@ -894,24 +894,13 @@ export function mountPlayer(item, episode) {
         .catch(() => {
           if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
           orientationLocked = false;
-          /* iPhone 不能强行转动网页，硬转会让画面变成侧躺；
-             这里只进全屏并提示用户把手机横过来，交给物理旋转。 */
-          if (isIOS()) {
-            setAppFullscreen(true, { auto: true, toast: false });
-            showToast('请把手机横过来观看', 2200);
-            return;
-          }
+          /* 系统不让锁方向时，直接在 App 内把画面转 90°，不依赖手机的旋转锁。 */
           setForcedLandscape(true, { autoFullscreen: false });
         });
       return;
     }
 
-    if (isIOS()) {
-      setAppFullscreen(true, { auto: true, toast: false });
-      showToast('请把手机横过来观看', 2200);
-      return;
-    }
-
+    /* iPhone 等不支持方向锁的环境：App 内强制横屏。 */
     setForcedLandscape(true, { autoFullscreen: false });
   }
 

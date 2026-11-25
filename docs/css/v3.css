@@ -2491,10 +2491,21 @@ body.no-tabbar #view {
   box-shadow: none;
 }
 
-/* 强制横屏：旋转整个观看页，只保留舞台与控制条 */
+/* 强制横屏：整页旋转 90°，只保留舞台与控制条。 */
 .player-page.watch.is-landscape {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: auto;
+  bottom: auto;
+  width: 100vh;
+  height: 100vw;
+  max-width: none;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  transform: rotate(90deg) translateY(-100%);
+  transform-origin: top left;
   z-index: 90;
   overflow: hidden;
   background: #000;
@@ -2504,21 +2515,8 @@ body.no-tabbar #view {
   --ah-safe-left: env(safe-area-inset-top, 0px);
 }
 
-.player-page.watch.is-landscape .watch {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100vh;
-  height: 100vw;
-  max-width: none;
-  margin: 0;
-  padding: 0;
-  transform: rotate(90deg) translateY(-100%);
-  transform-origin: top left;
-}
-
 @supports (width: 100dvh) {
-  .player-page.watch.is-landscape .watch {
+  .player-page.watch.is-landscape {
     width: 100dvh;
     height: 100dvw;
   }
@@ -2531,17 +2529,16 @@ body.no-tabbar #view {
   display: none !important;
 }
 
-.player-page.watch.is-landscape .player,
-.player-page.watch.is-landscape .player__stage {
-  height: 100vh;
-  aspect-ratio: auto;
-  border-radius: 0;
-  box-shadow: none;
+.player-page.watch.is-landscape .player {
+  height: 100%;
 }
 
 .player-page.watch.is-landscape .player__stage {
-  width: 100vh;
-  height: 100vw;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .watch__head {
@@ -2917,8 +2914,8 @@ body.player-app-fullscreen {
 }
 
 .player-page.watch .player-drawer-panel {
-  width: min(86%, 360px);
-  padding: calc(env(safe-area-inset-top, 0px) + 20px) 14px calc(env(safe-area-inset-bottom, 0px) + 18px) 16px;
+  width: min(72%, 300px);
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 12px calc(env(safe-area-inset-bottom, 0px) + 16px) 14px;
   border-left: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 26px 0 0 26px;
   background:
@@ -2932,7 +2929,7 @@ body.player-app-fullscreen {
 }
 
 .player-page.watch .player-drawer-head {
-  padding: 0 2px 15px;
+  padding: 0 2px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -2941,7 +2938,7 @@ body.player-app-fullscreen {
 }
 
 .player-page.watch .player-drawer-title {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.03em;
 }
@@ -2962,20 +2959,20 @@ body.player-app-fullscreen {
 }
 
 .player-page.watch .player-episode-list {
-  gap: 6px;
-  padding: 16px 0 28px;
+  gap: 4px;
+  padding: 12px 0 22px;
   -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 9px, #000 calc(100% - 18px), transparent 100%);
   mask-image: linear-gradient(180deg, transparent 0, #000 9px, #000 calc(100% - 18px), transparent 100%);
 }
 
 .player-page.watch .player-episode {
-  min-height: 54px;
-  gap: 12px;
-  padding: 10px 12px;
+  min-height: 47px;
+  gap: 10px;
+  padding: 7px 10px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 16px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.035);
-  font-size: 14px;
+  font-size: 13.5px;
 }
 
 .player-page.watch .player-episode:hover {
@@ -2989,39 +2986,38 @@ body.player-app-fullscreen {
 }
 
 .player-page.watch .player-episode-index {
-  width: 30px;
-  min-width: 30px;
-  height: 30px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
   display: grid;
   place-content: center;
-  border-radius: 10px;
+  border-radius: 9px;
   background: rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.55);
-  font-size: 12px;
+  font-size: 11.5px;
 }
 
 .player-page.watch .player-episode.is-current {
-  border-color: rgba(110, 155, 255, 0.45);
-  background: linear-gradient(90deg, rgba(110, 155, 255, 0.22), rgba(110, 155, 255, 0.07));
-  box-shadow:
-    0 14px 34px -26px rgba(110, 155, 255, 0.95),
-    inset 3px 0 0 var(--ah-accent);
+  border-color: rgba(110, 155, 255, 0.38);
+  background: rgba(255, 255, 255, 0.065);
+  box-shadow: 0 12px 30px -28px rgba(110, 155, 255, 0.9);
   color: #fff;
 }
 
 .player-page.watch .player-episode.is-current .player-episode-index {
-  background: var(--ah-accent);
-  color: var(--ah-on-fill);
-  box-shadow: 0 5px 16px -7px var(--ah-accent);
+  background: rgba(255, 255, 255, 0.08);
+  color: #9CBCFF;
+  box-shadow: none;
 }
 
 .player-page.watch .player-episode-now {
-  padding: 3px 9px;
+  padding: 2px 8px;
+  border: 1px solid rgba(110, 155, 255, 0.24);
   border-radius: 999px;
-  background: var(--ah-accent);
-  color: var(--ah-on-fill);
+  background: rgba(110, 155, 255, 0.12);
+  color: #9CBCFF;
   font-size: 10px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.02em;
 }
 
@@ -3066,4 +3062,38 @@ body.player-app-fullscreen {
   min-height: 46px;
   margin-top: 12px;
   border-radius: 14px;
+}
+
+/* 强制横屏：进度条贴近屏幕底边，图标加大加粗。 */
+.player-page.watch.is-landscape .player__ctrl {
+  display: flex;
+  flex-direction: column-reverse;
+  padding: 0 18px calc(4px + var(--ah-safe-bottom, 0px));
+}
+
+.player-page.watch.is-landscape .ctrlrow {
+  margin-top: 0;
+  margin-bottom: 2px;
+  gap: 6px;
+}
+
+.player-page.watch.is-landscape .cbtn {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+}
+
+.player-page.watch.is-landscape .cbtn .icon {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.2;
+}
+
+.player-page.watch.is-landscape .ctime {
+  margin-left: 8px;
+  font-size: 12px;
+}
+
+.player-page.watch.is-landscape .scrub {
+  height: 20px;
 }

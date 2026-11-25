@@ -618,6 +618,32 @@ async function main() {
       && lineSheet.title === '切换线路' && lineSheet.options === 2, JSON.stringify(lineSheet));
     await screenshot('07-播放器-换线路-手机.png');
     await evaluate('document.querySelector(".sheet [data-cancel]").click()');
+    await wait(250);
+
+    await evaluate('document.querySelector("#player-rotate").click()');
+    record(results, '横屏按钮在 App 内直接横过来', await waitFor(
+      'document.getElementById("player-page").classList.contains("is-landscape")',
+      3000
+    ));
+    await wait(450);
+    const forcedLandscape = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const ctrl = document.querySelector('.player__ctrl').getBoundingClientRect();
+      const btn = document.querySelector('.player__ctrl .cbtn');
+      const btnRect = btn.getBoundingClientRect();
+      const icon = btn.querySelector('.icon');
+      return {
+        ctrl: [Math.round(ctrl.left), Math.round(ctrl.top), Math.round(ctrl.right), Math.round(ctrl.bottom)],
+        button: [Math.round(btnRect.width), Math.round(btnRect.height)],
+        icon: [Math.round(parseFloat(getComputedStyle(icon).width)), Math.round(parseFloat(getComputedStyle(icon).height))],
+        viewport: [innerWidth, innerHeight]
+      };
+    })())`));
+    record(results, '横屏控制条下移且图标加大',
+      forcedLandscape.button[0] >= 40 && forcedLandscape.icon[0] >= 21,
+      JSON.stringify(forcedLandscape));
+    await screenshot('18-播放器-App内横屏-手机.png');
+    await evaluate('document.querySelector("#player-rotate").click()');
+    await wait(400);
 
     const railCount = await evaluate('document.querySelectorAll(".watch__info .watch-ep").length');
     record(results, '视频下方选集可滑动选择', railCount === 2, String(railCount));
