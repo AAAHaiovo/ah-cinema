@@ -246,7 +246,6 @@ export function playerPage(item, episode) {
   const quality = (sources[0] && (sources[0].quality || sources[0].label)) || '';
   const favorite = isFavorite(item.id);
   const episodeLabel = episode ? (episode.title || formatEpisodeLabel(episode)) : '';
-  const watchSubtitle = [episodeLabel, item.originalTitle || item.source || '', item.year, quality].filter(Boolean).join(' · ');
   const infoMeta = [
     item.director ? item.director + ' 导演' : '',
     item.actors,
@@ -304,16 +303,21 @@ export function playerPage(item, episode) {
   return '<div class="player-page watch" id="player-page">' +
     '<div class="watch__bar">' +
       '<button class="watch__back" type="button" data-paction="back" aria-label="返回">' + icon('chevronLeft') + '</button>' +
-      '<div class="watch__head">' +
-        '<div class="watch__title">' + escapeHtml(item.title) + '</div>' +
-        '<div class="watch__sub">' + escapeHtml(watchSubtitle) + '</div>' +
-      '</div>' +
       '<div class="watch__tools">' +
         '<button class="btn btn-ghost btn-small" type="button" data-paction="favorite" id="player-favorite" aria-pressed="' + favorite + '">' +
           icon(favorite ? 'heartFill' : 'heart') + '<span class="btn__label">' + (favorite ? '已收藏' : '收藏') + '</span>' +
         '</button>' +
         '<button class="btn btn-ghost btn-small" type="button" data-paction="share" aria-label="分享">' + icon('share') + '<span class="btn__label">分享</span></button>' +
       '</div>' +
+    '</div>' +
+
+    '<div class="watch__intro">' +
+      '<h1 class="watch__info-title">' + escapeHtml(item.title) + '</h1>' +
+      (infoMeta.length
+        ? '<div class="watch__info-meta">' + infoMeta.map((part, index) =>
+            (index ? '<i class="dot"></i>' : '') + '<span>' + escapeHtml(part) + '</span>'
+          ).join('') + '</div>'
+        : '') +
     '</div>' +
 
     '<div class="player" id="player-card">' +
@@ -341,7 +345,7 @@ export function playerPage(item, episode) {
 
         /* 全屏时右上角：声音在左，选集在右。 */
         '<div class="player__fs-tools" aria-label="全屏快捷操作">' +
-          '<button class="pfs-btn" type="button" data-paction="mute" aria-label="静音">' + icon('volume') + '</button>' +
+          '<button class="pfs-btn" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
           (item.episodes && item.episodes.length
             ? '<button class="pfs-btn" type="button" data-paction="episodes" aria-label="选集">' + icon('list') + '</button>'
             : '') +
@@ -355,7 +359,6 @@ export function playerPage(item, episode) {
             '<button class="cbtn" type="button" data-paction="toggle" id="player-play-small" aria-label="播放/暂停">' + icon('play') + '</button>' +
             '<button class="cbtn" type="button" data-paction="rewind" aria-label="后退 10 秒">' + icon('rewind') + '</button>' +
             '<button class="cbtn" type="button" data-paction="forward" aria-label="前进 10 秒">' + icon('forward') + '</button>' +
-            '<button class="cbtn" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
             '<span class="ctime"><b id="player-current">0:00</b><span class="ctime-sep"> / </span><span id="player-duration">0:00</span></span>' +
             '<span class="cspacer"></span>' +
             '<button class="cbtn cbtn--text" type="button" data-paction="speed" id="player-speed" aria-label="倍速">' + escapeHtml(formatRate(initialRate)) + '</button>' +
@@ -401,12 +404,6 @@ export function playerPage(item, episode) {
 
     '<div class="watch__below">' +
       '<div class="watch__info">' +
-        '<div class="watch__info-title">' + escapeHtml(item.title) + '</div>' +
-        (infoMeta.length
-          ? '<div class="watch__info-meta">' + infoMeta.map((part, index) =>
-              (index ? '<i class="dot"></i>' : '') + '<span>' + escapeHtml(part) + '</span>'
-            ).join('') + '</div>'
-          : '') +
         (tagList.length
           ? '<div class="watch__tags">' + tagList.map((tag) => '<span class="chip chip--static">' + escapeHtml(tag) + '</span>').join('') + '</div>'
           : '') +

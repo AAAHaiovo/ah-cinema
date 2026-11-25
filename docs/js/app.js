@@ -395,6 +395,7 @@ function renderRoute() {
   if (!els.view) return;
   clearHeroCarousel();
   setHeaderHidden(false);
+  browseBarScrolledHidden = false;
 
   closeOverlay();
 
@@ -429,7 +430,10 @@ function renderRoute() {
 
   document.body.classList.toggle('no-tabbar', !tabbed);
   document.body.classList.toggle('player-active', Boolean(playerItem));
-  if (els.header) els.header.hidden = !tabbed;
+  if (els.header) {
+    els.header.hidden = !tabbed;
+    els.header.classList.toggle('is-home', resolved.name === 'home');
+  }
   if (els.tabbar) els.tabbar.hidden = !tabbed;
   updateActiveTab(tabForRoute(resolved.name));
 
@@ -766,6 +770,7 @@ let browseKey = '';
 let browseLastTopGroup = '';
 let lastScrollY = 0;
 let scrollFrame = 0;
+let browseBarScrolledHidden = false;
 let heroTimer = null;
 
 function clearHeroCarousel() {
@@ -866,6 +871,7 @@ function emptyBrowseState() {
     topGroup: '',
     subCategory: '',
     expanded: false,
+    collapsed: false,
     fetchingKey: '',
     failedKey: ''
   };
@@ -903,6 +909,10 @@ function renderBrowse() {
 
   section.innerHTML = renderHomeBrowse(browseState);
   browseLastTopGroup = browseState.topGroup;
+  if (browseBarScrolledHidden) {
+    const bar = section.querySelector('.browse-filterbar');
+    if (bar) bar.classList.add('is-scroll-hidden');
+  }
 
   /* 首页主视觉：默认页用前 3 部影片轮播；切换分类时保留当前主视觉。 */
   const hero = document.getElementById('home-hero');
@@ -1075,6 +1085,15 @@ function setHeaderHidden(hidden) {
   if (header) header.classList.toggle('is-hidden', next);
 }
 
+/* 首页向下滑隐藏分类栏，向上滑恢复。 */
+function setBrowseBarScrolledHidden(hidden) {
+  browseBarScrolledHidden = Boolean(hidden);
+  document.querySelectorAll('.home-page .browse-filterbar').forEach((bar) => {
+    bar.classList.toggle('is-scroll-hidden', browseBarScrolledHidden);
+    bar.setAttribute('aria-hidden', browseBarScrolledHidden ? 'true' : 'false');
+  });
+}
+
 function updateBrowseBarOnScroll() {
   scrollFrame = 0;
   if (!els.view) return;
@@ -1084,11 +1103,17 @@ function updateBrowseBarOnScroll() {
   const delta = y - lastScrollY;
   const hidden = document.body.classList.contains('header-hidden');
   const pinnedHome = Boolean(document.querySelector('.home-page'));
+  const bar = pinnedHome ? document.querySelector('.home-page .browse-filterbar') : null;
 
   if (y < 28 || delta < -6) {
     if (hidden) setHeaderHidden(false);
-  } else if (!pinnedHome && delta > 6 && y > 60 && !hidden) {
-    setHeaderHidden(true);
+    if (bar && bar.classList.contains('is-scroll-hidden')) setBrowseBarScrolledHidden(false);
+  } else if (delta > 6) {
+    if (!pinnedHome && y > 60 && !hidden) setHeaderHidden(true);
+    if (bar && y > 80 && !bar.classList.contains('is-scroll-hidden')) {
+      const viewTop = els.view.getBoundingClientRect().top;
+      if (bar.getBoundingClientRect().top <= viewTop + 60) setBrowseBarScrolledHidden(true);
+    }
   }
 
   lastScrollY = y;
@@ -1126,6 +1151,7 @@ async function loadBrowse(page, topGroup, subCategory, options = {}) {
     subCategory: nextSub,
     /* 只有同一一级分类内才保留展开状态；换成电影/电视剧时自动收起。 */
     expanded: nextTop === previous.topGroup ? previous.expanded : false,
+    collapsed: nextTop === previous.topGroup ? previous.collapsed : false,
     status: 'loading',
     page: targetPage,
     loading: true,
@@ -1789,6 +1815,12 @@ async function onDocumentClick(event) {
 
   if (action === 'browse-expand') {
     toggleBrowseExpand();
+    return;
+  }
+
+  if (action === 'browse-collapse') {
+    browseState.collapsed = !browseState.collapsed;
+    renderBrowse();
     return;
   }
 

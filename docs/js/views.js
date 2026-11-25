@@ -54,7 +54,7 @@ import {
 import { localItems, localCount } from './local-library.js';
 import { cachedSources } from './sources.js';
 
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.9.0';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -160,6 +160,7 @@ function browseFilterBar(view) {
   const selectedGroup = String(view.topGroup || '');
   const selectedSub = String(view.subCategory || '');
   const meta = browseFilterMeta(view);
+  const collapsed = Boolean(view.collapsed);
 
   if (!groups.length) {
     return meta ? '<div class="browse-filterbar is-meta-only">' + meta + '</div>' : '';
@@ -210,16 +211,15 @@ function browseFilterBar(view) {
     if (expanded) categoryPanel = browseCategoryPanel(group, selectedSub);
   }
 
-  return '<div class="browse-filterbar">' +
+  return '<div class="browse-filterbar' + (collapsed ? ' is-manually-collapsed' : '') + '">' +
     '<div class="browse-filter-row" data-row="top">' +
       browseScrollButton(-1, 'top') +
       '<div class="browse-categories" id="browse-top-categories" aria-label="影片一级分类">' +
         topChips.join('') + '</div>' +
       browseScrollButton(1, 'top') +
+      '<button class="browse-collapse' + (collapsed ? '' : ' is-open') + '" type="button" data-action="browse-collapse" aria-expanded="' + (!collapsed) + '" aria-label="' + (collapsed ? '展开分类' : '收起分类') + '">' + icon('chevronDown') + '</button>' +
     '</div>' +
-    subRow +
-    categoryPanel +
-    meta +
+    (collapsed ? '' : subRow + categoryPanel + meta) +
     '</div>';
 }
 
