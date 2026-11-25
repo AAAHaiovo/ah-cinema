@@ -193,9 +193,6 @@ function hideSplash() {
   els.splash.setAttribute('aria-hidden', 'true');
 }
 
-const splashSkip = document.getElementById('splash-skip');
-if (splashSkip) splashSkip.addEventListener('click', hideSplash);
-
 function failBoot(error) {
   if (bootFailed) return;
   bootFailed = true;

@@ -78,29 +78,6 @@
   border-width: 1.5px;
 }
 
-.splash-skip {
-  position: absolute;
-  left: 50%;
-  bottom: calc(30px + var(--ah-safe-bottom));
-  transform: translateX(-50%);
-  height: 36px;
-  padding: 0 20px;
-  border: 1px solid var(--ah-line);
-  border-radius: var(--ah-radius-pill);
-  background: var(--ah-bg-elevated);
-  color: var(--ah-text-2);
-  font-size: 12.5px;
-  font-weight: 600;
-  transition: transform 140ms var(--ah-ease), background-color 160ms var(--ah-ease);
-}
-
-.splash-skip:hover {
-  background: var(--ah-surface-2);
-}
-
-.splash-skip:active {
-  transform: translateX(-50%) scale(0.96);
-}
 
 @keyframes splash-rise {
   from {

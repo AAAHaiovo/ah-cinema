@@ -1036,6 +1036,14 @@ export function mountPlayer(item, episode) {
   }
 
   function toggleFullscreen() {
+    /* 横屏时点全屏 = 退出横屏，回到图 1 的竖屏观看页。 */
+    if (page.classList.contains('is-landscape')) {
+      setAppFullscreen(false, { toast: false });
+      setForcedLandscape(false, { toast: false });
+      showToast('已退出横屏');
+      return;
+    }
+
     /* 轻触：App 内全屏，保留自定义控件；长按请用系统全屏。 */
     if (document.fullscreenElement) {
       exitAutoFullscreen();

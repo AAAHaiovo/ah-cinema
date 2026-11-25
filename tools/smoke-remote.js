@@ -503,12 +503,16 @@ async function main() {
       const f = fullscreen ? fullscreen.getBoundingClientRect() : null;
       const c = ctrl ? ctrl.getBoundingClientRect() : null;
       const d = desc ? desc.getBoundingClientRect() : null;
+      const cbtn = document.querySelector('.player__ctrl .cbtn');
+      const cbtnIcon = cbtn ? cbtn.querySelector('.icon') : null;
       return {
         rail: r ? [Math.round(r.width), Math.round(r.top)] : null,
         mute: m ? [Math.round(m.width), Math.round(m.top), Math.round(m.bottom)] : null,
         fullscreen: f ? [Math.round(f.width), Math.round(f.left)] : null,
         ctrl: c ? [Math.round(c.top), Math.round(c.bottom)] : null,
         descBottom: d ? Math.round(d.bottom) : null,
+        button: cbtn ? Math.round(cbtn.getBoundingClientRect().width) : null,
+        icon: cbtnIcon ? Math.round(parseFloat(getComputedStyle(cbtnIcon).width)) : null,
         topEpisodes: Boolean(document.querySelector('#player-episodes')),
         topFullscreen: document.querySelectorAll('.watch__tools [data-paction="fullscreen"]').length,
         viewport: [innerWidth, innerHeight]
@@ -521,6 +525,9 @@ async function main() {
       && playerLayout.mute[1] >= playerLayout.ctrl[0] && playerLayout.mute[2] <= playerLayout.ctrl[1] + 1
       && playerLayout.fullscreen[1] > playerLayout.viewport[0] * 0.5,
       JSON.stringify(playerLayout));
+    record(results, '竖屏控制图标已加大加粗',
+      playerLayout.button >= 36 && playerLayout.icon >= 21,
+      JSON.stringify({ button: playerLayout.button, icon: playerLayout.icon }));
 
     await evaluate('document.getElementById("player-overlay").classList.remove("is-hidden")');
     await evaluate('document.querySelector("#player-fullscreen").click()');
@@ -635,16 +642,51 @@ async function main() {
         ctrl: [Math.round(ctrl.left), Math.round(ctrl.top), Math.round(ctrl.right), Math.round(ctrl.bottom)],
         button: [Math.round(btnRect.width), Math.round(btnRect.height)],
         icon: [Math.round(parseFloat(getComputedStyle(icon).width)), Math.round(parseFloat(getComputedStyle(icon).height))],
+        videoTransform: getComputedStyle(document.querySelector('.player__video')).transform,
         viewport: [innerWidth, innerHeight]
       };
     })())`));
     record(results, '横屏控制条下移且图标加大',
       forcedLandscape.button[0] >= 40 && forcedLandscape.icon[0] >= 21,
       JSON.stringify(forcedLandscape));
+    record(results, '横屏画面为状态栏让位', /matrix\(1,\s*0,\s*0,\s*1,\s*26,\s*0\)/.test(forcedLandscape.videoTransform),
+      forcedLandscape.videoTransform);
+    const fsLandscape = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const root = document.querySelector('.player__fs-tools');
+      return {
+        display: root ? getComputedStyle(root).display : '',
+        actions: root ? Array.from(root.querySelectorAll('[data-paction]')).map((button) => button.getAttribute('data-paction')) : []
+      };
+    })())`));
+    record(results, '横屏右上角有声音与选集', fsLandscape.display === 'flex'
+      && fsLandscape.actions.join(',') === 'mute,episodes', JSON.stringify(fsLandscape));
+    await evaluate('document.querySelector(\'.player__fs-tools [data-paction="episodes"]\').click()');
+    record(results, '横屏右上角选集可打开', await waitFor(
+      'document.getElementById("player-drawer")?.classList.contains("is-open")',
+      5000
+    ));
+    await evaluate('document.querySelector(".player-drawer-close").click()');
+    await wait(300);
     await screenshot('18-播放器-App内横屏-手机.png');
 
     await evaluate('document.querySelector("#player-fullscreen").click()');
+    await wait(400);
+    const backFromLandscape = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const page = document.getElementById('player-page');
+      return {
+        landscape: page.classList.contains('is-landscape'),
+        app: page.classList.contains('is-app-fullscreen'),
+        watchBar: Boolean(document.querySelector('.watch__bar'))
+      };
+    })())`));
+    record(results, '横屏点全屏回到竖屏观看页', !backFromLandscape.landscape
+      && !backFromLandscape.app && backFromLandscape.watchBar,
+      JSON.stringify(backFromLandscape));
+
+    await evaluate('document.querySelector("#player-fullscreen").click()');
     await wait(350);
+    await evaluate('document.querySelector("#player-rotate").click()');
+    await wait(500);
     const comboLayout = JSON.parse(await evaluate(`JSON.stringify((() => {
       const page = document.getElementById('player-page');
       const stage = document.getElementById('player-stage');
@@ -661,8 +703,6 @@ async function main() {
       JSON.stringify(comboLayout));
     await screenshot('18b-播放器-全屏加横屏-手机.png');
     await evaluate('document.querySelector("#player-fullscreen").click()');
-    await wait(300);
-    await evaluate('document.querySelector("#player-rotate").click()');
     await wait(400);
 
     const railCount = await evaluate('document.querySelectorAll(".watch__info .watch-ep").length');

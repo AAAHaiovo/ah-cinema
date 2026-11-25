@@ -2840,10 +2840,6 @@ body.player-app-fullscreen {
   display: flex;
 }
 
-.player-page.watch.is-app-fullscreen.is-landscape .player__fs-tools {
-  display: none;
-}
-
 .pfs-btn {
   width: 42px;
   height: 42px;
@@ -3114,4 +3110,59 @@ body.player-app-fullscreen {
     width: 100dvh;
     height: 100dvw;
   }
+}
+
+/* 竖屏播放器：底部控制图标再放大、加粗。 */
+@media (max-width: 899px) {
+  .player-page.watch:not(.is-landscape) .player__ctrl .cbtn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .player-page.watch:not(.is-landscape) .player__ctrl .cbtn .icon {
+    width: 21px;
+    height: 21px;
+    stroke-width: 2.1;
+  }
+}
+
+/* 真横屏（App 内全屏）时同样使用大图标。 */
+@media (orientation: landscape) and (max-height: 520px) {
+  .player-page.watch.is-app-fullscreen .player__ctrl .cbtn {
+    width: 42px;
+    height: 42px;
+  }
+
+  .player-page.watch.is-app-fullscreen .player__ctrl .cbtn .icon {
+    width: 22px;
+    height: 22px;
+    stroke-width: 2.2;
+  }
+}
+
+/* 强制横屏：右上角显示声音 / 选集，按手机状态栏留出安全距离。 */
+.player-page.watch.is-landscape .player__fs-tools,
+.player-page.watch.is-app-fullscreen.is-landscape .player__fs-tools {
+  display: flex;
+  flex-direction: row;
+  top: calc(var(--ah-safe-top, 0px) + 14px);
+  right: calc(var(--ah-safe-right, 0px) + 14px);
+  gap: 8px;
+}
+
+/* 横屏时状态栏会占掉一侧空间：画面整体向另一侧挪一点，视觉更居中。 */
+.player-page.watch.is-landscape {
+  --ah-ls-shift: 26px;
+}
+
+.player-page.watch.is-landscape .player__video {
+  transform: translateX(var(--ah-ls-shift));
+}
+
+.player-page.watch.is-landscape .player__bigplay {
+  left: calc(50% + var(--ah-ls-shift));
+}
+
+.player-page.watch.is-landscape .player-buffering {
+  padding-left: 52px;
 }
