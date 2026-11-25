@@ -403,7 +403,6 @@ function renderRoute() {
 
   const route = parseRoute();
   const resolved = resolveRoute(route);
-  if (resolved.name !== 'home' && homeFilterObserver) homeFilterObserver.disconnect();
   const nextKey = routeKey(route);
 
   if (currentRoute && isTabbedRoute(currentRoute.name) && !document.body.classList.contains('no-tabbar')) {
@@ -485,7 +484,6 @@ function renderRoute() {
 
   if (resolved.name === 'home') {
     ensureBrowse();
-    observeHomeFilter();
   }
 
   if (resolved.name === 'search') {
@@ -772,7 +770,6 @@ let browseLastTopGroup = '';
 let lastScrollY = 0;
 let scrollFrame = 0;
 let heroTimer = null;
-let homeFilterObserver = null;
 
 function clearHeroCarousel() {
   if (heroTimer) {
@@ -896,36 +893,6 @@ function centerActiveChip(container) {
   }
 }
 
-/* 首页分类栏固定在顶栏下方：用实际高度给页面顶部留出空间。
-   展开分类面板时只让它浮在内容上方，不再把整页往下推。 */
-function measureHomeFilter() {
-  const page = document.querySelector('.home-page');
-  if (!page) return;
-  const bar = page.querySelector('.browse-filterbar');
-  if (!bar) {
-    page.style.removeProperty('--home-filter-h');
-    return;
-  }
-
-  let height = bar.getBoundingClientRect().height;
-  const panel = bar.querySelector('.browse-category-panel');
-  if (panel) {
-    const style = window.getComputedStyle(panel);
-    height -= panel.getBoundingClientRect().height
-      + (parseFloat(style.marginTop) || 0)
-      + (parseFloat(style.marginBottom) || 0);
-  }
-  page.style.setProperty('--home-filter-h', Math.max(0, Math.ceil(height)) + 'px');
-}
-
-function observeHomeFilter() {
-  if (!homeFilterObserver) homeFilterObserver = new ResizeObserver(measureHomeFilter);
-  homeFilterObserver.disconnect();
-  const bar = document.querySelector('.home-page .browse-filterbar');
-  if (bar) homeFilterObserver.observe(bar);
-  measureHomeFilter();
-}
-
 /* 重绘时保住两行分类的横向位置；一级分类切换时子分类回到开头。 */
 function renderBrowse() {
   const section = document.getElementById('home-browse');
@@ -939,7 +906,6 @@ function renderBrowse() {
 
   section.innerHTML = renderHomeBrowse(browseState);
   browseLastTopGroup = browseState.topGroup;
-  observeHomeFilter();
 
   /* 首页主视觉：默认页用前 3 部影片轮播；切换分类时保留当前主视觉。 */
   const hero = document.getElementById('home-hero');
@@ -1088,13 +1054,9 @@ function scrollBrowseIntoView() {
   const target = document.getElementById('home-browse');
   if (!target || !els.view) return;
 
-  /* 分类栏固定后，片库开头要停在分类栏下方，不能被固定栏挡住。 */
-  const page = document.querySelector('.home-page');
-  const bar = page ? page.querySelector('.browse-filterbar') : null;
-  const measured = page ? parseFloat(getComputedStyle(page).getPropertyValue('--home-filter-h')) : 0;
-  const filterHeight = Number.isFinite(measured) && measured > 0
-    ? measured
-    : (bar ? bar.getBoundingClientRect().height : 0);
+  /* 分类栏吸顶后，片库开头要停在分类栏下方，不能被它挡住。 */
+  const bar = document.querySelector('.home-page .browse-filterbar');
+  const filterHeight = bar ? bar.getBoundingClientRect().height : 0;
 
   const viewTop = els.view.getBoundingClientRect().top;
   const targetTop = target.getBoundingClientRect().top;

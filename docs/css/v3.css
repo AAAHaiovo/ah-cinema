@@ -2547,14 +2547,11 @@ body.no-tabbar #view {
   text-overflow: ellipsis;
 }
 
-/* ---------- 9. 首页分类固定 ---------- */
+/* ---------- 9. 首页分类栏 ---------- */
 
-/* 分类栏不再跟着内容滚动，而是固定在顶栏下方；
-   页面顶部按它的实际高度留白（--home-filter-h 由脚本量出）。 */
+/* 分类栏位于「最新影片」标题下方，滚动到顶栏下面后吸住；首页顶栏一直可见。 */
 .home-page {
-  padding-top: calc(26px + var(--home-filter-h, 0px) + 18px);
   animation: home-page-in 220ms var(--ah-ease);
-  transition: padding-top 240ms var(--ah-ease);
 }
 
 @keyframes home-page-in {
@@ -2562,32 +2559,24 @@ body.no-tabbar #view {
   to { opacity: 1; }
 }
 
-@media (max-width: 899px) {
-  .home-page {
-    padding-top: calc(16px + var(--home-filter-h, 0px) + 14px);
-  }
-}
-
 .home-page .browse-filterbar,
 .home-page .browse-filterbar.is-collapsed {
-  position: fixed;
-  top: calc(var(--ah-header-h) + var(--ah-safe-top));
-  left: 0;
-  right: 0;
-  z-index: 44;
-  margin: 0;
+  position: sticky;
+  /* #view 的内容区已经让出了顶栏高度，这里用 0 即可贴在顶栏下方。 */
+  top: 0;
+  z-index: 30;
+  margin: 0 calc(var(--ah-page-pad) * -1) 14px;
   padding: 8px var(--ah-page-pad) 10px;
   border-bottom: 1px solid var(--ah-line);
   /* 分类栏里有可横向滑动的行，iOS 上用实色背景更稳，也不会透出正文。 */
   background: var(--ah-bg);
-  box-shadow: 0 12px 28px -24px rgba(0, 0, 0, 0.55);
   opacity: 1;
   transform: none;
   pointer-events: auto;
   max-height: calc(100dvh - var(--ah-header-h) - var(--ah-safe-top) - 12px);
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  transition: top 280ms var(--ah-ease), background-color 240ms var(--ah-ease);
+  box-shadow: 0 12px 28px -24px rgba(0, 0, 0, 0.55);
 }
 
 .home-page .browse-filterbar.is-meta-only {
@@ -2595,36 +2584,6 @@ body.no-tabbar #view {
   padding-bottom: 8px;
 }
 
-body.header-hidden .home-page .browse-filterbar {
-  top: var(--ah-safe-top);
-}
-
-@media (min-width: 900px) {
-  .home-page .browse-filterbar,
-  .home-page .browse-filterbar.is-collapsed {
-    left: var(--ah-sidebar-w);
-    top: var(--ah-header-h);
-    padding-left: max(var(--ah-page-pad), calc((100vw - var(--ah-sidebar-w) - var(--ah-page-max)) / 2 + var(--ah-page-pad)));
-    padding-right: max(var(--ah-page-pad), calc((100vw - var(--ah-sidebar-w) - var(--ah-page-max)) / 2 + var(--ah-page-pad)));
-  }
-
-  body.header-hidden .home-page .browse-filterbar,
-  body.header-hidden .home-page .browse-filterbar.is-collapsed {
-    top: 0;
-  }
-}
-
-@media (display-mode: standalone) {
-  .home-page .browse-filterbar,
-  .home-page .browse-filterbar.is-collapsed {
-    top: calc(var(--ah-header-h) + var(--ah-safe-top) + min(32px, calc(var(--ah-safe-top) * 1000)));
-  }
-
-  body.header-hidden .home-page .browse-filterbar,
-  body.header-hidden .home-page .browse-filterbar.is-collapsed {
-    top: var(--ah-safe-top);
-  }
-}
 
 /* 展开的全部分类：更松的网格、更大的点击区域，避免拥挤。 */
 .home-page .browse-category-panel {
@@ -2668,8 +2627,42 @@ body.header-hidden .home-page .browse-filterbar {
 
 /* ---------- 10. 历史 ---------- */
 
+.history-head {
+  align-items: flex-end;
+}
+
+.history-head__main {
+  min-width: 0;
+}
+
+.history-head .page-title {
+  margin-top: 5px;
+}
+
+.history-clear {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--ah-text-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.history-clear .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.history-clear:hover {
+  color: #E5484D;
+}
+
 .history-groups {
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .history-group {
@@ -2677,7 +2670,7 @@ body.header-hidden .home-page .browse-filterbar {
 }
 
 .history-group:first-child {
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .history-group__title {
@@ -2685,7 +2678,7 @@ body.header-hidden .home-page .browse-filterbar {
   align-items: baseline;
   gap: 8px;
   margin: 0 0 10px;
-  padding: 0 4px;
+  padding: 0 2px;
   color: var(--ah-text-2);
   font-size: 13px;
   font-weight: 650;
@@ -2698,61 +2691,74 @@ body.header-hidden .home-page .browse-filterbar {
   font-weight: 500;
 }
 
+/* 每组是一张完整卡片，行与行之间用细分隔线，和参考图一致。 */
 .history-page .history-list {
-  gap: 10px;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--ah-line);
+  border-radius: 20px;
+  background: var(--ah-surface);
+  box-shadow: var(--v3-shadow-1);
 }
 
 .history-page .history-row {
+  gap: 8px;
   padding: 12px 10px 12px 14px;
-  border-radius: 18px;
-  background: var(--ah-surface);
-  box-shadow: var(--v3-shadow-1);
-  transition: transform 200ms var(--ah-ease), border-color 200ms var(--ah-ease), background-color 200ms var(--ah-ease);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: background-color 180ms var(--ah-ease);
+}
+
+.history-page .history-row + .history-row {
+  border-top: 1px solid var(--ah-line);
 }
 
 .history-page .history-row:active {
-  transform: scale(0.99);
   background: var(--ah-surface-2);
 }
 
 .history-page .history-link {
-  gap: 14px;
+  gap: 13px;
 }
 
 .history-page .history-thumb {
-  flex: 0 0 96px;
-  width: 96px;
-  border-radius: 11px;
-  box-shadow: 0 5px 14px -8px rgba(0, 0, 0, 0.55);
+  flex: 0 0 128px;
+  width: 128px;
+  border-radius: 10px;
+  box-shadow: none;
 }
 
 .history-page .history-main {
-  padding: 3px 0;
+  padding: 2px 0;
 }
 
 .history-page .history-title {
-  font-size: 15.5px;
+  font-size: 16px;
   letter-spacing: -0.01em;
 }
 
 .history-page .history-sub {
-  margin-top: 5px;
+  margin-top: 6px;
   font-size: 12px;
-}
-
-.history-page .history-time {
-  margin-top: 7px;
-  color: var(--ah-text-3);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
 }
 
 .history-page .history-remove {
   width: 34px;
   height: 34px;
   flex: 0 0 34px;
-  margin-left: 2px;
-  border-radius: 12px;
+  border-radius: 50%;
+  color: var(--ah-text-3);
+}
+
+.history-page .history-remove .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.history-page .history-progress i {
+  background: var(--v3-danger);
 }
 
 @media (max-width: 420px) {
@@ -2765,12 +2771,20 @@ body.header-hidden .home-page .browse-filterbar {
   }
 
   .history-page .history-thumb {
-    flex-basis: 88px;
-    width: 88px;
+    flex-basis: 108px;
+    width: 108px;
+  }
+
+  .history-page .history-title {
+    font-size: 15px;
   }
 }
 
 /* ---------- 11. 播放器全屏 ---------- */
+
+body.player-app-fullscreen {
+  background: #000;
+}
 
 /* iOS 的 100vh 会把浏览器工具栏也算进去，改用动态视口高度。 */
 .player-page.watch.is-app-fullscreen {
@@ -2799,6 +2813,55 @@ body.header-hidden .home-page .browse-filterbar {
   flex: 0 0 auto;
 }
 
+/* 竖屏全屏：状态栏占掉顶部空间，画面整体上移一点，观看位置更舒服。 */
+@media (orientation: portrait) {
+  .player-page.watch.is-app-fullscreen:not(.is-landscape) .player__video {
+    transform: translateY(-5vh);
+  }
+}
+
+/* 全屏右上角：声音在左，选集在右。 */
+.player__fs-tools {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 14px);
+  right: calc(env(safe-area-inset-right, 0px) + 14px);
+  z-index: 6;
+  display: none;
+  align-items: center;
+  gap: 10px;
+}
+
+.player-page.watch.is-app-fullscreen .player__fs-tools {
+  display: flex;
+}
+
+.player-page.watch.is-app-fullscreen.is-landscape .player__fs-tools {
+  display: none;
+}
+
+.pfs-btn {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  background: rgba(8, 8, 12, 0.52);
+  color: #fff;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.72);
+}
+
+.pfs-btn .icon {
+  width: 19px;
+  height: 19px;
+}
+
+.pfs-btn.is-active {
+  color: var(--ah-accent);
+}
+
 @media (max-width: 360px) {
   .player-page.watch.is-app-fullscreen .ctime {
     font-size: 9.5px;
@@ -2807,5 +2870,10 @@ body.header-hidden .home-page .browse-filterbar {
   .player-page.watch.is-app-fullscreen .cbtn {
     width: 30px;
     height: 30px;
+  }
+
+  .pfs-btn {
+    width: 38px;
+    height: 38px;
   }
 }

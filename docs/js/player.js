@@ -333,6 +333,14 @@ export function playerPage(item, episode) {
 
         '<button class="player__bigplay" type="button" data-paction="toggle" id="player-play" aria-label="播放">' + icon('play') + '</button>' +
 
+        /* 全屏时右上角：声音在左，选集在右。 */
+        '<div class="player__fs-tools" aria-label="全屏快捷操作">' +
+          '<button class="pfs-btn" type="button" data-paction="mute" aria-label="静音">' + icon('volume') + '</button>' +
+          (item.episodes && item.episodes.length
+            ? '<button class="pfs-btn" type="button" data-paction="episodes" aria-label="选集">' + icon('list') + '</button>'
+            : '') +
+        '</div>' +
+
         '<div class="player__ctrl" id="player-overlay">' +
           '<div class="scrub">' +
             '<input class="player-scrub" id="player-scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度">' +
@@ -399,7 +407,6 @@ export function mountPlayer(item, episode) {
   const durationLabel = document.getElementById('player-duration');
   const speedButton = document.getElementById('player-speed');
   const lineButton = document.getElementById('player-line');
-  const muteButton = document.getElementById('player-mute');
   const displayButton = document.getElementById('player-rotate');
   const fullscreenButton = document.getElementById('player-fullscreen');
   const buffering = document.getElementById('player-buffering');
@@ -447,6 +454,7 @@ export function mountPlayer(item, episode) {
   let pointerFlagTimer = null;
   let orientationTimer = null;
   let orientationLocked = false;
+  let autoLandscapeFullscreen = false;
   let longPressTimer = null;
   let longPressFired = false;
   let wasLandscapeViewport = isLandscapeViewport();
@@ -796,12 +804,13 @@ export function mountPlayer(item, episode) {
     showToast(delta < 0 ? '已后退 10 秒' : '已前进 10 秒', 1200);
   }
 
-  /* 声音按钮只切换静音，不再提供音量调节。 */
+  /* 声音按钮只切换静音；底部控制条和全屏右上角共用同一状态。 */
   function updateMuteButton() {
-    if (!muteButton) return;
-    muteButton.innerHTML = icon(video.muted ? 'volumeMute' : 'volume');
-    muteButton.setAttribute('aria-label', video.muted ? '取消静音' : '静音');
-    muteButton.classList.toggle('is-active', video.muted);
+    document.querySelectorAll('[data-paction="mute"]').forEach((button) => {
+      button.innerHTML = icon(video.muted ? 'volumeMute' : 'volume');
+      button.setAttribute('aria-label', video.muted ? '取消静音' : '静音');
+      button.classList.toggle('is-active', video.muted);
+    });
   }
 
   function updateSpeedLabel() {
@@ -987,6 +996,17 @@ export function mountPlayer(item, episode) {
     event.stopImmediatePropagation();
   }
 
+  function setAppFullscreen(active, options) {
+    const opts = options || {};
+    const next = Boolean(active);
+    page.classList.toggle('is-app-fullscreen', next);
+    document.body.classList.toggle('player-app-fullscreen', next);
+    autoLandscapeFullscreen = next && Boolean(opts.auto);
+    updateOrientationState();
+    showControls();
+    if (opts.toast !== false) showToast(next ? '已进入全屏' : '已退出全屏');
+  }
+
   function toggleFullscreen() {
     /* 轻触：App 内全屏，保留自定义控件；长按请用系统全屏。 */
     if (document.fullscreenElement) {
@@ -998,16 +1018,17 @@ export function mountPlayer(item, episode) {
       return;
     }
 
-    const active = page.classList.toggle('is-app-fullscreen');
-    document.body.classList.toggle('player-app-fullscreen', active);
-    updateFullscreenButton();
-    showControls();
-    showToast(active ? '已进入全屏' : '已退出全屏');
+    setAppFullscreen(!page.classList.contains('is-app-fullscreen'));
   }
 
   function isLandscapeViewport() {
     if (window.matchMedia) return window.matchMedia('(orientation: landscape)').matches;
     return window.innerWidth > window.innerHeight;
+  }
+
+  function isHandheld() {
+    if (isIOS()) return true;
+    return /Android|Mobile|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
   }
 
   function setStatusBar(style) {
@@ -1019,7 +1040,8 @@ export function mountPlayer(item, episode) {
     const landscape = isLandscapeViewport();
     if (!document.fullscreenElement && !isNativeFullscreen()) orientationLocked = false;
     page.classList.toggle('is-landscape-viewport', landscape);
-    const immersive = landscape || forcedLandscape || orientationLocked || Boolean(document.fullscreenElement);
+    const immersive = landscape || forcedLandscape || orientationLocked
+      || Boolean(document.fullscreenElement) || page.classList.contains('is-app-fullscreen');
     setStatusBar(immersive ? 'black-translucent' : 'black');
     updateDisplayButton();
     updateFullscreenButton();
@@ -1133,10 +1155,15 @@ export function mountPlayer(item, episode) {
       setForcedLandscape(false, { toast: false, keepFullscreen: true });
       showToast('已切换为横屏', 1400);
     } else if (landscape && !wasLandscapeViewport) {
-      /* 物理转到横屏：尽量进入全屏（没有用户手势时浏览器会拒绝）。 */
-      requestAutoFullscreen();
+      /* 手机物理转到横屏：直接铺满屏幕观看，不依赖浏览器全屏权限。 */
+      if (isHandheld() && !document.fullscreenElement && !isNativeFullscreen()
+        && !page.classList.contains('is-app-fullscreen')) {
+        setAppFullscreen(true, { auto: true, toast: false });
+        showToast('已切换为横屏全屏', 1400);
+      }
       setStatusBar('black-translucent');
     } else if (!landscape && wasLandscapeViewport) {
+      if (autoLandscapeFullscreen) setAppFullscreen(false, { toast: false });
       exitAutoFullscreen();
       setStatusBar('black');
     }
@@ -1150,6 +1177,7 @@ export function mountPlayer(item, episode) {
   function resetOrientation() {
     forcedLandscape = false;
     orientationLocked = false;
+    autoLandscapeFullscreen = false;
     cancelFullscreenLongPress();
     longPressFired = false;
     page.classList.remove('is-landscape');
@@ -1243,11 +1271,28 @@ export function mountPlayer(item, episode) {
     list.scrollTop = Math.max(0, Math.min(max, target));
   }
 
-  function openEpisodes() {
+  async function openEpisodes() {
     if (!item.episodes || !item.episodes.length) return;
 
     const drawer = document.getElementById('player-drawer');
-    if (!drawer) return;
+    if (!drawer) {
+      if (hideTimer) {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+      const value = await openSheet({
+        title: '选集',
+        className: 'sheet-side',
+        value: episode ? episode.id : null,
+        options: item.episodes.map((entry, index) => ({
+          value: entry.id,
+          label: entry.title || formatEpisodeLabel(entry) || ('第 ' + (index + 1) + ' 集')
+        }))
+      });
+      showControls();
+      if (value !== null) selectEpisode(value);
+      return;
+    }
 
     if (hideTimer) {
       clearTimeout(hideTimer);
@@ -1647,6 +1692,7 @@ export function mountPlayer(item, episode) {
     pointerFlagTimer = null;
     longPressFired = false;
     orientationLocked = false;
+    autoLandscapeFullscreen = false;
     pointerShowedControls = false;
     drawerOpen = false;
     page.style.transform = '';
@@ -1683,6 +1729,9 @@ export function mountPlayer(item, episode) {
   document.addEventListener('visibilitychange', onVisibilityChange, { signal });
   window.addEventListener('pagehide', onPageHide, { signal });
   window.addEventListener('resize', onViewportResize, { signal });
+  if (screen.orientation && screen.orientation.addEventListener) {
+    screen.orientation.addEventListener('change', onViewportResize, { signal });
+  }
   if (window.visualViewport) {
     /* iOS 旋转 / 状态栏变化时，视觉视口可能比 window 先稳定。 */
     window.visualViewport.addEventListener('resize', scheduleOrientationRefresh, { signal });
@@ -1694,6 +1743,11 @@ export function mountPlayer(item, episode) {
   pendingLandscape = null;
   resetOrientation();
   if (keepLandscape) setForcedLandscape(true, { toast: false, controls: false });
+  else if (isLandscapeViewport() && isHandheld()
+    && !document.fullscreenElement && !isNativeFullscreen()) {
+    /* 打开播放页时手机已经是横的，直接进入横屏铺满。 */
+    setAppFullscreen(true, { auto: true, toast: false });
+  }
 
   video.addEventListener('webkitbeginfullscreen', updateOrientationState, { signal });
   video.addEventListener('webkitendfullscreen', updateOrientationState, { signal });

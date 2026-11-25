@@ -447,7 +447,38 @@ async function main() {
       if (await evaluate('document.getElementById("player-page").classList.contains("is-app-fullscreen")')) {
         throw new Error('App 内全屏未退出');
       }
-      return 'v3 观看页；播放 / 暂停 / ±10 / 静音 / 倍速正常；竖屏全屏控制条完整';
+
+      /* 手机物理转到横屏：自动铺满；转回竖屏后退出。 */
+      const originalUA = await evaluate('navigator.userAgent');
+      await send('Network.setUserAgentOverride', {
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+      });
+      await send('Emulation.setDeviceMetricsOverride', {
+        width: 844, height: 390, deviceScaleFactor: 3, mobile: true
+      });
+      await wait(700);
+      const rotated = JSON.parse(await evaluate(`JSON.stringify((() => {
+        const page = document.getElementById('player-page');
+        const stage = document.getElementById('player-stage').getBoundingClientRect();
+        return {
+          active: page.classList.contains('is-app-fullscreen'),
+          body: document.body.classList.contains('player-app-fullscreen'),
+          stage: [Math.round(stage.width), Math.round(stage.height)]
+        };
+      })())`));
+      if (!rotated.active || !rotated.body || rotated.stage[0] < 800) {
+        throw new Error('物理横屏没有铺满 ' + JSON.stringify(rotated));
+      }
+
+      await send('Emulation.setDeviceMetricsOverride', {
+        width: 390, height: 844, deviceScaleFactor: 3, mobile: true
+      });
+      await wait(700);
+      const backToPortrait = await evaluate('document.getElementById("player-page").classList.contains("is-app-fullscreen")');
+      if (backToPortrait) throw new Error('转回竖屏后仍是横屏全屏');
+      await send('Network.setUserAgentOverride', { userAgent: originalUA });
+
+      return 'v3 观看页；播放 / 暂停 / ±10 / 静音 / 倍速正常；竖屏全屏控制条完整；物理横屏自动铺满';
     });
 
     await step('断点续播与观看历史', async () => {
@@ -481,14 +512,23 @@ async function main() {
         const row = document.querySelector('.history-row');
         const thumb = row.querySelector('.history-thumb');
         const group = document.querySelector('.history-group__title');
+        const sub = row.querySelector('.history-sub');
+        const list = document.querySelector('.history-list');
         return {
           group: group ? group.textContent.replace(/\\s+/g, ' ').trim() : '',
-          time: row.querySelector('.history-time') ? row.querySelector('.history-time').textContent.trim() : '',
+          sub: sub ? sub.textContent.trim() : '',
+          clear: Boolean(document.querySelector('.history-clear')),
+          cardRadius: list ? getComputedStyle(list).borderRadius : '',
           inset: Math.round(thumb.getBoundingClientRect().left - row.getBoundingClientRect().left)
         };
       })())`));
-      if (!historyLayout.group.includes('今天')) throw new Error('历史分组 ' + historyLayout.group);
-      if (!historyLayout.time.includes('观看于')) throw new Error('历史时间 ' + historyLayout.time);
+      if (!historyLayout.group.includes('今天') || !historyLayout.group.includes('条')) {
+        throw new Error('历史分组 ' + historyLayout.group);
+      }
+      if (!/今天|昨天|更早/.test(historyLayout.sub) || !/看到|已看完|哔哩哔哩/.test(historyLayout.sub)) {
+        throw new Error('历史时间 / 状态 ' + historyLayout.sub);
+      }
+      if (!historyLayout.clear) throw new Error('历史缺少清空按钮');
       if (historyLayout.inset < 12) throw new Error('历史缩略图离边框太近 ' + historyLayout.inset + 'px');
       await screenshot('05-历史-手机.png');
       return '续播 ' + resumed.toFixed(1) + 's；' + historyLayout.group + ' · ' + historyText;
@@ -769,8 +809,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v34') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v34')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v35') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v35')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;
