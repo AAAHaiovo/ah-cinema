@@ -55,7 +55,7 @@ import {
 import { localItems, localCount } from './local-library.js';
 import { cachedSources } from './sources.js';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -465,27 +465,21 @@ export function renderSearchResults(query) {
       : '';
 
     const hints = localItems().slice(0, 6).map((item) => item.title);
+    if (!hints.length) return recentSection;
 
     return recentSection +
       '<div class="search-hints">' +
-      '<strong>' + (hints.length ? '试试搜索' : '搜索我的链接') + '</strong>' +
-      (hints.length
-        ? '<div class="recent-list">' +
-          hints.map((hint) => '<button class="recent-chip" type="button" data-search-query="' + escapeHtml(hint) + '">' + escapeHtml(hint) + '</button>').join('') +
-          '</div>'
-        : '<p class="section-hint">先在首页粘贴一个链接，添加过的视频就可以在这里按名字搜索。</p>') +
+      '<strong>试试搜索</strong>' +
+      '<div class="recent-list">' +
+      hints.map((hint) => '<button class="recent-chip" type="button" data-search-query="' + escapeHtml(hint) + '">' + escapeHtml(hint) + '</button>').join('') +
+      '</div>' +
       '</div>';
   }
 
   const results = searchItems(value);
 
   if (!results.length) {
-    return '<div class="search-summary">没有找到匹配的内容</div>' +
-      emptyState({
-        title: '本地没有找到',
-        text: '没有匹配“' + value + '”的本地链接。如果已配置网络源，下方的网络搜索会单独显示结果。',
-        action: '<button class="btn btn-secondary" type="button" data-action="clear-search">清空搜索</button>'
-      });
+    return '';
   }
 
   return '<div class="search-summary">找到 ' + results.length + ' 个结果</div>' +
@@ -543,7 +537,6 @@ function remoteCard(group, remote, action = 'remote-open') {
     '<div class="poster-media">' +
       posterPlaceholder({ title: group.title }) +
       (poster ? '<img src="' + escapeHtml(poster) + '" alt="" loading="lazy" decoding="async">' : '') +
-      '<span class="poster-badge">' + group.sources.length + ' 个来源</span>' +
     '</div>' +
     '<div class="poster-title">' + escapeHtml(group.title) + '</div>' +
     (meta ? '<div class="poster-meta">' + escapeHtml(meta) + '</div>' : '') +
@@ -747,13 +740,15 @@ export function renderLocal() {
         '<div class="history-list local-list">' + rows + '</div>'
       : empty) +
     '<input type="file" id="local-file-input" accept="video/*,.mp4,.m4v,.webm,.mov,.ogv,.mkv" hidden>' +
-    '<div class="tip-card">' +
-      '<div class="tip-title">使用说明</div>' +
-      '<p>视频直链请填完整地址，例如 https://…/movie.mp4。HLS（.m3u8）在 Safari / iPhone 上原生播放，桌面 Chrome / Edge 会自动加载 hls.js；MP4（H.264 + AAC）兼容性最好。</p>' +
-      '<p>B 站链接支持普通投稿视频页（含 BV 号），通过 B 站官方嵌入式播放器打开；番剧、会员内容可能无法嵌入。</p>' +
-      '<p>网页链接、网盘分享页和平台会员页面不能直接播放，App 也不会去解析或抓取。</p>' +
-      '<p>在 HTTPS 页面里，http:// 地址可能被浏览器当作混合内容拦截；局域网 NAS 建议改用 https。本机文件保存在浏览器里，不上传，也不写进 JSON 备份。</p>' +
-    '</div>' +
+    '<details class="local-help">' +
+      '<summary>使用说明</summary>' +
+      '<div class="tip-card">' +
+        '<p>视频直链请填完整地址，例如 https://…/movie.mp4。HLS（.m3u8）在 Safari / iPhone 上原生播放，桌面 Chrome / Edge 会自动加载 hls.js；MP4（H.264 + AAC）兼容性最好。</p>' +
+        '<p>B 站链接支持普通投稿视频页（含 BV 号），通过 B 站官方嵌入式播放器打开；番剧、会员内容可能无法嵌入。</p>' +
+        '<p>网页链接、网盘分享页和平台会员页面不能直接播放，App 也不会去解析或抓取。</p>' +
+        '<p>在 HTTPS 页面里，http:// 地址可能被浏览器当作混合内容拦截；局域网 NAS 建议改用 https。本机文件保存在浏览器里，不上传，也不写进 JSON 备份。</p>' +
+      '</div>' +
+    '</details>' +
     '</div>';
 }
 
@@ -934,7 +929,11 @@ function renderEpisodes(item, latest) {
   const seasons = Array.from(groups.entries()).sort(([a], [b]) => a - b);
 
   return '<div class="detail-block">' +
-    '<div class="detail-block__title">选集<span>共 ' + item.episodes.length + ' 集</span></div>' +
+    '<div class="detail-block__title">选集<span>共 ' + item.episodes.length + ' 集</span>' +
+      (item.episodes.length > 4
+        ? '<button class="text-btn eps-toggle" type="button" data-action="toggle-episodes" aria-expanded="false">展开全部</button>'
+        : '') +
+    '</div>' +
     seasons.map(([season, list]) => {
       const buttons = list
         .sort((a, b) => (Number(a.episode.episode) || a.index + 1) - (Number(b.episode.episode) || b.index + 1))

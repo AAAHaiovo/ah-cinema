@@ -2184,3 +2184,311 @@ body.player-active .view {
 body.player-active .view::-webkit-scrollbar {
   display: none;
 }
+
+/* ---------- 8. 体验细节：玻璃栏 / 滑动 / 紧凑选集 / 横屏 ---------- */
+
+/* 顶栏与底栏改为覆盖在内容之上的磨砂玻璃 */
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 45;
+  background: var(--v3-glass);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+#view {
+  padding-top: calc(var(--ah-header-h) + var(--ah-safe-top));
+}
+
+body.no-tabbar #view {
+  padding-top: 0;
+}
+
+#tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 45;
+  background: var(--v3-glass);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+@media (min-width: 900px) {
+  .app-header {
+    left: var(--ah-sidebar-w);
+    margin-left: 0;
+  }
+
+  #view {
+    padding-top: var(--ah-header-h);
+  }
+}
+
+@media (display-mode: standalone) {
+  #view {
+    padding-top: calc(var(--ah-header-h) + var(--ah-safe-top) + min(32px, calc(var(--ah-safe-top) * 1000)));
+  }
+}
+
+.browse-filterbar {
+  top: calc(var(--ah-header-h) + var(--ah-safe-top));
+}
+
+@media (display-mode: standalone) {
+  .browse-filterbar {
+    top: calc(var(--ah-header-h) + var(--ah-safe-top) + min(32px, calc(var(--ah-safe-top) * 1000)));
+  }
+}
+
+/* 主视觉左右滑动 */
+.hero.billboard {
+  touch-action: pan-y;
+}
+
+/* 深色主题：logo 黑底红字 */
+[data-theme="dark"] .brand-tile,
+[data-theme="dark"] .profile-icon {
+  background: #000000;
+  border-color: var(--ah-line-strong);
+}
+
+.brand-tile,
+.profile-icon {
+  transition: background-color 240ms var(--ah-ease), border-color 240ms var(--ah-ease), color 240ms var(--ah-ease);
+}
+
+/* 详情页主按钮文字保持单行 */
+.detail__acts .btn {
+  white-space: nowrap;
+}
+
+.detail__acts .detail-play {
+  flex: 0 0 auto;
+}
+
+/* 详情页选集：连成一张卡，限制高度并可上下滑动 / 展开 */
+.eps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 208px;
+  overflow-y: auto;
+  border: 1px solid var(--ah-line);
+  border-radius: var(--ah-radius-card);
+  background: var(--ah-surface);
+  scrollbar-width: thin;
+  scroll-behavior: smooth;
+  transition: max-height 360ms var(--ah-ease);
+}
+
+.eps.is-expanded {
+  max-height: 2400px;
+}
+
+.eps .ep {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  transition: background-color 160ms var(--ah-ease), color 160ms var(--ah-ease);
+}
+
+.eps .ep + .ep {
+  border-top: 1px solid var(--ah-line);
+}
+
+.eps .ep.is-on {
+  background: var(--ah-accent-soft);
+}
+
+.eps .ep.is-on .ep__no {
+  color: var(--ah-accent);
+}
+
+.eps-toggle {
+  margin-left: auto;
+  color: var(--ah-accent);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 我的视频：使用说明默认收起 */
+.local-help {
+  margin-top: 26px;
+  border-top: 1px solid var(--ah-line);
+}
+
+.local-help summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 2px;
+  color: var(--ah-text-3);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  list-style: none;
+  cursor: pointer;
+  transition: color 160ms var(--ah-ease);
+}
+
+.local-help summary::-webkit-details-marker {
+  display: none;
+}
+
+.local-help summary:hover {
+  color: var(--ah-text-2);
+}
+
+.local-help summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 200ms var(--ah-ease);
+}
+
+.local-help[open] summary::after {
+  transform: rotate(-135deg);
+}
+
+.local-help .tip-card {
+  margin-top: 0;
+  margin-bottom: 18px;
+  animation: help-rise 260ms var(--ah-ease);
+}
+
+@keyframes help-rise {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 观看页：名称下方的横向选集 */
+.watch__episodes {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 0 12px;
+  margin-top: -2px;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.watch__episodes::-webkit-scrollbar {
+  display: none;
+}
+
+.watch-ep {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--ah-line);
+  border-radius: 999px;
+  background: var(--ah-surface-2);
+  color: var(--ah-text-2);
+  font-size: 11.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  scroll-snap-align: start;
+  transition: background-color 180ms var(--ah-ease), border-color 180ms var(--ah-ease), color 180ms var(--ah-ease);
+}
+
+.watch-ep:hover {
+  border-color: var(--ah-line-strong);
+  color: var(--ah-text);
+}
+
+.watch-ep.is-on {
+  border-color: var(--ah-accent);
+  background: var(--ah-accent);
+  color: var(--ah-on-fill);
+  font-weight: 600;
+}
+
+/* 控制条在窄屏可横向容纳更多按钮 */
+.ctrlrow {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ctrlrow::-webkit-scrollbar {
+  display: none;
+}
+
+/* 强制横屏：旋转整个观看页，只保留舞台与控制条 */
+.player-page.watch.is-landscape {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  overflow: hidden;
+  background: #000;
+  --ah-safe-top: env(safe-area-inset-right, 0px);
+  --ah-safe-right: env(safe-area-inset-bottom, 0px);
+  --ah-safe-bottom: env(safe-area-inset-left, 0px);
+  --ah-safe-left: env(safe-area-inset-top, 0px);
+}
+
+.player-page.watch.is-landscape .watch {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vh;
+  height: 100vw;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  transform: rotate(90deg) translateY(-100%);
+  transform-origin: top left;
+}
+
+@supports (width: 100dvh) {
+  .player-page.watch.is-landscape .watch {
+    width: 100dvh;
+    height: 100dvw;
+  }
+}
+
+.player-page.watch.is-landscape .watch__bar,
+.player-page.watch.is-landscape .watch__episodes,
+.player-page.watch.is-landscape .watch__below,
+.player-page.watch.is-landscape .player__glow {
+  display: none !important;
+}
+
+.player-page.watch.is-landscape .player,
+.player-page.watch.is-landscape .player__stage {
+  height: 100vh;
+  aspect-ratio: auto;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.player-page.watch.is-landscape .player__stage {
+  width: 100vh;
+  height: 100vw;
+}
+
+.watch__head {
+  flex: 1 1 auto;
+}
+
+.watch__sub {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

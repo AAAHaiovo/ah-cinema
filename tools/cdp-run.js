@@ -566,14 +566,15 @@ async function main() {
       })()`);
       await wait(500);
       const empty = JSON.parse(await evaluate(`JSON.stringify({
-        summary: document.querySelector('.search-summary').textContent,
+        localMissing: document.body.innerText.includes('本地没有找到'),
+        summary: document.querySelector('.search-summary') ? document.querySelector('.search-summary').textContent : '',
         platform: Boolean(document.querySelector('.platform-search'))
       })`));
-      if (!empty.summary.includes('没有找到')) throw new Error('无结果提示 ' + empty.summary);
+      if (empty.localMissing) throw new Error('不应显示本地无结果');
       if (empty.platform) throw new Error('不应再出现官方平台搜索块');
       await clearToast();
       await screenshot('08-搜索-无结果-手机.png');
-      return '空状态：' + empty.summary;
+      return '本地无结果时不显示提示';
     });
 
     await step('设置、备份导出与导入', async () => {
@@ -724,8 +725,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v31') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v31')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v32') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v32')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;

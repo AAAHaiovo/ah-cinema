@@ -384,9 +384,9 @@ async function main() {
 
     const groups = await evaluate('document.querySelectorAll(".remote-card").length');
     const chips = await evaluate('document.querySelectorAll(".remote-chip").length');
-    const badge = await evaluate('document.querySelector(".remote-card .poster-badge")?.textContent || ""');
+    const sourceNote = await evaluate('document.querySelector(".remote-card .remote-card-note")?.textContent || ""');
     record(results, '多个源按标题合并为一组', groups === 1 && chips === 4, `卡片 ${groups} / 状态 ${chips}`);
-    record(results, '显示多来源数量', badge.includes('2 个来源'), badge);
+    record(results, '显示多来源数量', /源A/.test(sourceNote) && /源B/.test(sourceNote), sourceNote);
 
     await evaluate('document.querySelector(".remote-card").click()');
     record(results, '多来源弹出选源', await waitFor('Boolean(document.querySelector(".sheet [data-value]"))'));

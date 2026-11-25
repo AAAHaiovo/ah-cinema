@@ -788,16 +788,69 @@ function setupHeroCarousel() {
   if (slides.length < 2) return;
 
   let index = 0;
+  let suppressClick = false;
   const go = (next) => {
     index = ((next % slides.length) + slides.length) % slides.length;
     slides.forEach((slide, i) => slide.classList.toggle('is-on', i === index));
     dots.forEach((dot, i) => dot.classList.toggle('is-on', i === index));
   };
+  const restart = () => {
+    clearHeroCarousel();
+    heroTimer = window.setInterval(() => go(index + 1), 7000);
+  };
 
   dots.forEach((dot, i) => {
-    dot.addEventListener('click', () => go(Number(dot.getAttribute('data-hero-go')) || i));
+    dot.addEventListener('click', () => {
+      go(Number(dot.getAttribute('data-hero-go')) || i);
+      restart();
+    });
   });
-  heroTimer = window.setInterval(() => go(index + 1), 7000);
+
+  /* 触摸左右滑动切换主视觉；滑动后吞掉紧接着的 click，避免误点按钮。 */
+  let startX = 0;
+  let startY = 0;
+  let tracking = false;
+
+  root.addEventListener('touchstart', (event) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    startX = touch.clientX;
+    startY = touch.clientY;
+    tracking = true;
+    suppressClick = false;
+  }, { passive: true });
+
+  root.addEventListener('touchmove', (event) => {
+    const touch = event.touches[0];
+    if (!touch || !tracking) return;
+    if (Math.abs(touch.clientX - startX) > 12 || Math.abs(touch.clientY - startY) > 12) {
+      suppressClick = true;
+    }
+  }, { passive: true });
+
+  root.addEventListener('touchend', (event) => {
+    if (!tracking) return;
+    tracking = false;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.15) {
+      go(index + (dx < 0 ? 1 : -1));
+      restart();
+      suppressClick = true;
+      window.setTimeout(() => { suppressClick = false; }, 400);
+    }
+  }, { passive: true });
+
+  root.addEventListener('click', (event) => {
+    if (!suppressClick) return;
+    event.preventDefault();
+    event.stopPropagation();
+    suppressClick = false;
+  }, true);
+
+  restart();
 }
 
 function emptyBrowseState() {
@@ -1036,10 +1089,12 @@ function updateBrowseBarOnScroll() {
   const y = els.view ? (els.view.scrollTop || 0) : 0;
   const delta = y - lastScrollY;
   const viewTop = els.view ? els.view.getBoundingClientRect().top : 0;
+  const header = document.querySelector('.app-header');
+  const headerOffset = header && !header.hidden ? header.getBoundingClientRect().height : 0;
   /* 只有分类栏已经吸顶时才收起，避免在页面中部留下空洞。 */
-  const stuck = bar.getBoundingClientRect().top <= viewTop + 1;
+  const stuck = bar.getBoundingClientRect().top <= viewTop + headerOffset + 1;
 
-  if (y < 28 || !stuck || delta < -6) {
+  if (y < 28 || delta < -6) {
     if (browseBarHidden) setBrowseBarHidden(false);
   } else if (delta > 6 && y > 60 && !browseBarHidden) {
     setBrowseBarHidden(true);
@@ -1900,6 +1955,13 @@ async function onDocumentClick(event) {
     const clamped = synopsis.classList.toggle('is-clamped');
     actionElement.textContent = clamped ? '展开' : '收起';
     actionElement.setAttribute('aria-expanded', String(!clamped));
+  } else if (action === 'toggle-episodes') {
+    const block = actionElement.closest('.detail-block');
+    const episodes = block ? block.querySelector('.eps') : null;
+    if (!episodes) return;
+    const expanded = episodes.classList.toggle('is-expanded');
+    actionElement.textContent = expanded ? '收起' : '展开全部';
+    actionElement.setAttribute('aria-expanded', String(expanded));
   } else if (action === 'share') {
     const shareData = { title: document.title, text: document.title, url: location.href };
     try {

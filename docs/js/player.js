@@ -243,7 +243,7 @@ export function playerPage(item, episode) {
   const sources = sourcesFor(item, episode);
   const quality = (sources[0] && (sources[0].quality || sources[0].label)) || '';
   const favorite = isFavorite(item.id);
-  const episodeLabel = episode ? formatEpisodeLabel(episode) : '';
+  const episodeLabel = episode ? (episode.title || formatEpisodeLabel(episode)) : '';
   const watchSubtitle = [episodeLabel, item.originalTitle || item.source || '', item.year, quality].filter(Boolean).join(' · ');
   const infoMeta = [
     item.director ? item.director + ' 导演' : '',
@@ -274,7 +274,7 @@ export function playerPage(item, episode) {
           '<span class="nb"><i style="width:' + percent.toFixed(1) + '%"></i></span>' +
         '</span>' +
         '<span class="next-item__body">' +
-          '<span class="next-item__t">' + escapeHtml(next.title) + (nextEpisode ? ' · ' + escapeHtml(formatEpisodeLabel(nextEpisode)) : '') + '</span>' +
+          '<span class="next-item__t">' + escapeHtml(next.title) + (nextEpisode ? ' · ' + escapeHtml(nextEpisode.title || formatEpisodeLabel(nextEpisode)) : '') + '</span>' +
           '<span class="next-item__m">' + (remain ? '还剩 ' + remain + ' 分钟' : '继续观看') + '</span>' +
         '</span>' +
       '</a>';
@@ -300,8 +300,19 @@ export function playerPage(item, episode) {
           icon(favorite ? 'heartFill' : 'heart') + '<span class="btn__label">' + (favorite ? '已收藏' : '收藏') + '</span>' +
         '</button>' +
         '<button class="btn btn-ghost btn-small" type="button" data-paction="share" aria-label="分享">' + icon('share') + '<span class="btn__label">分享</span></button>' +
+        '<button class="btn btn-ghost btn-small" type="button" data-paction="fullscreen" aria-label="全屏">' + icon('fullscreen') + '<span class="btn__label">全屏</span></button>' +
       '</div>' +
     '</div>' +
+
+    (item.episodes && item.episodes.length
+      ? '<div class="watch__episodes" aria-label="选集">' +
+          item.episodes.map((entry, index) => {
+            const active = Boolean(episode && entry.id === episode.id);
+            const label = entry.title || formatEpisodeLabel(entry) || ('第 ' + (index + 1) + ' 集');
+            return '<a class="watch-ep' + (active ? ' is-on' : '') + '" href="' + watchHref(item, entry.id) + '">' + escapeHtml(label) + '</a>';
+          }).join('') +
+        '</div>'
+      : '') +
 
     '<div class="player" id="player-card">' +
       '<div class="player__glow"' + (poster ? ' style="background-image:url(\'' + escapeHtml(poster) + '\')"' : '') + '></div>' +
@@ -340,6 +351,7 @@ export function playerPage(item, episode) {
             '<button class="cbtn cbtn--text" type="button" data-paction="speed" id="player-speed" aria-label="倍速">' + escapeHtml(formatRate(initialRate)) + '</button>' +
             (subtitles.length ? '<button class="cbtn" type="button" data-paction="cc" id="player-cc" aria-label="字幕">' + icon('cc') + '</button>' : '') +
             '<button class="cbtn" type="button" data-paction="line" id="player-line" aria-label="切换线路">' + icon('line') + '</button>' +
+            '<button class="cbtn" type="button" data-paction="display" id="player-rotate" aria-label="横屏播放">' + icon('rotate') + '</button>' +
             '<button class="cbtn" type="button" data-paction="fullscreen" id="player-fullscreen" aria-label="全屏">' + icon('fullscreen') + '</button>' +
           '</div>' +
         '</div>' +
@@ -358,7 +370,7 @@ export function playerPage(item, episode) {
                 '<div class="player-episode-list" id="player-episode-list">' +
                   item.episodes.map((entry, index) => {
                     const active = Boolean(episode && entry.id === episode.id);
-                    const label = formatEpisodeLabel(entry) || ('第 ' + (index + 1) + ' 集');
+                    const label = entry.title || formatEpisodeLabel(entry) || ('第 ' + (index + 1) + ' 集');
                     return '<button class="player-episode' + (active ? ' is-current' : '') + '" type="button" data-episode-id="' + escapeHtml(entry.id) + '"' +
                       (active ? ' aria-current="true"' : '') + '>' +
                       '<span class="player-episode-index">' + (index + 1) + '</span>' +
