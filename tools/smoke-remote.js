@@ -222,8 +222,7 @@ async function main() {
     const subScroll = JSON.parse(subMetrics);
     record(results, '子分类行可横向滑动', subScroll.scrollWidth > subScroll.clientWidth && subScroll.max > 0, subMetrics);
 
-    /* 手机宽度下验证分类栏吸顶后下滑隐藏、上滑出现；
-       同时确认顶栏和底部栏在滚动过程中纹丝不动。 */
+    /* 手机宽度下验证：分类栏固定；最上方的状态栏下滑隐藏、上滑出现。 */
     await send('Emulation.setDeviceMetricsOverride', {
       width: 390, height: 844, deviceScaleFactor: 2, mobile: true
     });
@@ -239,8 +238,8 @@ async function main() {
       });
     })()`));
     await evaluate('document.getElementById("view").scrollTo(0, 1200)');
-    record(results, '下滑隐藏分类栏', await waitFor(
-      'document.querySelector("#home-browse .browse-filterbar")?.classList.contains("is-collapsed") === true',
+    record(results, '下滑时顶栏隐藏、分类栏固定', await waitFor(
+      'document.body.classList.contains("header-hidden") && !document.querySelector("#home-browse .browse-filterbar")?.classList.contains("is-collapsed")',
       3000
     ));
     const afterDown = JSON.parse(await evaluate(`(() => {
@@ -251,31 +250,31 @@ async function main() {
         tabbarGap: Math.round(innerHeight - tabbar.bottom),
         docScroll: document.scrollingElement ? document.scrollingElement.scrollTop : -1,
         viewScroll: Math.round(document.getElementById('view').scrollTop),
-        headerCollapsed: document.querySelector('.app-header').classList.contains('is-collapsed'),
-        tabbarCollapsed: document.querySelector('#tabbar').classList.contains('is-collapsed')
+        headerHidden: document.body.classList.contains('header-hidden'),
+        categoryCollapsed: document.querySelector('#home-browse .browse-filterbar')?.classList.contains('is-collapsed')
       });
     })()`));
-    record(results, '下滑时顶栏不动', afterDown.headerTop === beforeScroll.headerTop && !afterDown.headerCollapsed,
-      JSON.stringify({ before: beforeScroll.headerTop, after: afterDown.headerTop }));
-    record(results, '下滑时底部栏不动', afterDown.tabbarGap === beforeScroll.tabbarGap && !afterDown.tabbarCollapsed,
+    record(results, '下滑时底部栏不动', afterDown.tabbarGap === beforeScroll.tabbarGap,
       JSON.stringify({ before: beforeScroll.tabbarGap, after: afterDown.tabbarGap }));
+    record(results, '下滑时分类栏不收起', afterDown.categoryCollapsed === false, String(afterDown.categoryCollapsed));
     record(results, '窗口本身不滚动', beforeScroll.docScroll === 0 && afterDown.docScroll === 0,
       JSON.stringify({ before: beforeScroll.docScroll, after: afterDown.docScroll }));
     record(results, '#view 是唯一滚动容器', beforeScroll.viewOverflow === 'auto' && afterDown.viewScroll > 0,
       JSON.stringify({ overflow: beforeScroll.viewOverflow, scrollTop: afterDown.viewScroll }));
     await evaluate('document.getElementById("view").scrollTo(0, 500)');
-    record(results, '上滑恢复分类栏', await waitFor(
-      '!document.querySelector("#home-browse .browse-filterbar")?.classList.contains("is-collapsed")',
+    record(results, '上滑时顶栏恢复', await waitFor(
+      '!document.body.classList.contains("header-hidden")',
       3000
     ));
+    await wait(420);
     const afterUp = JSON.parse(await evaluate(`(() => {
       const header = document.querySelector('.app-header').getBoundingClientRect();
       const tabbar = document.querySelector('#tabbar').getBoundingClientRect();
-      return JSON.stringify({ headerTop: Math.round(header.top), tabbarGap: Math.round(innerHeight - tabbar.bottom) });
+      return JSON.stringify({ headerTop: Math.round(header.top), tabbarGap: Math.round(innerHeight - tabbar.bottom), categoryCollapsed: document.querySelector('#home-browse .browse-filterbar')?.classList.contains('is-collapsed') });
     })()`));
-    record(results, '上滑后顶栏 / 底栏仍不动',
-      afterUp.headerTop === beforeScroll.headerTop && afterUp.tabbarGap === beforeScroll.tabbarGap,
+    record(results, '上滑后顶栏 / 底栏回位', afterUp.headerTop === beforeScroll.headerTop && afterUp.tabbarGap === beforeScroll.tabbarGap && !afterUp.categoryCollapsed,
       JSON.stringify(afterUp));
+
     await evaluate('window.scrollTo(0, 1200)');
     const windowNoop = await evaluate('document.scrollingElement.scrollTop');
     record(results, 'window 滚动被外壳拦截', Number(windowNoop) === 0, String(windowNoop));
@@ -424,51 +423,32 @@ async function main() {
     await evaluate('document.querySelectorAll(".ep")[1].click()');
     record(results, '进入第二集播放页', await waitFor('Boolean(document.querySelector("#player-video"))'));
     record(results, '第二集拿到片源', await waitFor('(document.querySelector("#player-video")?.currentSrc || "").includes("/api/proxy")', 20000));
-    record(results, '选集在顶栏、静音与全屏在控制条', await evaluate(`(() => {
-      const episodes = document.querySelector('#player-episodes');
+    record(results, '选集在视频下方文字下，静音 / 全屏在控制条', await evaluate(`(() => {
+      const rail = document.querySelector('.watch__info .watch__episodes');
       const mute = document.querySelector('#player-mute');
       const fullscreen = document.querySelector('#player-fullscreen');
       const ctrl = document.querySelector('.player__ctrl');
-      if (!episodes || !mute || !fullscreen || !ctrl) return false;
-      const e = episodes.getBoundingClientRect();
+      const topEpisodes = document.querySelector('#player-episodes');
+      const topFullscreen = document.querySelectorAll('.watch__tools [data-paction="fullscreen"]').length;
+      if (!rail || !mute || !fullscreen || !ctrl || topEpisodes || topFullscreen) return false;
+      const r = rail.getBoundingClientRect();
       const m = mute.getBoundingClientRect();
       const f = fullscreen.getBoundingClientRect();
-      return e.left > innerWidth * 0.5 && m.top > innerHeight * 0.5 && f.left > innerWidth * 0.5;
+      return r.width > 0 && r.top > innerHeight * 0.4 && m.top > innerHeight * 0.4 && f.left > innerWidth * 0.5;
     })()`));
+
     await evaluate('document.querySelector("#player-line").click()');
     record(results, '多线路可选', await waitFor('document.querySelectorAll(".sheet [data-value]").length === 2'));
     await wait(260);
     await screenshot('07-播放器-换线路浮卡-手机.png');
     await evaluate('document.querySelector(".sheet [data-cancel]").click()');
 
-    await evaluate('document.querySelector("[data-paction=episodes]").click()');
-    record(results, '右侧选集抽屉打开', await waitFor('Boolean(document.querySelector(".player-drawer.is-open"))'));
-    await wait(380);
-    await screenshot('14-播放器-选集抽屉-手机.png');
-    const episodeDrawer = JSON.parse(await evaluate(`JSON.stringify((() => {
-      const drawer = document.querySelector('#player-drawer');
-      const panel = drawer.querySelector('.player-drawer-panel');
-      const list = drawer.querySelector('.player-episode-list');
-      const rect = panel.getBoundingClientRect();
-      const listStyle = getComputedStyle(list);
-      return {
-        rightAligned: Math.round(innerWidth - rect.right),
-        width: Math.round(rect.width),
-        direction: listStyle.flexDirection,
-        overflowY: listStyle.overflowY,
-        count: list.querySelectorAll('.player-episode').length,
-        current: Boolean(list.querySelector('.player-episode.is-current'))
-      };
-    })())`));
-    record(results, '选集从右侧滑出、竖向可滚',
-      episodeDrawer.rightAligned <= 1 && episodeDrawer.width >= 200 && episodeDrawer.direction === 'column' &&
-        episodeDrawer.overflowY === 'auto' && episodeDrawer.count === 2 && episodeDrawer.current,
-      JSON.stringify(episodeDrawer));
-
-    await evaluate('document.querySelector(".player-episode:not(.is-current)").click()');
+    const railCount = await evaluate('document.querySelectorAll(".watch__info .watch-ep").length');
+    record(results, '视频下方选集可滑动选择', railCount === 2, String(railCount));
+    await screenshot('14-播放器-下方选集-手机.png');
+    await evaluate('document.querySelector(".watch__info .watch-ep:not(.is-on)").click()');
     record(results, '选集后停留在播放页',
-      await waitFor('Boolean(document.querySelector("#player-video")) && !document.querySelector(".player-drawer.is-open")'));
-
+      await waitFor('Boolean(document.querySelector("#player-video")) && Boolean(document.querySelector(".watch__info .watch-ep.is-on"))', 8000));
     await evaluate('document.querySelector("[data-paction=back]").click()');
     record(results, '返回简介而不是上一集', await waitFor('location.hash.startsWith("#/title/") && Boolean(document.querySelector(".detail"))'));
 

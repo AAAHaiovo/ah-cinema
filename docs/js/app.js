@@ -397,6 +397,8 @@ function updateActiveTab(tabName) {
 function renderRoute() {
   if (!els.view) return;
   clearHeroCarousel();
+  setHeaderHidden(false);
+  browseBarHidden = false;
 
   closeOverlay();
 
@@ -1076,30 +1078,29 @@ function setBrowseBarHidden(hidden) {
   });
 }
 
+function setHeaderHidden(hidden) {
+  const header = document.querySelector('.app-header');
+  const next = Boolean(hidden);
+  document.body.classList.toggle('header-hidden', next);
+  if (header) header.classList.toggle('is-hidden', next);
+}
+
 function updateBrowseBarOnScroll() {
   scrollFrame = 0;
-  const bar = document.querySelector('#home-browse .browse-filterbar');
-  if (!bar) {
-    browseBarHidden = false;
-    lastScrollY = els.view ? (els.view.scrollTop || 0) : 0;
-    return;
-  }
+  if (!els.view) return;
 
-  /* 只有 #view 会滚动，窗口本身固定不动。 */
-  const y = els.view ? (els.view.scrollTop || 0) : 0;
+  /* 分类栏固定在原位；只让最上方的状态栏随滚动方向收起 / 出现。 */
+  const y = els.view.scrollTop || 0;
   const delta = y - lastScrollY;
-  const viewTop = els.view ? els.view.getBoundingClientRect().top : 0;
-  const header = document.querySelector('.app-header');
-  const headerOffset = header && !header.hidden ? header.getBoundingClientRect().height : 0;
-  /* 只有分类栏已经吸顶时才收起，避免在页面中部留下空洞。 */
-  const stuck = bar.getBoundingClientRect().top <= viewTop + headerOffset + 1;
+  const hidden = document.body.classList.contains('header-hidden');
 
   if (y < 28 || delta < -6) {
-    if (browseBarHidden) setBrowseBarHidden(false);
-  } else if (delta > 6 && y > 60 && !browseBarHidden) {
-    setBrowseBarHidden(true);
+    if (hidden) setHeaderHidden(false);
+  } else if (delta > 6 && y > 60 && !hidden) {
+    setHeaderHidden(true);
   }
 
+  browseBarHidden = false;
   lastScrollY = y;
 }
 

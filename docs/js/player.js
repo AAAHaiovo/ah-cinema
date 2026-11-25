@@ -285,6 +285,16 @@ export function playerPage(item, episode) {
     '<track kind="subtitles" label="' + escapeHtml(track.label || ('字幕 ' + (index + 1))) + '" srclang="' + escapeHtml(track.srclang || 'zh') + '" src="' + escapeHtml(safeAssetUrl(track.src)) + '">'
   ).join('');
 
+  const episodeRail = item.episodes && item.episodes.length
+    ? '<div class="watch__episodes" aria-label="选集">' +
+        item.episodes.map((entry, index) => {
+          const active = Boolean(episode && entry.id === episode.id);
+          const label = entry.title || formatEpisodeLabel(entry) || ('第 ' + (index + 1) + ' 集');
+          return '<button class="watch-ep' + (active ? ' is-on' : '') + '" type="button" data-episode-id="' + escapeHtml(entry.id) + '">' + escapeHtml(label) + '</button>';
+        }).join('') +
+      '</div>'
+    : '';
+
   return '<div class="player-page watch" id="player-page">' +
     '<div class="watch__bar">' +
       '<button class="watch__back" type="button" data-paction="back" aria-label="返回">' + icon('chevronLeft') + '</button>' +
@@ -293,26 +303,12 @@ export function playerPage(item, episode) {
         '<div class="watch__sub">' + escapeHtml(watchSubtitle) + '</div>' +
       '</div>' +
       '<div class="watch__tools">' +
-        (item.episodes && item.episodes.length
-          ? '<button class="btn btn-ghost btn-small" type="button" data-paction="episodes" id="player-episodes" aria-label="选集">' + icon('list') + '<span class="btn__label">选集</span></button>'
-          : '') +
         '<button class="btn btn-ghost btn-small" type="button" data-paction="favorite" id="player-favorite" aria-pressed="' + favorite + '">' +
           icon(favorite ? 'heartFill' : 'heart') + '<span class="btn__label">' + (favorite ? '已收藏' : '收藏') + '</span>' +
         '</button>' +
         '<button class="btn btn-ghost btn-small" type="button" data-paction="share" aria-label="分享">' + icon('share') + '<span class="btn__label">分享</span></button>' +
-        '<button class="btn btn-ghost btn-small" type="button" data-paction="fullscreen" aria-label="全屏">' + icon('fullscreen') + '<span class="btn__label">全屏</span></button>' +
       '</div>' +
     '</div>' +
-
-    (item.episodes && item.episodes.length
-      ? '<div class="watch__episodes" aria-label="选集">' +
-          item.episodes.map((entry, index) => {
-            const active = Boolean(episode && entry.id === episode.id);
-            const label = entry.title || formatEpisodeLabel(entry) || ('第 ' + (index + 1) + ' 集');
-            return '<a class="watch-ep' + (active ? ' is-on' : '') + '" href="' + watchHref(item, entry.id) + '">' + escapeHtml(label) + '</a>';
-          }).join('') +
-        '</div>'
-      : '') +
 
     '<div class="player" id="player-card">' +
       '<div class="player__glow"' + (poster ? ' style="background-image:url(\'' + escapeHtml(poster) + '\')"' : '') + '></div>' +
@@ -356,33 +352,6 @@ export function playerPage(item, episode) {
           '</div>' +
         '</div>' +
 
-        (item.episodes && item.episodes.length
-          ? '<div class="player-drawer" id="player-drawer" hidden>' +
-              '<button class="player-drawer-scrim" type="button" data-paction="close-episodes" aria-label="关闭选集" tabindex="-1"></button>' +
-              '<aside class="player-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="player-drawer-title">' +
-                '<div class="player-drawer-head">' +
-                  '<div class="player-drawer-heading">' +
-                    '<h2 class="player-drawer-title" id="player-drawer-title">选集</h2>' +
-                    '<p class="player-drawer-meta">共 ' + item.episodes.length + ' 集</p>' +
-                  '</div>' +
-                  '<button class="pbtn player-drawer-close" type="button" data-paction="close-episodes" aria-label="关闭">' + icon('close') + '</button>' +
-                '</div>' +
-                '<div class="player-episode-list" id="player-episode-list">' +
-                  item.episodes.map((entry, index) => {
-                    const active = Boolean(episode && entry.id === episode.id);
-                    const label = entry.title || formatEpisodeLabel(entry) || ('第 ' + (index + 1) + ' 集');
-                    return '<button class="player-episode' + (active ? ' is-current' : '') + '" type="button" data-episode-id="' + escapeHtml(entry.id) + '"' +
-                      (active ? ' aria-current="true"' : '') + '>' +
-                      '<span class="player-episode-index">' + (index + 1) + '</span>' +
-                      '<span class="player-episode-label">' + escapeHtml(label) + '</span>' +
-                      (active ? '<span class="player-episode-now">正在播放</span>' : '') +
-                    '</button>';
-                  }).join('') +
-                '</div>' +
-              '</aside>' +
-            '</div>'
-          : '') +
-
         '<div class="player-toast" id="player-toast" role="status" aria-live="polite"></div>' +
       '</div>' +
     '</div>' +
@@ -399,6 +368,7 @@ export function playerPage(item, episode) {
           ? '<div class="watch__tags">' + tagList.map((tag) => '<span class="chip chip--static">' + escapeHtml(tag) + '</span>').join('') + '</div>'
           : '') +
         '<p class="watch__desc">' + escapeHtml(item.synopsis || '暂无简介。') + '</p>' +
+        episodeRail +
         '<div class="watch__keys">' +
           '<span class="watch__key"><kbd>空格</kbd>播放 / 暂停</span>' +
           '<span class="watch__key"><kbd>←</kbd><kbd>→</kbd>快退 / 快进 10 秒</span>' +
@@ -867,11 +837,14 @@ export function mountPlayer(item, episode) {
   }
 
   function updateFullscreenButton() {
-    if (!fullscreenButton) return;
-    const active = Boolean(document.fullscreenElement) || isNativeFullscreen();
-    fullscreenButton.innerHTML = icon(active ? 'exitFullscreen' : 'fullscreen');
-    fullscreenButton.classList.toggle('is-active', active);
-    fullscreenButton.setAttribute('aria-label', active ? '退出全屏' : '全屏');
+    const active = Boolean(page.classList.contains('is-app-fullscreen'))
+      || Boolean(document.fullscreenElement)
+      || isNativeFullscreen();
+    document.querySelectorAll('[data-paction="fullscreen"]').forEach((button) => {
+      button.innerHTML = icon(active ? 'exitFullscreen' : 'fullscreen');
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-label', active ? '退出全屏' : '全屏');
+    });
   }
 
   function toggleMute() {
@@ -909,30 +882,12 @@ export function mountPlayer(item, episode) {
   }
 
   function toggleFullscreen() {
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-      return;
-    }
-
-    if (isNativeFullscreen()) {
-      exitNativeFullscreen();
-      return;
-    }
-
-    /* iPhone / iPad 的网页全屏藏不掉状态栏，只有原生视频全屏可以。 */
-    if (isIOS() && typeof video.webkitEnterFullscreen === 'function') {
-      fallbackNativeFullscreen();
-      return;
-    }
-
-    if (typeof document.documentElement.requestFullscreen === 'function') {
-      /* 全屏根元素，dialog-root 里的线路 / 倍速浮卡在全屏中依然可见。 */
-      const request = document.documentElement.requestFullscreen({ navigationUI: 'hide' });
-      Promise.resolve(request).catch(fallbackNativeFullscreen);
-      return;
-    }
-
-    fallbackNativeFullscreen();
+    /* App 内全屏：不调用系统全屏，避免 iPhone 进入原生播放器后丢失自定义控件。 */
+    const active = page.classList.toggle('is-app-fullscreen');
+    document.body.classList.toggle('player-app-fullscreen', active);
+    updateFullscreenButton();
+    showControls();
+    showToast(active ? '已进入全屏' : '已退出全屏');
   }
 
   function isLandscapeViewport() {
@@ -1536,6 +1491,8 @@ export function mountPlayer(item, episode) {
   function cleanup() {
     if (cleaned) return;
     cleaned = true;
+    document.body.classList.remove('player-app-fullscreen');
+    page.classList.remove('is-app-fullscreen');
 
     saveNow(video.ended);
     destroyHls();

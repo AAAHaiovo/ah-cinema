@@ -2429,6 +2429,60 @@ body.no-tabbar #view {
   display: none;
 }
 
+/* 顶部状态栏随滚动方向隐藏 / 出现，分类栏保持固定 */
+.app-header {
+  transition: transform 280ms var(--ah-ease), background-color 240ms var(--ah-ease);
+  will-change: transform;
+}
+
+.app-header.is-hidden {
+  transform: translateY(-100%);
+}
+
+/* 观看页：选集放在视频下方文字之后 */
+.watch__info .watch__episodes {
+  margin-top: 16px;
+  padding-bottom: 4px;
+}
+
+/* App 内全屏：不调用系统全屏，保留自定义控件，竖屏 / 横屏都可用 */
+.player-page.watch.is-app-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #000;
+}
+
+.player-page.watch.is-app-fullscreen .watch {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.player-page.watch.is-app-fullscreen .watch__bar,
+.player-page.watch.is-app-fullscreen .watch__episodes,
+.player-page.watch.is-app-fullscreen .watch__below,
+.player-page.watch.is-app-fullscreen .player__glow {
+  display: none !important;
+}
+
+.player-page.watch.is-app-fullscreen .player {
+  height: 100%;
+}
+
+.player-page.watch.is-app-fullscreen .player__stage {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 /* 强制横屏：旋转整个观看页，只保留舞台与控制条 */
 .player-page.watch.is-landscape {
   position: fixed;
