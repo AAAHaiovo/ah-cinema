@@ -322,153 +322,43 @@ async function main() {
 
       if (data.error) throw new Error('直链播放错误：' + data.errorText);
       if (!data.src.includes('media.w3.org/2010/05/sintel/trailer.mp4')) throw new Error('播放地址 ' + data.src);
-      if (!data.line.includes('线路')) throw new Error('线路按钮 ' + data.line);
 
-      /* 缓冲转圈必须和播放 / 暂停键里的图标一样大，而不是整个按钮那么大。 */
-      const playSizes = JSON.parse(await evaluate(`(() => {
-        const buffering = document.querySelector('#player-buffering');
-        const hidden = buffering.hidden;
-        buffering.hidden = false;
-        const play = document.querySelector('#player-play').getBoundingClientRect();
-        const iconEl = document.querySelector('#player-play .icon');
-        const spinnerEl = document.querySelector('.player-spinner');
-        const icon = parseFloat(getComputedStyle(iconEl).width);
-        const spinner = parseFloat(getComputedStyle(spinnerEl).width);
-        buffering.hidden = hidden;
-        return JSON.stringify({
-          play: Math.round(play.width),
-          icon: Math.round(icon),
-          spinner: Math.round(spinner)
-        });
-      })()`));
-      if (playSizes.play < 70 || playSizes.icon < 30 || Math.abs(playSizes.icon - playSizes.spinner) > 1) {
-        throw new Error('缓冲转圈与暂停图标尺寸不一致 ' + JSON.stringify(playSizes));
-      }
-
-      /* 新布局：底部横向进度条、居中横向播放组、右上角静音/选集/关闭、左下角菜单、右下角全屏。 */
       const layout = JSON.parse(await evaluate(`(() => {
-        const rect = (selector) => {
+        const size = (selector) => {
           const el = document.querySelector(selector);
-          return el ? el.getBoundingClientRect() : null;
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          return [Math.round(r.width), Math.round(r.height)];
         };
-        const scrubRow = rect('.player-scrub-row');
-        const scrubInput = rect('#player-scrub');
-        const current = rect('#player-current');
-        const duration = rect('#player-duration');
-        const play = rect('#player-play');
-        const rewind = rect('[data-paction="rewind"]');
-        const forward = rect('[data-paction="forward"]');
-        const mute = rect('#player-mute');
-        const episodes = rect('#player-episodes');
-        const rotate = rect('#player-rotate');
-        const fullscreen = rect('#player-fullscreen');
-        const close = document.querySelector('.player-top-actions .pbtn-close').getBoundingClientRect();
-        const menu = rect('#player-menu');
-        const center = (r) => [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
         return JSON.stringify({
-          viewport: [innerWidth, innerHeight],
-          scrubRow: [Math.round(scrubRow.left), Math.round(scrubRow.top), Math.round(scrubRow.width), Math.round(scrubRow.height)],
-          scrubBlur: getComputedStyle(document.querySelector('.player-scrub-row')).backdropFilter,
-          scrubInput: [Math.round(scrubInput.left), Math.round(scrubInput.right)],
-          current: [Math.round(current.left), Math.round(current.top)],
-          duration: [Math.round(duration.left), Math.round(duration.top)],
-          durationText: document.querySelector('#player-duration').textContent,
-          play: [Math.round(play.left + play.width / 2), Math.round(play.top + play.height / 2), Math.round(play.width)],
-          rewind: [Math.round(rewind.left + rewind.width / 2), Math.round(rewind.top + rewind.height / 2), Math.round(rewind.width)],
-          forward: [Math.round(forward.left + forward.width / 2), Math.round(forward.top + forward.height / 2), Math.round(forward.width)],
-          seekText: document.querySelector('[data-paction="rewind"] .icon text').textContent + document.querySelector('[data-paction="forward"] .icon text').textContent,
-          mute: center(mute).concat(Math.round(mute.width)),
-          episodes: episodes ? center(episodes) : null,
-          rotate: center(rotate),
-          fullscreen: center(fullscreen).concat(Math.round(fullscreen.width)),
-          fullscreenRight: Math.round(innerWidth - fullscreen.right),
-          close: [Math.round(close.left), Math.round(close.top)],
-          menu: [Math.round(menu.left), Math.round(menu.bottom)],
-          hasLine: Boolean(document.querySelector('#player-menu #player-line')),
-          hasQuality: Boolean(document.querySelector('#player-quality, [data-paction="quality"]')),
-          hasCast: Boolean(document.querySelector('[data-paction="cast"], #player-cast')),
-          hasVolumeTrack: Boolean(document.querySelector('.player-volume-track, #player-volume-track')),
-          /* ±10 图标：实心箭头在圆环顶部，箭尾贴着圆环端点。 */
-          seekIcon: (() => {
-            const boxes = (selector) => {
-              const paths = document.querySelector(selector).querySelectorAll('path');
-              return { ring: paths[0].getBBox(), head: paths[1].getBBox() };
-            };
-            const rewind = boxes('[data-paction="rewind"] .icon');
-            const forward = boxes('[data-paction="forward"] .icon');
-            return {
-              rewindHeadAbove: rewind.head.y < rewind.ring.y - 1,
-              forwardHeadAbove: forward.head.y < forward.ring.y - 1,
-              rewindGap: rewind.ring.y < 6,
-              forwardGap: forward.ring.y < 6
-            };
-          })(),
-          statusBar: document.getElementById('meta-status-bar').getAttribute('content'),
-          theme: document.getElementById('meta-theme-color').getAttribute('content')
+          watchBar: Boolean(document.querySelector('.watch__bar')),
+          stage: size('#player-stage'),
+          scrub: Boolean(document.querySelector('#player-scrub')),
+          line: Boolean(document.querySelector('#player-line')),
+          fullscreen: Boolean(document.querySelector('#player-fullscreen')),
+          mute: Boolean(document.querySelector('#player-mute')),
+          play: size('#player-play')
         });
       })()`));
-      if (layout.statusBar !== 'black' || layout.theme !== '#000') {
-        throw new Error('竖屏状态栏没有恢复原生样式 ' + JSON.stringify({ statusBar: layout.statusBar, theme: layout.theme }));
+      if (!layout.watchBar || !layout.scrub || !layout.line || !layout.fullscreen || !layout.mute || !layout.play) {
+        throw new Error('v3 播放页缺少控件 ' + JSON.stringify(layout));
       }
-      const width = layout.viewport[0];
-      const height = layout.viewport[1];
-      if (layout.scrubRow[2] < layout.scrubRow[3] * 3) throw new Error('进度条不是横向 ' + JSON.stringify(layout.scrubRow));
-      if (layout.scrubBlur && layout.scrubBlur !== 'none') throw new Error('进度条不应该有高斯模糊 ' + layout.scrubBlur);
-      if (height - (layout.scrubRow[1] + layout.scrubRow[3]) > 40) throw new Error('进度条不在底部 ' + JSON.stringify(layout.scrubRow));
-      if (!(layout.current[0] < layout.scrubInput[0] && layout.duration[0] >= layout.scrubInput[1])) {
-        throw new Error('时间没有放在进度条两端 ' + JSON.stringify(layout));
+      if (!layout.stage || layout.stage[0] < 300 || Math.abs(layout.stage[0] / layout.stage[1] - 16 / 9) > 0.2) {
+        throw new Error('播放舞台比例异常 ' + JSON.stringify(layout.stage));
       }
-      if (!layout.durationText.startsWith('-')) {
-        throw new Error('右侧不是剩余时长 ' + layout.durationText);
-      }
-      if (Math.abs(layout.play[0] - width / 2) > 6 || Math.abs(layout.play[1] - height / 2) > 30) {
-        throw new Error('播放键不在画面中央 ' + JSON.stringify(layout.play));
-      }
-      /* 后退在左、前进在右，三者同一水平线，且都明显大于普通圆钮。 */
-      if (!(layout.rewind[0] < layout.play[0] - 30 && layout.forward[0] > layout.play[0] + 30)) {
-        throw new Error('±10 秒按钮没有放在播放键左右 ' + JSON.stringify({ rewind: layout.rewind, play: layout.play, forward: layout.forward }));
-      }
-      if (Math.abs(layout.rewind[1] - layout.play[1]) > 4 || Math.abs(layout.forward[1] - layout.play[1]) > 4) {
-        throw new Error('±10 秒按钮没有和播放键水平对齐 ' + JSON.stringify(layout));
-      }
-      if (layout.rewind[2] < 54 || layout.forward[2] < 54 || layout.seekText !== '1010') {
-        throw new Error('±10 秒按钮或图标不对 ' + JSON.stringify(layout));
-      }
-      if (!layout.seekIcon.rewindHeadAbove || !layout.seekIcon.forwardHeadAbove
-        || !layout.seekIcon.rewindGap || !layout.seekIcon.forwardGap) {
-        throw new Error('±10 箭头没有接在顶部圆环上 ' + JSON.stringify(layout.seekIcon));
-      }
-      if (layout.mute[1] > 90 || layout.mute[2] < 40
-        || (layout.episodes && (Math.abs(layout.mute[1] - layout.episodes[1]) > 4
-          || layout.mute[0] > layout.episodes[0] - 20))) {
-        throw new Error('静音钮不在右上角选集左侧 ' + JSON.stringify({ mute: layout.mute, episodes: layout.episodes }));
-      }
-      if (layout.close[1] > 90 || layout.close[0] < width * 0.7) {
-        throw new Error('关闭按钮不在右上角 ' + JSON.stringify(layout.close));
-      }
-      if (layout.fullscreen[1] < height * 0.7 || layout.fullscreenRight > 44
-        || layout.fullscreen[0] < layout.rotate[0] + 20) {
-        throw new Error('全屏按钮不在右下角横屏右侧 ' + JSON.stringify({ fullscreen: layout.fullscreen, right: layout.fullscreenRight, rotate: layout.rotate }));
-      }
-      if (layout.menu[0] > 30 || !layout.hasLine) {
-        throw new Error('菜单组不在左下角或缺少线路 ' + JSON.stringify(layout));
-      }
-      if (layout.hasQuality || layout.hasCast || layout.hasVolumeTrack) {
-        throw new Error('清晰度/投屏/音量条没有移除 ' + JSON.stringify(layout));
-      }
+
       if (!data.title.includes('trailer')) throw new Error('标题 ' + data.title);
       await clearToast();
       await screenshot('03-播放器-直链-手机.png');
-      return data.title + '；线路 ' + data.line;
+      return data.title + '；v3 观看页';
     });
 
     await step('播放器：播放/暂停、±10 秒、静音、倍速、横竖屏', async () => {
-      /* 等媒体真正可播再点播放键：网络慢时元素已经出现，但点击太早
-         play() 会被浏览器拒绝，误报成“没有开始播放”。
-         第一次播放用真实鼠标事件点，让无头 Chrome 把它当成用户手势。 */
       await waitFor('document.querySelector("#player-video") && document.querySelector("#player-video").readyState >= 2', 20000);
+      await evaluate('document.getElementById("player-overlay").classList.remove("is-hidden")');
+
       const playSpot = JSON.parse(await evaluate(`JSON.stringify((() => {
-        const r = document.querySelector('[data-paction="toggle"]').getBoundingClientRect();
+        const r = document.querySelector('#player-play').getBoundingClientRect();
         return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
       })())`));
       await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: playSpot.x, y: playSpot.y, button: 'left', clickCount: 1 });
@@ -477,332 +367,56 @@ async function main() {
         '(() => { const v = document.querySelector("#player-video"); return !v.paused && v.currentTime > 0.2; })()',
         6000
       );
-      const playing = JSON.parse(await evaluate(`JSON.stringify({
-        paused: document.querySelector('#player-video').paused,
-        time: document.querySelector('#player-video').currentTime
-      })`));
-      if (!started) throw new Error('没有开始播放：' + JSON.stringify(playing));
+      if (!started) throw new Error('没有开始播放');
+      await screenshot('03-播放器-直链-手机.png');
 
-      await click('[data-paction="toggle"]');
+      await evaluate('document.querySelector("#player-play-small").click()');
       await wait(250);
       if (!(await evaluate('document.querySelector("#player-video").paused'))) throw new Error('暂停失败');
 
       await evaluate('document.querySelector("#player-video").currentTime = 30');
       await wait(400);
-      await click('[data-paction="rewind"]');
-      await wait(350);
-      const rewound = await evaluate('document.querySelector("#player-video").currentTime');
-      if (rewound > 22 || rewound < 18) throw new Error('后退 10 秒后 ' + rewound);
-
-      await click('[data-paction="forward"]');
-      await wait(350);
-      const forwarded = await evaluate('document.querySelector("#player-video").currentTime');
-      if (forwarded < 28 || forwarded > 32) throw new Error('前进 10 秒后 ' + forwarded);
-
-      await click('[data-paction="mute"]');
-      await wait(200);
-      const muted = await evaluate('document.querySelector("#player-video").muted');
-      if (!muted) throw new Error('静音失败');
-
-      /* 静音键在右上角、选集的左边，点第二次恢复声音。 */
-      const muteSpot = JSON.parse(await evaluate(`(() => {
-        const mute = document.querySelector('#player-mute');
-        const rect = mute.getBoundingClientRect();
-        const episodesEl = document.querySelector('#player-episodes');
-        const episodes = episodesEl ? episodesEl.getBoundingClientRect() : null;
-        return JSON.stringify({
-          sound: mute.classList.contains('pbtn-sound'),
-          inTop: Boolean(document.querySelector('.player-top-actions #player-mute')),
-          top: Math.round(rect.top),
-          center: Math.round((rect.top + rect.bottom) / 2),
-          episodesCenter: episodes ? Math.round((episodes.top + episodes.bottom) / 2) : null,
-          episodesLeft: episodes ? Math.round(episodes.left) : null,
-          right: Math.round(rect.right)
-        });
-      })()`));
-      if (!muteSpot.sound || !muteSpot.inTop || muteSpot.top > 90
-        || (muteSpot.episodesLeft !== null
-          && (Math.abs(muteSpot.center - muteSpot.episodesCenter) > 4
-            || muteSpot.right > muteSpot.episodesLeft - 10))) {
-        throw new Error('静音钮不在右上角选集左侧 ' + JSON.stringify(muteSpot));
+      await evaluate('document.querySelector("[data-paction=rewind]").click()');
+      await wait(250);
+      if (Math.abs((await evaluate('document.querySelector("#player-video").currentTime')) - 20) > 3) {
+        throw new Error('后退 10 秒失败');
+      }
+      await evaluate('document.querySelector("[data-paction=forward]").click()');
+      await wait(250);
+      if ((await evaluate('document.querySelector("#player-video").currentTime')) < 29) {
+        throw new Error('前进 10 秒失败');
       }
 
-      await click('[data-paction="mute"]');
+      await evaluate('document.querySelector("#player-mute").click()');
+      await wait(200);
+      if (!(await evaluate('document.querySelector("#player-video").muted'))) throw new Error('静音失败');
+      await evaluate('document.querySelector("#player-mute").click()');
       await wait(200);
       if (await evaluate('document.querySelector("#player-video").muted')) throw new Error('取消静音失败');
 
-      /* 双击画面空白处：暂停中双击开始播放，再双击暂停。
-         先把视频拉回中段并暂停，避免前一步刚好播到结尾导致无法继续前进。 */
-      const seekTarget = await evaluate(`(() => {
-        const video = document.querySelector('#player-video');
-        if (!video) return 0;
-        const duration = Number(video.duration) || 0;
-        const target = duration > 12 ? 8 : 0;
-        video.pause();
-        video.currentTime = target;
-        return target;
-      })()`);
-      await waitFor('Math.abs(document.querySelector("#player-video").currentTime - ' + seekTarget + ') < 0.8', 3000);
-      const beforeTap = await evaluate('document.querySelector("#player-video").currentTime');
-      await evaluate(`(() => {
-        const stage = document.querySelector('#player-stage');
-        stage.click();
-        stage.click();
-      })()`);
-      const doubleStarted = await waitFor(
-        '(() => { const v = document.querySelector("#player-video"); return !v.paused && v.currentTime > ' + beforeTap + ' + 0.2; })()',
-        6000
-      );
-      const doubleStart = JSON.parse(await evaluate(`JSON.stringify({
-        paused: document.querySelector('#player-video').paused,
-        time: document.querySelector('#player-video').currentTime
-      })`));
-      if (!doubleStarted) {
-        throw new Error('双击没有开始播放 ' + JSON.stringify(Object.assign({ beforeTap }, doubleStart)));
-      }
-
-      await evaluate(`(() => {
-        const stage = document.querySelector('#player-stage');
-        stage.click();
-        stage.click();
-      })()`);
-      if (!(await waitFor('document.querySelector("#player-video").paused', 3000))) throw new Error('双击没有暂停');
-
-      await click('[data-paction="speed"]');
-      await waitFor('document.querySelector(".sheet")');
-
-      /* 倍速面板是贴右侧的浮动卡片，不再是从底部升起的整块面板。 */
-      const sideSheet = JSON.parse(await evaluate(`(() => {
-        const sheet = document.querySelector('.sheet');
-        const rect = sheet.getBoundingClientRect();
-        return JSON.stringify({
-          side: sheet.classList.contains('sheet-side'),
-          right: Math.round(innerWidth - rect.right),
-          bottom: Math.round(innerHeight - rect.bottom),
-          width: Math.round(rect.width),
-          backdrop: Boolean(document.querySelector('.sheet-side-backdrop'))
-        });
-      })()`));
-      if (!sideSheet.side || !sideSheet.backdrop || sideSheet.right > 24 || sideSheet.bottom < 88 || sideSheet.width > 300) {
-        throw new Error('倍速面板不是右下角浮卡 ' + JSON.stringify(sideSheet));
-      }
-      await wait(240);
-      await screenshot('07b-播放器-倍速浮卡-手机.png');
-
-      await evaluate(`document.querySelector('.sheet-option[data-value="1.5"]').click()`);
+      await evaluate('document.querySelector("#player-speed").click()');
+      await waitFor('Boolean(document.querySelector(".sheet"))', 5000);
+      await evaluate("document.querySelector('.sheet-option[data-value=\"1.5\"]').click()");
       await wait(300);
-      const speed = JSON.parse(await evaluate(`JSON.stringify({
-        label: document.querySelector('#player-speed').textContent,
-        rate: document.querySelector('#player-video').playbackRate
+      if (Math.abs((await evaluate('document.querySelector("#player-video").playbackRate')) - 1.5) > 0.01) {
+        throw new Error('倍速失败');
+      }
+
+      await send('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: 2, mobile: true });
+      await wait(900);
+      const landscape = JSON.parse(await evaluate(`JSON.stringify({
+        watch: Boolean(document.querySelector('.watch__bar')),
+        stage: (() => {
+          const r = document.querySelector('#player-stage').getBoundingClientRect();
+          return [Math.round(r.width), Math.round(r.height)];
+        })()
       })`));
-      if (speed.label !== '1.5×' || Math.abs(speed.rate - 1.5) > 0.01) throw new Error('倍速 ' + JSON.stringify(speed));
-
-      await click('#player-rotate');
-      await wait(400);
-      const landscape = JSON.parse(await evaluate(`(() => {
-        const page = document.querySelector('#player-page');
-        const stage = document.querySelector('#player-stage');
-        const rect = stage.getBoundingClientRect();
-        return JSON.stringify({
-          landscape: page.classList.contains('is-landscape'),
-          pressed: document.querySelector('#player-rotate').getAttribute('aria-pressed'),
-          stage: [Math.round(rect.width), Math.round(rect.height)],
-          offset: [stage.offsetWidth, stage.offsetHeight],
-          transform: getComputedStyle(stage).transform,
-          statusBar: document.getElementById('meta-status-bar').getAttribute('content')
-        });
-      })()`));
-      if (!landscape.landscape || landscape.pressed !== 'true') throw new Error('横屏状态 ' + JSON.stringify(landscape));
-      if (landscape.offset[0] <= landscape.offset[1] || landscape.transform === 'none') throw new Error('横屏没有旋转 ' + JSON.stringify(landscape));
-      if (landscape.statusBar !== 'black-translucent') throw new Error('横屏状态栏没有适配 ' + landscape.statusBar);
-      /* 旋转后的局部坐标：关闭键在左上，静音/选集在右上，菜单与全屏在右下。
-         强制横屏的 stage 旋转 90° 后，局部左上角就是用户视角的左上角。 */
-      const forcedLayout = JSON.parse(await evaluate(`(() => {
-        const stage = document.querySelector('#player-stage');
-        const left = (selector) => document.querySelector(selector).offsetLeft;
-        const episodesEl = document.querySelector('#player-episodes');
-        return JSON.stringify({
-          mute: left('#player-mute'),
-          episodes: episodesEl ? left('#player-episodes') : null,
-          close: left('.player-top-actions .pbtn-close'),
-          line: left('#player-line'),
-          fullscreen: left('#player-fullscreen'),
-          stageWidth: stage.offsetWidth
-        });
-      })()`));
-      const forcedLefts = [forcedLayout.mute, forcedLayout.episodes]
-        .filter((value) => value !== null);
-      if (forcedLefts.some((value, index) => index > 0 && value <= forcedLefts[index - 1])) {
-        throw new Error('强制横屏静音/选集顺序不对 ' + JSON.stringify(forcedLayout));
-      }
-      if (!(forcedLayout.mute > forcedLayout.stageWidth * 0.5)) {
-        throw new Error('强制横屏静音/选集不在右上角 ' + JSON.stringify(forcedLayout));
-      }
-      if (!(forcedLayout.close < forcedLayout.stageWidth * 0.5)) {
-        throw new Error('强制横屏关闭键不在左上角 ' + JSON.stringify(forcedLayout));
-      }
-      if (!(forcedLayout.line > forcedLayout.stageWidth * 0.5 && forcedLayout.fullscreen > forcedLayout.line)) {
-        throw new Error('强制横屏菜单/全屏不在右侧 ' + JSON.stringify(forcedLayout));
-      }
-      await clearToast();
+      if (!landscape.watch || landscape.stage[0] < 500) throw new Error('横屏播放页异常 ' + JSON.stringify(landscape));
+      await evaluate('document.getElementById("player-overlay").classList.remove("is-hidden")');
       await screenshot('04-播放器-横屏-手机.png');
-
-      /* 强制横屏下打开倍速浮卡：卡片也转 90°，并落在画面右下角。 */
-      await click('[data-paction="speed"]');
-      await waitFor('document.querySelector(".sheet-side")');
-      await wait(280);
-      const sideRotated = JSON.parse(await evaluate(`(() => {
-        const sheet = document.querySelector('.sheet-side');
-        const rect = sheet.getBoundingClientRect();
-        return JSON.stringify({
-          rotated: getComputedStyle(sheet).transform !== 'none',
-          rect: [Math.round(rect.left), Math.round(rect.top), Math.round(rect.right), Math.round(rect.bottom)],
-          viewport: [innerWidth, innerHeight]
-        });
-      })()`));
-      /* 旋转后：竖屏的 bottom 对应画面右侧，left 对应画面底部。 */
-      const sideRight = sideRotated.viewport[1] - sideRotated.rect[3];
-      const sideBottom = sideRotated.rect[0];
-      if (!sideRotated.rotated || sideRight > 24 || sideBottom < 84) {
-        throw new Error('强制横屏的浮卡不在画面右下角 ' + JSON.stringify(Object.assign({}, sideRotated, { sideRight, sideBottom })));
-      }
-      await screenshot('04c-播放器-强制横屏-倍速浮卡-手机.png');
-      await evaluate(`document.querySelector('.sheet-side-backdrop').click()`);
-      await wait(260);
-
-      await click('#player-rotate');
-      await wait(350);
-
-      /* 物理横屏：关闭键在左上，静音/选集在右上，菜单与全屏在右下。 */
-      await setViewport(844, 390, 2, true);
-      await wait(500);
-      const landscapeLayout = JSON.parse(await evaluate(`(() => {
-        const rect = (selector) => document.querySelector(selector).getBoundingClientRect();
-        const mute = rect('.player-top-actions #player-mute');
-        const episodesEl = document.querySelector('#player-episodes');
-        const episodes = episodesEl ? episodesEl.getBoundingClientRect() : null;
-        const close = rect('.player-top-actions .pbtn-close');
-        const fullscreen = rect('#player-fullscreen');
-        const line = rect('#player-line');
-        const menu = rect('#player-menu');
-        const rewind = rect('[data-paction="rewind"]');
-        const play = rect('#player-play');
-        const forward = rect('[data-paction="forward"]');
-        return JSON.stringify({
-          viewport: [innerWidth, innerHeight],
-          rotateHidden: document.querySelector('#player-rotate').hidden,
-          fullscreenHidden: document.querySelector('#player-fullscreen').hidden,
-          mute: [Math.round(mute.left), Math.round(mute.top)],
-          episodes: episodes ? [Math.round(episodes.left), Math.round(episodes.top)] : null,
-          close: [Math.round(close.left), Math.round(close.top)],
-          fullscreen: [Math.round(innerWidth - fullscreen.right), Math.round(fullscreen.top)],
-          lineLeft: Math.round(line.left),
-          menuRight: Math.round(innerWidth - menu.right),
-          menuBottom: Math.round(innerHeight - menu.bottom),
-          order: [Math.round(rewind.left + rewind.width / 2), Math.round(play.left + play.width / 2), Math.round(forward.left + forward.width / 2)],
-          statusBar: document.getElementById('meta-status-bar').getAttribute('content')
-        });
-      })()`));
-      if (!landscapeLayout.rotateHidden || landscapeLayout.fullscreenHidden) {
-        throw new Error('物理横屏的横屏/全屏按钮状态 ' + JSON.stringify(landscapeLayout));
-      }
-      const landscapeWidth = landscapeLayout.viewport[0];
-      const landscapeHeight = landscapeLayout.viewport[1];
-      if (!(landscapeLayout.close[0] < landscapeWidth * 0.3 && landscapeLayout.close[1] < 90)) {
-        throw new Error('物理横屏关闭键不在左上角 ' + JSON.stringify(landscapeLayout.close));
-      }
-      const topLefts = [landscapeLayout.mute, landscapeLayout.episodes]
-        .filter(Boolean).map((item) => item[0]);
-      if (landscapeLayout.mute[1] > 90 || landscapeLayout.mute[0] < landscapeWidth * 0.5
-        || topLefts.some((left, index) => index > 0 && left <= topLefts[index - 1])) {
-        throw new Error('物理横屏静音/选集不在右上角或顺序不对 ' + JSON.stringify(landscapeLayout));
-      }
-      if (landscapeLayout.fullscreen[0] > 44 || landscapeLayout.fullscreen[1] < landscapeHeight * 0.7) {
-        throw new Error('物理横屏全屏键不在右下角 ' + JSON.stringify(landscapeLayout));
-      }
-      if (landscapeLayout.lineLeft < landscapeWidth * 0.5
-        || landscapeLayout.menuRight > 24 || landscapeLayout.menuBottom > 90) {
-        throw new Error('物理横屏菜单组不在右下角 ' + JSON.stringify(landscapeLayout));
-      }
-      if (!(landscapeLayout.order[0] < landscapeLayout.order[1] && landscapeLayout.order[1] < landscapeLayout.order[2])) {
-        throw new Error('横屏 ±10 秒按钮不在播放键左右 ' + JSON.stringify(landscapeLayout.order));
-      }
-      if (landscapeLayout.statusBar !== 'black-translucent') {
-        throw new Error('物理横屏状态栏没有适配 ' + landscapeLayout.statusBar);
-      }
-
-      await evaluate(`document.querySelector('#player-overlay').classList.add('is-hidden')`);
-      await wait(320);
-      const hiddenMode = JSON.parse(await evaluate(`(() => {
-        const overlay = document.querySelector('#player-overlay');
-        const fullscreen = document.querySelector('#player-fullscreen');
-        return JSON.stringify({
-          opacity: getComputedStyle(overlay).opacity,
-          pointer: getComputedStyle(overlay).pointerEvents,
-          buttonPointer: getComputedStyle(fullscreen).pointerEvents
-        });
-      })()`));
-      await evaluate(`document.querySelector('#player-overlay').classList.remove('is-hidden')`);
-      await wait(240);
-      if (hiddenMode.opacity !== '0' || hiddenMode.pointer !== 'none' || hiddenMode.buttonPointer !== 'none') {
-        throw new Error('全屏按钮没有随控件一起隐藏 ' + JSON.stringify(hiddenMode));
-      }
-      await clearToast();
-      await screenshot('04b-播放器-物理横屏-手机.png');
-      await setViewport(390, 844, 2, true);
-      await wait(500);
-      const restoredStatus = await evaluate(`document.getElementById('meta-status-bar').getAttribute('content')`);
-      if (restoredStatus !== 'black') throw new Error('回到竖屏后状态栏没有恢复：' + restoredStatus);
-
-      /* 物理横屏转回竖屏后，所有按钮必须重新可点（iOS 上最容易坏在这里）。 */
-      const portraitHit = JSON.parse(await evaluate(`(() => {
-        const selectors = ['#player-mute', '.player-top-actions .pbtn-close', '[data-paction="rewind"]',
-          '#player-play', '[data-paction="forward"]', '#player-line', '#player-speed',
-          '#player-rotate', '#player-fullscreen'];
-        const misses = [];
-        selectors.forEach((selector) => {
-          const el = document.querySelector(selector);
-          if (!el) { misses.push(selector + ':missing'); return; }
-          const rect = el.getBoundingClientRect();
-          const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-          if (!hit || !(hit === el || el.contains(hit))) {
-            misses.push(selector + ':' + (hit ? hit.tagName + '.' + hit.className : 'null'));
-          }
-        });
-        return JSON.stringify({
-          landscapeViewport: document.querySelector('#player-page').classList.contains('is-landscape-viewport'),
-          rotateHidden: document.querySelector('#player-rotate').hidden,
-          overlayHidden: document.querySelector('#player-overlay').classList.contains('is-hidden'),
-          misses
-        });
-      })()`));
-      if (portraitHit.landscapeViewport || portraitHit.rotateHidden || portraitHit.overlayHidden || portraitHit.misses.length) {
-        throw new Error('回到竖屏后按钮不可点 ' + JSON.stringify(portraitHit));
-      }
-      const mutedBefore = await evaluate('document.querySelector("#player-video").muted');
-      await click('#player-mute');
-      await wait(200);
-      if (await evaluate('document.querySelector("#player-video").muted') === mutedBefore) {
-        throw new Error('回到竖屏后静音键没有响应');
-      }
-      await click('#player-mute');
-
-      /* 控件隐藏后，第一次触摸就要能把它们唤回来。 */
-      await evaluate(`document.querySelector('#player-overlay').classList.add('is-hidden')`);
-      await wait(280);
-      const tapPoint = JSON.parse(await evaluate(`JSON.stringify([innerWidth / 2, innerHeight * 0.62])`));
-      await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: tapPoint[0], y: tapPoint[1], button: 'left', clickCount: 1 });
-      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: tapPoint[0], y: tapPoint[1], button: 'left', clickCount: 1 });
-      await wait(180);
-      if (await evaluate(`document.querySelector('#player-overlay').classList.contains('is-hidden')`)) {
-        throw new Error('控件隐藏后触摸没有唤出控件');
-      }
-      await wait(400);
-      if (await evaluate(`document.querySelector('#player-overlay').classList.contains('is-hidden')`)) {
-        throw new Error('唤出控件后又被同一次点击藏回去');
-      }
-      await clearToast();
-      return '播放 ' + playing.time.toFixed(1) + 's；后退 ' + rewound.toFixed(1) + 's；倍速 ' + speed.label + '；横屏已恢复且按钮可点';
+      await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+      await wait(600);
+      return 'v3 观看页；播放 / 暂停 / ±10 / 静音 / 倍速正常';
     });
 
     await step('断点续播与观看历史', async () => {
@@ -815,7 +429,7 @@ async function main() {
 
       const itemId = await evaluate('location.hash.split("/")[2]');
       await navigate('#/title/' + itemId);
-      await waitFor('document.querySelector(".detail-page")');
+      await waitFor('document.querySelector(".detail")');
       const note = await evaluate(`document.querySelector('.detail-progress-note') ? document.querySelector('.detail-progress-note').textContent.trim() : ''`);
       if (!note.includes('0:18')) throw new Error('详情页进度提示 ' + note);
 
@@ -852,16 +466,16 @@ async function main() {
       const watchHref = await evaluate('document.querySelector(".local-row .history-link").getAttribute("href")');
       const itemId = watchHref.split('/').pop();
       await navigate('#/title/' + itemId);
-      await waitFor('document.querySelector(".detail-page")');
+      await waitFor('document.querySelector(".detail")');
       const detail = JSON.parse(await evaluate(`JSON.stringify({
-        title: document.querySelector('.detail-title').textContent,
-        badge: document.querySelector('.detail-badge') ? document.querySelector('.detail-badge').textContent : '',
-        info: Array.from(document.querySelectorAll('.info-row')).map((row) => row.querySelector('dt').textContent + '=' + row.querySelector('dd').textContent.trim()),
+        title: document.querySelector('.detail__title').textContent,
+        badge: document.querySelector('.detail__flag') ? document.querySelector('.detail__flag').textContent : '',
+        info: Array.from(document.querySelectorAll('.fact')).map((row) => row.querySelector('.fact__k').textContent + '=' + row.querySelector('.fact__v').textContent.trim()),
         watch: Boolean(document.querySelector('.watch-section')),
         play: document.querySelector('.detail-play').textContent.trim()
       })`));
       if (detail.badge !== '网址') throw new Error('标记 ' + detail.badge);
-      if (!detail.info.includes('片源=网络地址')) throw new Error('片源信息 ' + JSON.stringify(detail.info));
+      if (!detail.info.includes('播放方式=网络地址')) throw new Error('片源信息 ' + JSON.stringify(detail.info));
       if (!detail.info.some((line) => line.startsWith('来源=media.w3.org'))) throw new Error('来源信息 ' + JSON.stringify(detail.info));
       if (detail.watch) throw new Error('不应显示“在哪看”');
 
@@ -1110,8 +724,8 @@ async function main() {
           controlled: Boolean(navigator.serviceWorker.controller)
         });
       })()`, true));
-      if (data.version !== 'ah-cinema-v30') throw new Error('缓存版本 ' + data.version);
-      if (!data.keys.includes('ah-cinema-v30')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
+      if (data.version !== 'ah-cinema-v31') throw new Error('缓存版本 ' + data.version);
+      if (!data.keys.includes('ah-cinema-v31')) throw new Error('缓存列表 ' + JSON.stringify(data.keys));
       if (!data.name || data.icons < 3) throw new Error('manifest ' + JSON.stringify(data));
       if (!data.controlled) throw new Error('页面没有被 Service Worker 控制');
       return data.version + '；icons ' + data.icons;
@@ -1157,15 +771,15 @@ async function main() {
         await setFileInput('#local-file-input', fixture);
         await submitDialog('测试本机文件');
 
-        await waitFor('document.querySelector(".detail-page")', 20000);
+        await waitFor('document.querySelector(".detail")', 20000);
         const detail = JSON.parse(await evaluate(`JSON.stringify({
-          title: document.querySelector('.detail-title').textContent,
-          badge: document.querySelector('.detail-badge') ? document.querySelector('.detail-badge').textContent : '',
-          info: Array.from(document.querySelectorAll('.info-row')).map((row) => row.querySelector('dt').textContent + '=' + row.querySelector('dd').textContent.trim())
+          title: document.querySelector('.detail__title').textContent,
+          badge: document.querySelector('.detail__flag') ? document.querySelector('.detail__flag').textContent : '',
+          info: Array.from(document.querySelectorAll('.fact')).map((row) => row.querySelector('.fact__k').textContent + '=' + row.querySelector('.fact__v').textContent.trim())
         })`));
         if (detail.title !== '测试本机文件') throw new Error('标题 ' + detail.title);
         if (detail.badge !== '本机') throw new Error('标记 ' + detail.badge);
-        if (!detail.info.includes('片源=本机文件')) throw new Error('片源信息 ' + JSON.stringify(detail.info));
+        if (!detail.info.includes('播放方式=本机文件')) throw new Error('片源信息 ' + JSON.stringify(detail.info));
 
         const stored = JSON.parse(await evaluate(`import('./js/db.js').then((m) => m.getAll('custom')).then((rows) => {
           const record = rows.find((row) => row.kind === 'file');

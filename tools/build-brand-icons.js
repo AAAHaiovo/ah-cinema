@@ -10,7 +10,7 @@
  *   docs/icons/icon-512.png          标准版（圆角外套透明）
  *   docs/icons/icon-192.png          标准版
  *   docs/icons/icon-apple-touch.png  180 标准版（文件名沿用 apple-touch-icon.png）
- *   docs/icons/icon-maskable-512.png 满幅红底，标记缩到安全区
+ *   docs/icons/icon-maskable-512.png 满幅白底，标记缩到安全区
  *   docs/icons/icon-48.png           填实版（<80px，字怀填实），作 favicon
  *
  * 用法：node tools/build-brand-icons.js
@@ -25,7 +25,7 @@ const ROOT = path.resolve(__dirname, '..');
 const MARK_PATH = path.join(ROOT, 'docs/assets/ah-mark.png');
 const ICON_DIR = path.join(ROOT, 'docs/icons');
 
-const RED = [201, 47, 54];      // 品牌红 #C92F36（影视线保留红底）
+const RED = [201, 47, 54];      // 品牌红 #C92F36（白底红字）
 const WHITE = [255, 255, 255];
 const CANVAS = 1024;
 const CORNER_R = 0.225 * CANVAS; // 230.4
@@ -161,9 +161,9 @@ function buildMaster(mark) {
       const t = markAlpha(mark, x, y);
       const a = cornerCoverage(x, y);
       const o = (y * CANVAS + x) * 4;
-      out[o] = Math.round(RED[0] + (WHITE[0] - RED[0]) * t);
-      out[o + 1] = Math.round(RED[1] + (WHITE[1] - RED[1]) * t);
-      out[o + 2] = Math.round(RED[2] + (WHITE[2] - RED[2]) * t);
+      out[o] = Math.round(WHITE[0] + (RED[0] - WHITE[0]) * t);
+      out[o + 1] = Math.round(WHITE[1] + (RED[1] - WHITE[1]) * t);
+      out[o + 2] = Math.round(WHITE[2] + (RED[2] - WHITE[2]) * t);
       out[o + 3] = Math.round(a * 255);
     }
   }
@@ -212,7 +212,7 @@ function areaResize(src, srcSize, size) {
   return out;
 }
 
-/* 满幅红底：把 1024 母版按 80% 缩放居中，角落保持红色。 */
+/* 满幅白底：把 1024 母版按 80% 缩放居中，角落保持白色。 */
 function buildMaskable(master) {
   const out = Buffer.alloc(CANVAS * CANVAS * 4);
   const inv = 1 / MASKABLE_SCALE;
@@ -240,9 +240,9 @@ function buildMaskable(master) {
         b = s00[3] * w00 + s10[3] * w10 + s01[3] * w01 + s11[3] * w11;
       }
       const o = (y * CANVAS + x) * 4;
-      out[o] = Math.round(RED[0] * (1 - a) + r);
-      out[o + 1] = Math.round(RED[1] * (1 - a) + g);
-      out[o + 2] = Math.round(RED[2] * (1 - a) + b);
+      out[o] = Math.round(WHITE[0] * (1 - a) + r);
+      out[o + 1] = Math.round(WHITE[1] * (1 - a) + g);
+      out[o + 2] = Math.round(WHITE[2] * (1 - a) + b);
       out[o + 3] = 255;
     }
   }

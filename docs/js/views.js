@@ -8,7 +8,8 @@ import {
   paginate,
   getEpisode,
   sourcesFor,
-  embedFor
+  embedFor,
+  categoryLabel
 } from './catalog.js';
 
 import {
@@ -54,7 +55,7 @@ import {
 import { localItems, localCount } from './local-library.js';
 import { cachedSources } from './sources.js';
 
-const APP_VERSION = '0.9.1';
+const APP_VERSION = '1.0.0';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -317,8 +318,12 @@ export function renderHomeBrowse(browse) {
     countNote + browsePager(view);
 }
 
-export function renderHomeHero(group) {
-  if (!group) {
+export function renderHomeHero(groups) {
+  const list = (Array.isArray(groups) ? groups : groups ? [groups] : [])
+    .filter(Boolean)
+    .slice(0, 3);
+
+  if (!list.length) {
     return '<section class="hero hero--empty">' +
       '<div class="hero-empty-inner">' +
         '<span class="brand-mark" aria-hidden="true"></span>' +
@@ -329,30 +334,40 @@ export function renderHomeHero(group) {
     '</section>';
   }
 
-  const poster = /^https:\/\//i.test(group.pic || '') ? group.pic : '';
-  const meta = [group.year, group.typeName, group.area].filter(Boolean);
-  const remarks = String(group.remarks || '').trim();
-  const key = escapeHtml(group.key || '');
-  const names = Array.from(new Set((group.sources || [])
-    .map((ref) => ref.sourceName)
-    .filter(Boolean)))
-    .slice(0, 3)
-    .join(' · ');
+  const slides = list.map((group, index) => {
+    const poster = /^https:\/\//i.test(group.pic || '') ? group.pic : '';
+    const meta = [group.year, group.typeName, group.area].filter(Boolean);
+    const remarks = String(group.remarks || '').trim();
+    const key = escapeHtml(group.key || '');
+    const names = Array.from(new Set((group.sources || [])
+      .map((ref) => ref.sourceName)
+      .filter(Boolean)))
+      .slice(0, 3)
+      .join(' · ');
 
-  return '<section class="hero' + (poster ? '' : ' hero--no-image') + '">' +
-    (poster ? '<img class="hero-img" src="' + escapeHtml(poster) + '" alt="" loading="eager" decoding="async">' : '') +
-    '<div class="hero-scrim"></div>' +
-    '<div class="hero-body">' +
-      '<div class="eyebrow hero-eyebrow">本周精选 · ' + escapeHtml(names || '来自你的源') + '</div>' +
-      '<h1 class="hero-title">' + escapeHtml(group.title || '未命名影片') + '</h1>' +
-      (meta.length ? '<div class="hero-meta">' + meta.map((part) => '<span>' + escapeHtml(part) + '</span>').join('') + '</div>' : '') +
-      (remarks ? '<p class="hero-desc">' + escapeHtml(remarks) + '</p>' : '') +
-      '<div class="hero-actions">' +
-        '<button class="btn btn-light btn-large" type="button" data-action="browse-open" data-group-key="' + key + '">' + icon('play') + '播放</button>' +
-        '<button class="btn btn-glass btn-large" type="button" data-action="browse-open" data-group-key="' + key + '">详情</button>' +
+    return '<div class="hero-slide' + (index === 0 ? ' is-on' : '') + (poster ? '' : ' hero-slide--no-image') + '" data-hero-slide="' + index + '">' +
+      (poster ? '<img class="hero-img" src="' + escapeHtml(poster) + '" alt="" loading="eager" decoding="async">' : '') +
+      '<div class="hero-scrim"></div>' +
+      '<div class="hero-body">' +
+        '<div class="eyebrow hero-eyebrow">本周精选 · ' + escapeHtml(names || '来自你的源') + '</div>' +
+        '<h1 class="hero-title">' + escapeHtml(group.title || '未命名影片') + '</h1>' +
+        (meta.length ? '<div class="hero-meta">' + meta.map((part) => '<span>' + escapeHtml(part) + '</span>').join('') + '</div>' : '') +
+        (remarks ? '<p class="hero-desc">' + escapeHtml(remarks) + '</p>' : '') +
+        '<div class="hero-actions">' +
+          '<button class="btn btn-light btn-large" type="button" data-action="browse-open" data-group-key="' + key + '">' + icon('play') + '播放</button>' +
+          '<button class="btn btn-glass btn-large" type="button" data-action="browse-open" data-group-key="' + key + '">详情</button>' +
+        '</div>' +
       '</div>' +
-    '</div>' +
-  '</section>';
+    '</div>';
+  }).join('');
+
+  const dots = list.length > 1
+    ? '<div class="hero-dots">' + list.map((_, index) =>
+        '<button class="hero-dot' + (index === 0 ? ' is-on' : '') + '" type="button" data-hero-go="' + index + '" aria-label="第 ' + (index + 1) + ' 部"><i></i></button>'
+      ).join('') + '</div>'
+    : '';
+
+  return '<section class="hero billboard" id="home-hero-carousel">' + slides + dots + '</section>';
 }
 
 export function renderHome(route) {
@@ -407,7 +422,7 @@ export function renderHome(route) {
       '</div>' +
       '<a class="home-add" href="#/local">' + icon('plus') + '<span>添加视频</span></a>' +
     '</div>' +
-    '<div id="home-hero">' + renderHomeHero(null) + '</div>' +
+    '<div id="home-hero">' + renderHomeHero([]) + '</div>' +
     continueSection +
     '<section class="section">' +
       '<div class="section-head"><h2 class="section-title">最新影片' +
@@ -893,8 +908,8 @@ export function renderAbout() {
     '</section>' +
     '<section class="info-card">' +
       '<h2>AH 标识</h2>' +
-      '<div class="brand-preview"><span class="brand-mark" aria-hidden="true"></span><div class="brand-preview-text">品牌红 #C92F36 配白色 AH；深色界面下保持同一套标记。</div></div>' +
-      '<p>App 图标使用品牌红底 + 白色 AH；界面顶栏、启动页和空状态使用同一套标记，播放画面上不加水印。</p>' +
+      '<div class="brand-preview"><span class="brand-mark" aria-hidden="true"></span><div class="brand-preview-text">白色底 + 品牌红 #C92F36 的 AH；深色界面下使用同一套标记。</div></div>' +
+      '<p>App 图标使用白色底 + 品牌红 AH；界面顶栏、启动页和空状态使用同一套标记，播放画面上不加水印。</p>' +
     '</section>' +
     '<section class="info-card">' +
       '<h2>边界</h2>' +
@@ -918,28 +933,30 @@ function renderEpisodes(item, latest) {
 
   const seasons = Array.from(groups.entries()).sort(([a], [b]) => a - b);
 
-  return '<section class="detail-section">' +
-    '<h2>选集 <span class="section-note">共 ' + item.episodes.length + ' 集</span></h2>' +
+  return '<div class="detail-block">' +
+    '<div class="detail-block__title">选集<span>共 ' + item.episodes.length + ' 集</span></div>' +
     seasons.map(([season, list]) => {
       const buttons = list
         .sort((a, b) => (Number(a.episode.episode) || a.index + 1) - (Number(b.episode.episode) || b.index + 1))
         .map(({ episode, index }) => {
           const number = episode.episode || index + 1;
           const record = getProgress(item.id, episode.id);
-          const percent = progressPercent(record);
           const current = latest && latest.episodeId === episode.id;
-          return '<a class="episode-btn' + (current ? ' is-current' : '') + '" href="' + watchHref(item, episode.id) + '" title="' + escapeHtml(episode.title || ('第 ' + number + ' 集')) + '">' +
-            '<span>第 ' + escapeHtml(String(number)) + ' 集</span>' +
-            (percent > 0 ? '<span class="ep-progress"><i style="width:' + percent.toFixed(2) + '%"></i></span>' : '') +
-            '</a>';
+          const status = record && record.time > 0
+            ? (record.completed ? '已看完' : '看到 ' + formatTime(record.time))
+            : '未观看';
+          const name = episode.title || ('第 ' + number + ' 集');
+          return '<a class="ep' + (current ? ' is-on' : '') + '" href="' + watchHref(item, episode.id) + '">' +
+            '<span class="ep__no">' + String(number).padStart(2, '0') + '</span>' +
+            '<span class="ep__body"><span class="ep__name">' + escapeHtml(name) + '</span>' +
+            '<span class="ep__dur">' + escapeHtml(status) + '</span></span>' +
+            '<span class="ep__play">' + icon('play') + '</span></a>';
         }).join('');
 
-      return '<div class="season-block">' +
-        (seasons.length > 1 || season > 1 ? '<h3 class="season-title">第 ' + season + ' 季</h3>' : '') +
-        '<div class="episode-grid">' + buttons + '</div>' +
-        '</div>';
+      return (seasons.length > 1 || season > 1 ? '<div class="season-title">第 ' + season + ' 季</div>' : '') +
+        '<div class="eps">' + buttons + '</div>';
     }).join('') +
-    '</section>';
+    '</div>';
 }
 
 export function renderDetail(itemId) {
@@ -952,118 +969,130 @@ export function renderDetail(itemId) {
   const latest = latestProgressForItem(item.id);
   const episode = getEpisode(item, latest?.episodeId);
   const favorite = isFavorite(item.id);
-  const meta = itemMeta(item);
   const sources = sourcesFor(item, episode);
   const embed = embedFor(item, episode);
   const poster = safeAssetUrl(item.poster);
   const synopsis = item.synopsis || '暂无简介。';
-  const longSynopsis = synopsis.length > 120;
+  const episodes = Array.isArray(item.episodes) ? item.episodes : [];
 
   const playTarget = latest && !latest.completed
     ? watchHref(item, latest.episodeId)
-    : (item.episodes.length ? watchHref(item, item.episodes[0].id) : watchHref(item));
+    : (episodes.length ? watchHref(item, episodes[0].id) : watchHref(item));
   const label = embed
-    ? (latest && !latest.completed ? '再次打开（B 站）' : '播放（B 站）')
+    ? (latest && !latest.completed ? '再次打开' : '播放（B 站）')
     : item.local
       ? (latest && !latest.completed ? '继续播放' : '播放视频')
       : playLabel(item, latest, episode);
 
-  const backdropStyle = poster
-    ? ' style="background-image:url(\'' + escapeHtml(poster) + '\')"'
-    : '';
-
+  const qualityText = embed
+    ? 'B 站播放器内可选'
+    : item.local
+      ? (item.isHls ? 'HLS 原始地址' : '原始文件')
+      : (sources.map((source) => source.quality || source.label).filter(Boolean).join(' / ') || '原画');
+  const subtitleText = embed
+    ? '以 B 站播放器为准'
+    : item.local
+      ? '按文件内嵌字幕'
+      : (item.subtitles && item.subtitles.length
+        ? item.subtitles.map((subtitle) => subtitle.label || '字幕').join(' / ')
+        : '暂无字幕');
   const badge = badgeFor(item);
-  const sourceUrl = safeExternalUrl(item.sourceUrl);
-  const licenseUrl = safeExternalUrl(item.licenseUrl);
+  const flags = [badge, item.subtitles && item.subtitles.length ? '中文字幕' : ''].filter(Boolean);
+  const metaParts = itemMeta(item);
+  if (item.area && !metaParts.includes(item.area)) metaParts.push(item.area);
+  const score = Number(item.score || item.rating || 0);
+  const tags = Array.from(new Set([
+    item.typeName,
+    item.area,
+    badge
+  ].filter(Boolean))).slice(0, 4);
 
-  const episodeSection = renderEpisodes(item, latest);
-
-  const remoteRefresh = item.remote
-    ? '<button class="text-btn detail-refresh" type="button" data-action="refresh-remote" data-item-id="' + escapeHtml(item.id) + '">刷新片源</button>'
-    : '';
-
-  const localSourceText = item.local
+  const typeName = item.typeName || categoryLabel(item.category);
+  const runtimeText = episodes.length ? '全 ' + episodes.length + ' 集' : formatRuntime(item);
+  const sourceName = item.local
     ? (item.localKind === 'file'
-        ? (item.fileName || '本机文件') + (item.fileSize > 0 ? ' · ' + formatBytes(item.fileSize) : '')
-        : item.localKind === 'embed'
-          ? 'bilibili.com · ' + (item.embed ? item.embed.bvid : '')
-          : (item.host || '网络地址') + (item.isHls ? ' · HLS（Safari 原生 / Chrome 用 hls.js）' : ''))
-    : '';
+      ? (item.fileName || '本机文件')
+      : item.localKind === 'embed'
+        ? ('bilibili.com · ' + (item.embed ? item.embed.bvid : ''))
+        : (item.host || '网络地址'))
+    : ((item.remoteSource && item.remoteSource.name) || item.source || '');
+  const playMode = embed ? 'B 站官方嵌入' : item.local
+    ? (item.localKind === 'file' ? '本机文件' : item.localKind === 'embed' ? 'B 站嵌入' : '网络地址')
+    : '在线播放';
+  const license = item.license || (item.local ? '个人使用' : '');
 
-  const infoRows = [
-    ['片源', item.local
-      ? escapeHtml(item.source || '我的视频')
-      : (sourceUrl
-          ? '<a class="text-link" href="' + escapeHtml(sourceUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(item.source || '原始页面') + '</a>'
-          : escapeHtml(item.source || '—'))],
-    ['授权', licenseUrl
-      ? '<a class="text-link" href="' + escapeHtml(licenseUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(item.license || '开放授权') + '</a>'
-      : escapeHtml(item.license || '—')],
-    ['清晰度', embed
-      ? 'B 站播放器内可选'
-      : item.local
-        ? (item.isHls ? 'HLS 原始地址' : '原始文件')
-        : escapeHtml(sources.map((source) => source.quality || source.label).filter(Boolean).join(' / ') || '原画')],
-    ['字幕', embed
-      ? '以 B 站播放器为准'
-      : item.local
-        ? '按文件内嵌字幕'
-        : (item.subtitles && item.subtitles.length ? escapeHtml(item.subtitles.map((subtitle) => subtitle.label || '字幕').join(' / ')) : '暂无字幕')],
-    ...(item.uploader ? [['上传者', escapeHtml(item.uploader)]] : []),
-    ...(item.local ? [['来源', escapeHtml(localSourceText)]] : []),
-    ...(embed ? [['播放方式', '哔哩哔哩官方嵌入式播放器']] : []),
-    ...(item.local ? [['播放方式', item.localKind === 'file' ? '本机文件（仅这台设备）' : '直接打开网络地址']] : [])
-  ];
+  const movieFacts = [
+    ['导演', item.director || ''],
+    ['主演', item.actors || ''],
+    ['地区', item.area || ''],
+    ['类型', typeName || ''],
+    ['年份', item.year ? String(item.year) : ''],
+    ['片长', runtimeText && runtimeText !== '—' ? runtimeText : ''],
+    ['上传者', item.uploader || '']
+  ].filter(([, value]) => value);
+  const sourceFacts = [
+    ['来源', sourceName],
+    ['清晰度', qualityText],
+    ['字幕', subtitleText],
+    ['播放方式', playMode],
+    ['授权', license]
+  ].filter(([, value]) => value);
+  const fact = ([key, value]) => '<div class="fact"><span class="fact__k">' + escapeHtml(key) + '</span><span class="fact__v">' + escapeHtml(value) + '</span></div>';
+  const flagsHtml = flags.map((value) => '<span class="detail__flag">' + escapeHtml(value) + '</span>').join('');
+  const metaHtml = metaParts.length
+    ? '<div class="detail__meta">' + metaParts.map((part, index) =>
+        (index ? '<i class="dot"></i>' : '') + '<span>' + escapeHtml(part) + '</span>'
+      ).join('') +
+      (score > 0 ? '<span class="detail__score">' + icon('star') + score.toFixed(1) + '</span>' : '') +
+    '</div>'
+    : '';
 
   const related = relatedItems(item, 6);
-  const relatedSection = related.length
-    ? '<section class="detail-section">' +
-        '<h2>相关影片</h2>' +
-        '<div class="related-grid">' +
-        related.map((entry) => posterCard(entry, { progress: latestProgressForItem(entry.id) })).join('') +
-        '</div>' +
-      '</section>'
+  const similarSection = related.length
+    ? '<div class="detail__similar"><div class="sec__head"><h2 class="sec__title">相似推荐</h2>' +
+        '<a class="sec__more" href="#/search">更多' + icon('chevronRight') + '</a></div>' +
+        '<div class="grid-posters">' + related.map((entry) => posterCard(entry, { progress: latestProgressForItem(entry.id) })).join('') + '</div>' +
+      '</div>'
     : '';
 
-  return '<div class="detail-page">' +
-    '<div class="detail-topbar">' +
-      '<button class="icon-btn" type="button" data-action="back" aria-label="返回">' + icon('chevronLeft') + '</button>' +
-      '<button class="icon-btn detail-fav' + (favorite ? ' is-active' : '') + '" type="button" data-action="favorite" data-item-id="' + escapeHtml(item.id) + '" aria-pressed="' + favorite + '" aria-label="' + (favorite ? '取消收藏' : '收藏') + '">' + icon(favorite ? 'heartFill' : 'heart') + '</button>' +
+  return '<div class="detail">' +
+    '<div class="detail__hero">' +
+      (poster ? '<img src="' + escapeHtml(poster) + '" alt="">' : '<div class="detail__hero-fallback"></div>') +
+      '<button class="detail__back" type="button" data-action="back" aria-label="返回">' + icon('chevronLeft') + '</button>' +
+      (flags.length ? '<div class="detail__flags">' + flagsHtml + '</div>' : '') +
     '</div>' +
-    '<div class="detail-hero">' +
-      '<div class="detail-backdrop"' + backdropStyle + '></div>' +
-      '<div class="detail-hero-inner">' +
-        '<div class="detail-poster">' + posterMedia(item, { eager: true, badge: false }) + '</div>' +
-        '<div class="detail-info">' +
-          '<h1 class="detail-title">' + escapeHtml(item.title) + '</h1>' +
-          (item.originalTitle && item.originalTitle !== item.title ? '<p class="detail-original">' + escapeHtml(item.originalTitle) + '</p>' : '') +
-          (meta.length ? '<div class="detail-meta">' + meta.map((part) => '<span>' + escapeHtml(part) + '</span>').join('') + '</div>' : '') +
-          (badge || item.license ? '<span class="detail-badge">' + escapeHtml(badge || item.license) + '</span>' : '') +
+    '<div class="detail__wrap">' +
+      '<div class="detail__poster">' + posterMedia(item, { eager: true, badge: false }) + '</div>' +
+      '<div class="detail__main">' +
+        '<h1 class="detail__title">' + escapeHtml(item.title) + '</h1>' +
+        (item.originalTitle && item.originalTitle !== item.title ? '<div class="detail__en">' + escapeHtml(item.originalTitle) + '</div>' : '') +
+        metaHtml +
+        '<p class="detail__desc">' + escapeHtml(synopsis) + '</p>' +
+        (tags.length ? '<div class="detail__tags">' + tags.map((tag) => '<span class="chip chip--static">' + escapeHtml(tag) + '</span>').join('') + '</div>' : '') +
+        '<div class="detail__acts detail-actions">' +
+          '<a class="btn btn-primary btn-large detail-play" href="' + playTarget + '">' + icon('play') + escapeHtml(label) + '</a>' +
+          '<button class="btn btn-ghost btn-large" type="button" data-action="favorite" data-item-id="' + escapeHtml(item.id) + '" aria-pressed="' + favorite + '">' +
+            icon(favorite ? 'heartFill' : 'heart') + (favorite ? '已收藏' : '收藏') +
+          '</button>' +
+          '<button class="btn btn-ghost btn-large" type="button" data-action="share">' + icon('share') + '分享</button>' +
         '</div>' +
+        (latest && !latest.completed && !latest.external ? '<div class="detail-progress-note detail-last-watch">' + icon('clock') + '<span>上次看到 ' + escapeHtml(formatTime(latest.time)) + (episode ? ' · ' + escapeHtml(formatEpisodeLabel(episode)) : '') + '</span></div>' : '') +
       '</div>' +
     '</div>' +
-    '<div class="detail-body">' +
-      '<div class="detail-actions">' +
-        '<a class="btn btn-primary detail-play" href="' + playTarget + '">' + icon('play') + '<span>' + escapeHtml(label) + '</span></a>' +
-        '<button class="btn btn-secondary detail-fav' + (favorite ? ' is-active' : '') + '" type="button" data-action="favorite" data-item-id="' + escapeHtml(item.id) + '" aria-pressed="' + favorite + '">' + icon(favorite ? 'heartFill' : 'heart') + '<span>' + (favorite ? '已收藏' : '收藏') + '</span></button>' +
+    '<div class="detail__cols">' +
+      '<div>' +
+        renderEpisodes(item, latest) +
+        '<div class="detail-block"><div class="detail-block__title">片源与授权' +
+          (item.remote ? '<button class="text-btn detail-refresh" type="button" data-action="refresh-remote" data-item-id="' + escapeHtml(item.id) + '">刷新片源</button>' : '') +
+        '</div><div class="facts">' + sourceFacts.map(fact).join('') + '</div></div>' +
       '</div>' +
-      (latest && !latest.completed && !latest.external ? '<div class="detail-progress-note detail-last-watch">' + icon('clock') + '<span>上次看到 ' + escapeHtml(formatTime(latest.time)) + (episode ? ' · ' + escapeHtml(formatEpisodeLabel(episode)) : '') + '</span></div>' : '') +
-      '<section class="detail-section">' +
-        '<h2>简介</h2>' +
-        '<p class="synopsis' + (longSynopsis ? ' is-clamped' : '') + '" id="synopsis">' + escapeHtml(synopsis) + '</p>' +
-        (longSynopsis ? '<button class="text-btn synopsis-toggle" type="button" data-action="toggle-synopsis" aria-expanded="false">展开</button>' : '') +
-      '</section>' +
-      episodeSection +
-      '<section class="detail-section">' +
-        '<div class="detail-section-head"><h2>片源与授权</h2>' + remoteRefresh + '</div>' +
-        '<dl class="info-list facts">' +
-        infoRows.map(([key, value]) => '<div class="info-row"><dt>' + escapeHtml(key) + '</dt><dd>' + value + '</dd></div>').join('') +
-        '</dl>' +
-      '</section>' +
-      relatedSection +
-      '<p class="foot-note">' + escapeHtml(item.title) + ' · ' + escapeHtml(item.license || '个人使用') + '。仅用于个人观看，请确保你有权访问这个来源。</p>' +
+      '<aside>' +
+        '<div class="detail-block"><div class="detail-block__title">影片资料</div>' +
+          '<div class="facts">' + movieFacts.map(fact).join('') + '</div></div>' +
+      '</aside>' +
     '</div>' +
-    '</div>';
+    similarSection +
+  '</div>';
 }
 
 export function renderNotFound() {

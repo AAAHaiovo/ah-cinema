@@ -13,15 +13,16 @@
   <meta name="apple-mobile-web-app-title" content="AH 影视">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https:; media-src 'self' https: http: blob:; frame-src https://player.bilibili.com; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https:; font-src 'self'; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=095">
-  <link rel="icon" type="image/png" sizes="48x48" href="./icons/icon-48.png?v=095">
-  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=095">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png?v=100">
+  <link rel="icon" type="image/png" sizes="48x48" href="./icons/icon-48.png?v=100">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png?v=100">
   <script src="./js/theme-boot.js"></script>
   <link rel="stylesheet" href="./css/tokens.css">
   <link rel="stylesheet" href="./css/app.css">
   <link rel="stylesheet" href="./css/shell.css">
   <link rel="stylesheet" href="./css/player.css">
   <link rel="stylesheet" href="./css/v2.css">
+  <link rel="stylesheet" href="./css/v3.css">
 </head>
 <body>
   <div id="app">
@@ -63,7 +64,7 @@
           <svg class="tab-icon" aria-hidden="true"><use href="#i-home"/></svg><span>首页</span><i class="tab-dot"></i>
         </a>
         <a class="tab" href="#/local" data-tab="local" aria-label="我的视频">
-          <svg class="tab-icon" aria-hidden="true"><use href="#i-video"/></svg><span>我的视频</span><i class="tab-dot"></i>
+          <svg class="tab-icon" aria-hidden="true"><use href="#i-video"/></svg><span>我的视频</span><i class="nav-badge" id="nav-local-count"></i><i class="tab-dot"></i>
         </a>
         <a class="tab" href="#/search" data-tab="search" aria-label="搜索">
           <svg class="tab-icon" aria-hidden="true"><use href="#i-search"/></svg><span>搜索</span><i class="tab-dot"></i>
@@ -75,22 +76,29 @@
       <nav class="side-group" aria-label="我的">
         <div class="side-label">我的</div>
         <a class="tab" href="#/favorites" data-tab="favorites" aria-label="我的收藏">
-          <svg class="tab-icon" aria-hidden="true"><use href="#i-heart"/></svg><span>我的收藏</span><i class="tab-dot"></i>
+          <svg class="tab-icon" aria-hidden="true"><use href="#i-heart"/></svg><span>我的收藏</span><i class="nav-badge" id="nav-fav-count"></i><i class="tab-dot"></i>
         </a>
         <a class="tab" href="#/me" data-tab="me" aria-label="我的">
           <svg class="tab-icon" aria-hidden="true"><use href="#i-user"/></svg><span>我的</span><i class="tab-dot"></i>
         </a>
       </nav>
       <div class="side-spacer"></div>
+      <a class="now-card" id="now-card" href="#/history" hidden>
+        <div class="now-card__top"><span>接着看</span><i class="now-card__dot"></i></div>
+        <div class="now-card__row">
+          <span class="now-card__art"><img id="now-art" alt=""></span>
+          <span class="now-card__body">
+            <span class="now-card__title" id="now-title"></span>
+            <span class="now-card__meta" id="now-meta"></span>
+          </span>
+        </div>
+        <div class="now-card__bar"><i id="now-bar"></i></div>
+      </a>
       <a class="tab side-settings" href="#/settings" data-tab="settings" aria-label="设置">
         <svg class="tab-icon" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span><i class="tab-dot"></i>
       </a>
-      <div class="side-foot">
-        <div class="side-foot-title">本机放映</div>
-        <div class="side-foot-text">片库与观看记录只存在这台设备上，不经过服务器。</div>
-      </div>
       <div class="sidebar-note">
-        <span class="sidebar-version">v0.9.1 · 界面 v2</span>
+        <span class="sidebar-version">v1.0.0 · 界面 v3</span>
       </div>
     </aside>
 
@@ -101,11 +109,15 @@
           <svg class="crumb-sep" aria-hidden="true"><use href="#i-chevron"/></svg>
           <span class="crumb-current" id="crumb-current">首页</span>
         </nav>
-        <span class="topbar-mobile-title">AH 影视</span>
+        <span class="topbar-mobile-title" id="topbar-title">AH 影视</span>
         <div class="header-actions">
           <a class="topbar-search" href="#/search" aria-label="搜索">
             <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
             <span>搜索影片或链接</span>
+            <kbd id="search-kbd">Ctrl K</kbd>
+          </a>
+          <a class="icon-btn topbar-icon-mobile" href="#/search" aria-label="搜索">
+            <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
           </a>
           <button class="icon-btn" type="button" data-action="toggle-theme" id="theme-toggle" aria-label="切换主题"></button>
           <a class="avatar" href="#/me" aria-label="我的账户">AH</a>

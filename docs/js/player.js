@@ -1,7 +1,7 @@
 /* 播放页：自定义控制层、清晰度、倍速、断点续播、全屏、字幕与快捷键。 */
 
-import { sourcesFor, embedFor, embedPlayerUrl, embedWatchUrl } from './catalog.js';
-import { state, getProgress, saveProgress, markOpened } from './store.js';
+import { sourcesFor, embedFor, embedPlayerUrl, embedWatchUrl, getItem } from './catalog.js';
+import { state, getProgress, saveProgress, markOpened, latestProgressList, isFavorite, toggleFavorite } from './store.js';
 import {
   escapeHtml,
   icon,
@@ -10,7 +10,9 @@ import {
   safeAssetUrl,
   safeExternalUrl,
   openSheet,
-  isIOS
+  isIOS,
+  watchHref,
+  progressPercent
 } from './ui.js';
 import { navigate } from './router.js';
 import { resolveSourceUrl } from './remote-api.js';
@@ -238,98 +240,163 @@ export function playerPage(item, episode) {
     ? formatEpisodeLabel(episode)
     : (item.originalTitle || item.source || '');
   const initialRate = state.settings.defaultRate;
+  const sources = sourcesFor(item, episode);
+  const quality = (sources[0] && (sources[0].quality || sources[0].label)) || '';
+  const favorite = isFavorite(item.id);
+  const episodeLabel = episode ? formatEpisodeLabel(episode) : '';
+  const watchSubtitle = [episodeLabel, item.originalTitle || item.source || '', item.year, quality].filter(Boolean).join(' · ');
+  const infoMeta = [
+    item.director ? item.director + ' 导演' : '',
+    item.actors,
+    item.year,
+    item.area
+  ].filter(Boolean);
+  const tagList = Array.from(new Set([
+    ...(item.genres || []),
+    item.typeName,
+    item.area,
+    quality
+  ].filter(Boolean))).slice(0, 4);
+
+  const nextHtml = latestProgressList()
+    .filter((record) => record.itemId !== item.id && !record.completed)
+    .slice(0, 4)
+    .map((record) => {
+      const next = getItem(record.itemId);
+      if (!next) return '';
+      const nextEpisode = (next.episodes || []).find((entry) => entry.id === record.episodeId);
+      const art = safeAssetUrl(next.poster);
+      const remain = record.duration > record.time ? Math.ceil((record.duration - record.time) / 60) : 0;
+      const percent = progressPercent(record);
+      return '<a class="next-item" href="' + watchHref(next, record.episodeId) + '">' +
+        '<span class="next-item__art">' +
+          (art ? '<img src="' + escapeHtml(art) + '" alt="">' : '') +
+          '<span class="nb"><i style="width:' + percent.toFixed(1) + '%"></i></span>' +
+        '</span>' +
+        '<span class="next-item__body">' +
+          '<span class="next-item__t">' + escapeHtml(next.title) + (nextEpisode ? ' · ' + escapeHtml(formatEpisodeLabel(nextEpisode)) : '') + '</span>' +
+          '<span class="next-item__m">' + (remain ? '还剩 ' + remain + ' 分钟' : '继续观看') + '</span>' +
+        '</span>' +
+      '</a>';
+    })
+    .join('');
 
   const tracks = subtitles.map((track, index) =>
     '<track kind="subtitles" label="' + escapeHtml(track.label || ('字幕 ' + (index + 1))) + '" srclang="' + escapeHtml(track.srclang || 'zh') + '" src="' + escapeHtml(safeAssetUrl(track.src)) + '">'
   ).join('');
 
-  return '<div class="player-page" id="player-page">' +
-    '<div class="player-stage" id="player-stage">' +
-      '<video id="player-video" class="player-video" playsinline webkit-playsinline preload="metadata" poster="' + escapeHtml(poster) + '">' +
-        tracks +
-      '</video>' +
-
-      '<div class="player-buffering" id="player-buffering" hidden><span class="player-spinner" aria-hidden="true"></span></div>' +
-
-      '<div class="player-error" id="player-error" hidden>' +
-        '<div class="player-error-icon" aria-hidden="true">!</div>' +
-        '<h2>片源加载失败</h2>' +
-        '<p id="player-error-text">请检查网络连接后重试。影片本身仍在片库中，稍后可以再试。</p>' +
-        '<div class="player-error-actions">' +
-          '<button class="pbtn-text" type="button" data-paction="retry">重试</button>' +
-          '<button class="pbtn-text" type="button" data-paction="line">换线路</button>' +
-          '<button class="pbtn-text" type="button" data-paction="back">返回</button>' +
-        '</div>' +
+  return '<div class="player-page watch" id="player-page">' +
+    '<div class="watch__bar">' +
+      '<button class="watch__back" type="button" data-paction="back" aria-label="返回">' + icon('chevronLeft') + '</button>' +
+      '<div class="watch__head">' +
+        '<div class="watch__title">' + escapeHtml(item.title) + '</div>' +
+        '<div class="watch__sub">' + escapeHtml(watchSubtitle) + '</div>' +
       '</div>' +
+      '<div class="watch__tools">' +
+        (item.episodes && item.episodes.length
+          ? '<button class="btn btn-ghost btn-small" type="button" data-paction="episodes" id="player-episodes" aria-label="选集">' + icon('list') + '<span class="btn__label">选集</span></button>'
+          : '') +
+        '<button class="btn btn-ghost btn-small" type="button" data-paction="favorite" id="player-favorite" aria-pressed="' + favorite + '">' +
+          icon(favorite ? 'heartFill' : 'heart') + '<span class="btn__label">' + (favorite ? '已收藏' : '收藏') + '</span>' +
+        '</button>' +
+        '<button class="btn btn-ghost btn-small" type="button" data-paction="share" aria-label="分享">' + icon('share') + '<span class="btn__label">分享</span></button>' +
+      '</div>' +
+    '</div>' +
 
-      '<div class="player-overlay" id="player-overlay">' +
-        '<div class="player-top">' +
-          '<div class="player-headings">' +
-            '<div class="player-title">' + escapeHtml(item.title) + '</div>' +
-            '<div class="player-subtitle">' + escapeHtml(subtitle) + '</div>' +
-          '</div>' +
-          /* 顶部动作组：静音 + 选集 + 关闭（竖屏都在右上角；
-             横屏时静音 / 选集仍在右上角，关闭键由 CSS 单独挪到左上角）。 */
-          '<div class="player-top-actions">' +
-            '<button class="pbtn pbtn-sound" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
-            (item.episodes && item.episodes.length ? '<button class="pbtn pbtn-episodes" type="button" data-paction="episodes" id="player-episodes" aria-label="选集">' + icon('list') + '</button>' : '') +
-            '<button class="pbtn pbtn-close" type="button" data-paction="back" aria-label="关闭播放器">' + icon('close') + '</button>' +
+    '<div class="player" id="player-card">' +
+      '<div class="player__glow"' + (poster ? ' style="background-image:url(\'' + escapeHtml(poster) + '\')"' : '') + '></div>' +
+      '<div class="player__stage" id="player-stage">' +
+        '<video id="player-video" class="player__video" playsinline webkit-playsinline preload="metadata" poster="' + escapeHtml(poster) + '">' +
+          tracks +
+        '</video>' +
+        '<div class="player__vig"></div>' +
+
+        '<div class="player-buffering" id="player-buffering" hidden><span class="player-spinner" aria-hidden="true"></span></div>' +
+
+        '<div class="player-error" id="player-error" hidden>' +
+          '<div class="player-error-icon" aria-hidden="true">!</div>' +
+          '<h2>片源加载失败</h2>' +
+          '<p id="player-error-text">请检查网络连接后重试。影片本身仍在片库中，稍后可以再试。</p>' +
+          '<div class="player-error-actions">' +
+            '<button class="pbtn-text" type="button" data-paction="retry">重试</button>' +
+            '<button class="pbtn-text" type="button" data-paction="line">换线路</button>' +
+            '<button class="pbtn-text" type="button" data-paction="back">返回</button>' +
           '</div>' +
         '</div>' +
 
-        /* 画面中央：后退 / 播放暂停 / 前进，水平排列。 */
-        '<div class="player-center">' +
-          '<button class="pbtn pbtn-seek" type="button" data-paction="rewind" aria-label="后退 10 秒">' + icon('rewind') + '</button>' +
-          '<button class="pbtn pbtn-play" type="button" data-paction="toggle" id="player-play" aria-label="播放">' + icon('play') + '</button>' +
-          '<button class="pbtn pbtn-seek" type="button" data-paction="forward" aria-label="前进 10 秒">' + icon('forward') + '</button>' +
-        '</div>' +
+        '<button class="player__bigplay" type="button" data-paction="toggle" id="player-play" aria-label="播放">' + icon('play') + '</button>' +
 
-        '<div class="player-bottom">' +
-          /* 底部菜单组：线路 / 倍速 / 字幕 / 横屏，全屏固定在最右侧。 */
-          '<div class="player-menu" id="player-menu">' +
-            '<button class="pbtn pbtn-label pbtn-line" type="button" data-paction="line" id="player-line" aria-label="切换线路">' + icon('line') + '<span>线路</span></button>' +
-            '<button class="pbtn pbtn-label" type="button" data-paction="speed" id="player-speed" aria-label="倍速">' + escapeHtml(formatRate(initialRate)) + '</button>' +
-            (subtitles.length ? '<button class="pbtn pbtn-menu-icon" type="button" data-paction="cc" id="player-cc" aria-label="字幕">' + icon('cc') + '</button>' : '') +
-            '<button class="pbtn pbtn-menu-icon pbtn-display" type="button" data-paction="display" id="player-rotate" aria-label="横屏播放" aria-pressed="false">' + icon('rotate') + '</button>' +
-            '<button class="pbtn pbtn-menu-icon pbtn-fullscreen" type="button" data-paction="fullscreen" id="player-fullscreen" aria-label="全屏">' + icon('fullscreen') + '</button>' +
-          '</div>' +
-          /* 底部横向进度条：左当前时间，右剩余时长。 */
-          '<div class="player-scrub-row">' +
-            '<span class="player-time" id="player-current">0:00</span>' +
+        '<div class="player__ctrl" id="player-overlay">' +
+          '<div class="scrub">' +
             '<input class="player-scrub" id="player-scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="播放进度">' +
-            '<span class="player-time" id="player-duration">-0:00</span>' +
+          '</div>' +
+          '<div class="ctrlrow">' +
+            '<button class="cbtn" type="button" data-paction="toggle" id="player-play-small" aria-label="播放/暂停">' + icon('play') + '</button>' +
+            '<button class="cbtn" type="button" data-paction="rewind" aria-label="后退 10 秒">' + icon('rewind') + '</button>' +
+            '<button class="cbtn" type="button" data-paction="forward" aria-label="前进 10 秒">' + icon('forward') + '</button>' +
+            '<button class="cbtn" type="button" data-paction="mute" id="player-mute" aria-label="静音">' + icon('volume') + '</button>' +
+            '<span class="ctime"><b id="player-current">0:00</b><span class="ctime-sep"> / </span><span id="player-duration">0:00</span></span>' +
+            '<span class="cspacer"></span>' +
+            '<button class="cbtn cbtn--text" type="button" data-paction="speed" id="player-speed" aria-label="倍速">' + escapeHtml(formatRate(initialRate)) + '</button>' +
+            (subtitles.length ? '<button class="cbtn" type="button" data-paction="cc" id="player-cc" aria-label="字幕">' + icon('cc') + '</button>' : '') +
+            '<button class="cbtn" type="button" data-paction="line" id="player-line" aria-label="切换线路">' + icon('line') + '</button>' +
+            '<button class="cbtn" type="button" data-paction="fullscreen" id="player-fullscreen" aria-label="全屏">' + icon('fullscreen') + '</button>' +
           '</div>' +
         '</div>' +
-      '</div>' +
 
-      (item.episodes && item.episodes.length
-        ? '<div class="player-drawer" id="player-drawer" hidden>' +
-            '<button class="player-drawer-scrim" type="button" data-paction="close-episodes" aria-label="关闭选集" tabindex="-1"></button>' +
-            '<aside class="player-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="player-drawer-title">' +
-              '<div class="player-drawer-head">' +
-                '<div class="player-drawer-heading">' +
-                  '<h2 class="player-drawer-title" id="player-drawer-title">选集</h2>' +
-                  '<p class="player-drawer-meta">共 ' + item.episodes.length + ' 集</p>' +
+        (item.episodes && item.episodes.length
+          ? '<div class="player-drawer" id="player-drawer" hidden>' +
+              '<button class="player-drawer-scrim" type="button" data-paction="close-episodes" aria-label="关闭选集" tabindex="-1"></button>' +
+              '<aside class="player-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="player-drawer-title">' +
+                '<div class="player-drawer-head">' +
+                  '<div class="player-drawer-heading">' +
+                    '<h2 class="player-drawer-title" id="player-drawer-title">选集</h2>' +
+                    '<p class="player-drawer-meta">共 ' + item.episodes.length + ' 集</p>' +
+                  '</div>' +
+                  '<button class="pbtn player-drawer-close" type="button" data-paction="close-episodes" aria-label="关闭">' + icon('close') + '</button>' +
                 '</div>' +
-                '<button class="pbtn player-drawer-close" type="button" data-paction="close-episodes" aria-label="关闭">' + icon('close') + '</button>' +
-              '</div>' +
-              '<div class="player-episode-list" id="player-episode-list">' +
-                item.episodes.map((entry, index) => {
-                  const active = Boolean(episode && entry.id === episode.id);
-                  const label = formatEpisodeLabel(entry) || ('第 ' + (index + 1) + ' 集');
-                  return '<button class="player-episode' + (active ? ' is-current' : '') + '" type="button" data-episode-id="' + escapeHtml(entry.id) + '"' +
-                    (active ? ' aria-current="true"' : '') + '>' +
-                    '<span class="player-episode-index">' + (index + 1) + '</span>' +
-                    '<span class="player-episode-label">' + escapeHtml(label) + '</span>' +
-                    (active ? '<span class="player-episode-now">正在播放</span>' : '') +
-                  '</button>';
-                }).join('') +
-              '</div>' +
-            '</aside>' +
-          '</div>'
-        : '') +
+                '<div class="player-episode-list" id="player-episode-list">' +
+                  item.episodes.map((entry, index) => {
+                    const active = Boolean(episode && entry.id === episode.id);
+                    const label = formatEpisodeLabel(entry) || ('第 ' + (index + 1) + ' 集');
+                    return '<button class="player-episode' + (active ? ' is-current' : '') + '" type="button" data-episode-id="' + escapeHtml(entry.id) + '"' +
+                      (active ? ' aria-current="true"' : '') + '>' +
+                      '<span class="player-episode-index">' + (index + 1) + '</span>' +
+                      '<span class="player-episode-label">' + escapeHtml(label) + '</span>' +
+                      (active ? '<span class="player-episode-now">正在播放</span>' : '') +
+                    '</button>';
+                  }).join('') +
+                '</div>' +
+              '</aside>' +
+            '</div>'
+          : '') +
 
-      '<div class="player-toast" id="player-toast" role="status" aria-live="polite"></div>' +
+        '<div class="player-toast" id="player-toast" role="status" aria-live="polite"></div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="watch__below">' +
+      '<div class="watch__info">' +
+        '<div class="watch__info-title">' + escapeHtml(item.title) + '</div>' +
+        (infoMeta.length
+          ? '<div class="watch__info-meta">' + infoMeta.map((part, index) =>
+              (index ? '<i class="dot"></i>' : '') + '<span>' + escapeHtml(part) + '</span>'
+            ).join('') + '</div>'
+          : '') +
+        (tagList.length
+          ? '<div class="watch__tags">' + tagList.map((tag) => '<span class="chip chip--static">' + escapeHtml(tag) + '</span>').join('') + '</div>'
+          : '') +
+        '<p class="watch__desc">' + escapeHtml(item.synopsis || '暂无简介。') + '</p>' +
+        '<div class="watch__keys">' +
+          '<span class="watch__key"><kbd>空格</kbd>播放 / 暂停</span>' +
+          '<span class="watch__key"><kbd>←</kbd><kbd>→</kbd>快退 / 快进 10 秒</span>' +
+          '<span class="watch__key"><kbd>F</kbd>全屏</span>' +
+          '<span class="watch__key"><kbd>Esc</kbd>退出</span>' +
+        '</div>' +
+      '</div>' +
+      '<aside class="watch__side"><div class="watch__side-title">接着看</div>' +
+        (nextHtml || '<p class="watch__desc">暂无待看</p>') +
+      '</aside>' +
     '</div>' +
     '</div>';
 }
@@ -661,6 +728,12 @@ export function mountPlayer(item, episode) {
       playButton.classList.toggle('is-playing', playing);
       playButton.setAttribute('aria-label', playing ? '暂停' : '播放');
     }
+    if (stage) stage.classList.toggle('is-playing', playing);
+    const smallPlay = document.getElementById('player-play-small');
+    if (smallPlay) {
+      smallPlay.innerHTML = icon(playing ? 'pause' : 'play');
+      smallPlay.setAttribute('aria-label', playing ? '暂停' : '播放');
+    }
     if ('mediaSession' in navigator) {
       try {
         navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
@@ -676,7 +749,7 @@ export function mountPlayer(item, episode) {
     const percent = duration > 0 ? Math.max(0, Math.min(100, (time / duration) * 100)) : 0;
 
     if (currentLabel) currentLabel.textContent = formatTime(time);
-    if (durationLabel) durationLabel.textContent = formatRemaining(duration - time);
+    if (durationLabel) durationLabel.textContent = formatTime(duration);
     if (scrub) {
       scrub.value = String(Math.round(percent * 10));
       scrub.style.setProperty('--progress', percent.toFixed(2) + '%');
@@ -1202,6 +1275,38 @@ export function mountPlayer(item, episode) {
     location.hash = '#/title/' + encodeURIComponent(item.id);
   }
 
+  async function togglePlayerFavorite() {
+    let now;
+    try {
+      now = await toggleFavorite(item.id);
+    } catch (error) {
+      showToast('收藏操作失败，请再试一次');
+      return;
+    }
+
+    const button = document.getElementById('player-favorite');
+    if (button) {
+      button.classList.toggle('is-active', now);
+      button.setAttribute('aria-pressed', String(now));
+      button.innerHTML = icon(now ? 'heartFill' : 'heart') +
+        '<span class="btn__label">' + (now ? '已收藏' : '收藏') + '</span>';
+    }
+    showToast(now ? '已加入收藏' : '已取消收藏');
+  }
+
+  async function sharePlayerPage() {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: document.title, url: location.href });
+      } else {
+        await navigator.clipboard.writeText(location.href);
+        showToast('链接已复制');
+      }
+    } catch (error) {
+      if (!error || error.name !== 'AbortError') showToast('分享失败，请再试一次');
+    }
+  }
+
   /* 点到控件时取消还在等待第二次点击的空白单击，避免控件随后被自动隐藏。 */
   function cancelPendingTap() {
     if (!tapTimer) return;
@@ -1279,6 +1384,8 @@ export function mountPlayer(item, episode) {
       else if (action === 'display') toggleDisplayMode();
       else if (action === 'rotate') toggleForcedLandscape();
       else if (action === 'fullscreen') toggleFullscreen();
+      else if (action === 'favorite') togglePlayerFavorite();
+      else if (action === 'share') sharePlayerPage();
       else if (action === 'retry') retry();
       return;
     }

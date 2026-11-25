@@ -303,6 +303,7 @@ function buildDetailItem(data, options) {
     id: buildRemoteId(sourceId, vodId),
     title,
     year: intOr(raw.vod_year, null),
+    score: (() => { const n = Number(raw.vod_score); return Number.isFinite(n) && n > 0 ? Math.round(n * 10) / 10 : null; })(),
     category: kind,
     kind,
     sources: [],

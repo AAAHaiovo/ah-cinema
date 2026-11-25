@@ -377,7 +377,7 @@ async function main() {
     if (await waitFor('Boolean(document.querySelector(".sheet [data-value]"))', 3000)) {
       await evaluate('document.querySelector(".sheet [data-value]").click()');
     }
-    record(results, '首页卡片进入详情', await waitFor('Boolean(document.querySelector(".detail-page"))', 20000));
+    record(results, '首页卡片进入详情', await waitFor('Boolean(document.querySelector(".detail"))', 20000));
 
     await send('Page.navigate', { url: BASE + '#/search?q=Big' });
     record(results, '看到网络结果卡片', await waitFor('Boolean(document.querySelector(".remote-card"))', 20000));
@@ -391,9 +391,9 @@ async function main() {
     await evaluate('document.querySelector(".remote-card").click()');
     record(results, '多来源弹出选源', await waitFor('Boolean(document.querySelector(".sheet [data-value]"))'));
     await evaluate('document.querySelector(".sheet [data-value]").click()');
-    record(results, '进入远程详情', await waitFor('Boolean(document.querySelector(".detail-page"))', 20000));
+    record(results, '进入远程详情', await waitFor('Boolean(document.querySelector(".detail"))', 20000));
 
-    const title = await evaluate('document.querySelector(".detail-title")?.textContent || ""');
+    const title = await evaluate('document.querySelector(".detail__title")?.textContent || ""');
     record(results, '详情标题正确', title.includes('Big Buck Bunny'), title);
 
     const refresh = await evaluate('Boolean(document.querySelector("[data-action=refresh-remote]"))');
@@ -417,27 +417,23 @@ async function main() {
     await send('Page.navigate', { url: BASE + '#/search?q=示例' });
     record(results, '剧集搜索结果出现', await waitFor('Boolean(document.querySelector(".remote-card"))', 20000));
     await evaluate('document.querySelector(".remote-card").click()');
-    record(results, '进入剧集详情', await waitFor('Boolean(document.querySelector(".detail-page"))', 20000));
-    const episodeCount = await evaluate('document.querySelectorAll(".episode-btn").length');
+    record(results, '进入剧集详情', await waitFor('Boolean(document.querySelector(".detail"))', 20000));
+    const episodeCount = await evaluate('document.querySelectorAll(".ep").length');
     record(results, '解析出两集', episodeCount === 2, String(episodeCount));
 
-    await evaluate('document.querySelectorAll(".episode-btn")[1].click()');
+    await evaluate('document.querySelectorAll(".ep")[1].click()');
     record(results, '进入第二集播放页', await waitFor('Boolean(document.querySelector("#player-video"))'));
     record(results, '第二集拿到片源', await waitFor('(document.querySelector("#player-video")?.currentSrc || "").includes("/api/proxy")', 20000));
-    record(results, '选集在右上角、静音在左、全屏在右下', await evaluate(`(() => {
-      const mute = document.querySelector('.player-top-actions #player-mute');
-      const episodes = document.querySelector('.player-top-actions #player-episodes');
-      const menu = document.querySelector('#player-menu');
-      const fullscreen = document.querySelector('#player-menu #player-fullscreen');
-      if (!mute || !episodes || !menu || !fullscreen) return false;
-      const muteRect = mute.getBoundingClientRect();
-      const episodeRect = episodes.getBoundingClientRect();
-      const menuRect = menu.getBoundingClientRect();
-      const fullRect = fullscreen.getBoundingClientRect();
-      return muteRect.top < 90
-        && muteRect.right <= episodeRect.left
-        && fullRect.left > menuRect.left + menuRect.width / 2
-        && menuRect.right - fullRect.right < 30;
+    record(results, '选集在顶栏、静音与全屏在控制条', await evaluate(`(() => {
+      const episodes = document.querySelector('#player-episodes');
+      const mute = document.querySelector('#player-mute');
+      const fullscreen = document.querySelector('#player-fullscreen');
+      const ctrl = document.querySelector('.player__ctrl');
+      if (!episodes || !mute || !fullscreen || !ctrl) return false;
+      const e = episodes.getBoundingClientRect();
+      const m = mute.getBoundingClientRect();
+      const f = fullscreen.getBoundingClientRect();
+      return e.left > innerWidth * 0.5 && m.top > innerHeight * 0.5 && f.left > innerWidth * 0.5;
     })()`));
     await evaluate('document.querySelector("#player-line").click()');
     record(results, '多线路可选', await waitFor('document.querySelectorAll(".sheet [data-value]").length === 2'));
@@ -474,7 +470,7 @@ async function main() {
       await waitFor('Boolean(document.querySelector("#player-video")) && !document.querySelector(".player-drawer.is-open")'));
 
     await evaluate('document.querySelector("[data-paction=back]").click()');
-    record(results, '返回简介而不是上一集', await waitFor('location.hash.startsWith("#/title/") && Boolean(document.querySelector(".detail-page"))'));
+    record(results, '返回简介而不是上一集', await waitFor('location.hash.startsWith("#/title/") && Boolean(document.querySelector(".detail"))'));
 
     await send('Page.navigate', { url: BASE + '#/search?q=XML' });
     record(results, 'XML 搜索出结果', await waitFor('Boolean(document.querySelector(".remote-card"))', 20000));
@@ -484,11 +480,11 @@ async function main() {
     record(results, 'XML 搜索返回两部', JSON.parse(xmlCards).length === 2, xmlCards.slice(0, 160));
 
     await evaluate('document.querySelector(".remote-card").click()');
-    record(results, 'XML 详情页打开', await waitFor('Boolean(document.querySelector(".detail-page"))', 20000));
-    const xmlTitle = await evaluate('document.querySelector(".detail-title")?.textContent || ""');
+    record(results, 'XML 详情页打开', await waitFor('Boolean(document.querySelector(".detail"))', 20000));
+    const xmlTitle = await evaluate('document.querySelector(".detail__title")?.textContent || ""');
     record(results, 'XML 详情标题正确', xmlTitle.includes('XML'), xmlTitle);
     record(results, 'XML 详情解析简介', await evaluate(
-      `Boolean(document.querySelector(".detail-page .synopsis"))`
+      `Boolean(document.querySelector(".detail .detail__desc"))`
     ));
 
     await send('Page.navigate', { url: BASE + '#/search?q=不应出现' });

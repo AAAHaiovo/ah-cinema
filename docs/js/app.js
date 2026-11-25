@@ -15,7 +15,9 @@ import {
   addSearch,
   exportData,
   importData,
-  storageEstimate
+  storageEstimate,
+  favoriteCount,
+  latestProgressList
 } from './store.js';
 
 import {
@@ -27,7 +29,8 @@ import {
   removeLocalItem,
   titleFromUrl,
   fileSizeLimit,
-  isHlsUrl
+  isHlsUrl,
+  localCount
 } from './local-library.js';
 
 import {
@@ -47,6 +50,10 @@ import {
   closeOverlay,
   debounce,
   formatBytes,
+  formatEpisodeLabel,
+  progressPercent,
+  safeAssetUrl,
+  watchHref,
   icon,
   isStandalone
 } from './ui.js';
@@ -108,7 +115,16 @@ const els = {
   header: document.getElementById('app-header'),
   tabbar: document.getElementById('tabbar'),
   themeToggle: document.getElementById('theme-toggle'),
-  crumb: document.getElementById('crumb-current')
+  crumb: document.getElementById('crumb-current'),
+  topbarTitle: document.getElementById('topbar-title'),
+  navLocal: document.getElementById('nav-local-count'),
+  navFav: document.getElementById('nav-fav-count'),
+  nowCard: document.getElementById('now-card'),
+  nowArt: document.getElementById('now-art'),
+  nowTitle: document.getElementById('now-title'),
+  nowMeta: document.getElementById('now-meta'),
+  nowBar: document.getElementById('now-bar'),
+  searchKbd: document.getElementById('search-kbd')
 };
 
 const themeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
@@ -205,6 +221,24 @@ function failBoot(error) {
   console.error('[AH 影视] 启动失败', error);
 }
 
+function setupSearchShortcut() {
+  if (els.searchKbd) {
+    const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+    els.searchKbd.textContent = isMac ? '⌘K' : 'Ctrl K';
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+    if (String(event.key).toLowerCase() !== 'k') return;
+    event.preventDefault();
+    if (location.hash !== '#/search') location.hash = '#/search';
+    window.setTimeout(() => {
+      const input = document.getElementById('search-input');
+      if (input) input.focus();
+    }, 140);
+  });
+}
+
 async function boot() {
   try {
     await Promise.all([loadCatalog(), loadState()]);
@@ -235,6 +269,7 @@ async function boot() {
     applyTheme();
     setupGlobalListeners();
     setupPwa();
+    setupSearchShortcut();
 
     if (!location.hash) {
       try {
@@ -285,17 +320,64 @@ function setDocumentTitle(resolved) {
 
   if (resolved.name === 'detail') {
     const item = getItem(resolved.itemId);
-    crumb = item ? item.title : '页面不存在';
+    crumb = item ? '影片详情' : '页面不存在';
     document.title = item ? item.title + ' · ' + base : '页面不存在 · ' + base;
   } else if (resolved.name === 'player') {
     const item = getItem(resolved.itemId);
-    crumb = item ? '正在播放 · ' + item.title : '页面不存在';
+    crumb = item ? '正在播放' : '页面不存在';
     document.title = item ? '正在播放 · ' + item.title : '页面不存在 · ' + base;
   } else {
     document.title = simpleTitles[resolved.name] || base;
   }
 
   if (els.crumb) els.crumb.textContent = crumb || base;
+
+  const mobileTitle = resolved.name === 'home'
+    ? 'AH 影视'
+    : (resolved.name === 'detail' || resolved.name === 'player' ? crumb : (simpleNames[resolved.name] || 'AH 影视'));
+  if (els.topbarTitle) els.topbarTitle.textContent = mobileTitle || 'AH 影视';
+}
+
+function setSidebarBadge(element, count) {
+  if (!element) return;
+  element.textContent = String(count);
+  element.classList.toggle('is-on', count > 0);
+}
+
+function updateSidebarMeta() {
+  setSidebarBadge(els.navLocal, localCount());
+  setSidebarBadge(els.navFav, favoriteCount());
+
+  const card = els.nowCard;
+  if (!card) return;
+
+  const record = latestProgressList().find((entry) => !entry.completed && !entry.external);
+  const item = record ? getItem(record.itemId) : null;
+  if (!record || !item) {
+    card.hidden = true;
+    card.classList.remove('is-on');
+    return;
+  }
+
+  const episode = getEpisode(item, record.episodeId);
+  const percent = progressPercent(record);
+  const remain = record.duration > record.time ? Math.ceil((record.duration - record.time) / 60) : 0;
+
+  if (els.nowArt) {
+    els.nowArt.src = safeAssetUrl(item.poster) || './icons/icon-192.png';
+    els.nowArt.alt = '';
+  }
+  if (els.nowTitle) {
+    els.nowTitle.textContent = item.title + (episode ? ' · ' + formatEpisodeLabel(episode) : '');
+  }
+  if (els.nowMeta) {
+    els.nowMeta.textContent = '接着看 ' + Math.round(percent) + '%' + (remain ? ' · 剩 ' + remain + ' 分钟' : '');
+  }
+  if (els.nowBar) els.nowBar.style.width = percent.toFixed(1) + '%';
+
+  card.href = watchHref(item, record.episodeId);
+  card.hidden = false;
+  card.classList.add('is-on');
 }
 
 function updateActiveTab(tabName) {
@@ -314,6 +396,7 @@ function updateActiveTab(tabName) {
 
 function renderRoute() {
   if (!els.view) return;
+  clearHeroCarousel();
 
   closeOverlay();
 
@@ -390,6 +473,7 @@ function renderRoute() {
   }
 
   setDocumentTitle(resolved);
+  updateSidebarMeta();
   /* 旧页面残留的滚动回调不能在换页后继续跑。 */
   if (scrollFrame) {
     window.cancelAnimationFrame(scrollFrame);
@@ -686,6 +770,35 @@ let browseLastTopGroup = '';
 let browseBarHidden = false;
 let lastScrollY = 0;
 let scrollFrame = 0;
+let heroTimer = null;
+
+function clearHeroCarousel() {
+  if (heroTimer) {
+    window.clearInterval(heroTimer);
+    heroTimer = null;
+  }
+}
+
+function setupHeroCarousel() {
+  clearHeroCarousel();
+  const root = document.querySelector('#home-hero .billboard');
+  if (!root) return;
+  const slides = Array.from(root.querySelectorAll('[data-hero-slide]'));
+  const dots = Array.from(root.querySelectorAll('[data-hero-go]'));
+  if (slides.length < 2) return;
+
+  let index = 0;
+  const go = (next) => {
+    index = ((next % slides.length) + slides.length) % slides.length;
+    slides.forEach((slide, i) => slide.classList.toggle('is-on', i === index));
+    dots.forEach((dot, i) => dot.classList.toggle('is-on', i === index));
+  };
+
+  dots.forEach((dot, i) => {
+    dot.addEventListener('click', () => go(Number(dot.getAttribute('data-hero-go')) || i));
+  });
+  heroTimer = window.setInterval(() => go(index + 1), 7000);
+}
 
 function emptyBrowseState() {
   return {
@@ -742,20 +855,31 @@ function renderBrowse() {
   section.innerHTML = renderHomeBrowse(browseState);
   browseLastTopGroup = browseState.topGroup;
 
-  /* 首页主视觉：默认用第一页的第一部影片；切换分类时保留当前主视觉。 */
+  /* 首页主视觉：默认页用前 3 部影片轮播；切换分类时保留当前主视觉。 */
   const hero = document.getElementById('home-hero');
   if (hero) {
-    const defaultGroup = browseState.page === 1 && !browseState.topGroup ? browseState.groups[0] : null;
-    if (defaultGroup) {
-      if (hero.dataset.key !== defaultGroup.key) {
-        hero.innerHTML = renderHomeHero(defaultGroup);
-        hero.dataset.key = defaultGroup.key;
+    const groups = browseState.groups.slice(0, 3);
+    const isDefault = browseState.page === 1 && !browseState.topGroup;
+    const signature = groups.map((group) => group.key).join(',');
+
+    if (groups.length && (isDefault || hero.dataset.filled !== '1')) {
+      if (isDefault && hero.dataset.signature !== signature) {
+        hero.innerHTML = renderHomeHero(groups);
+        hero.dataset.signature = signature;
+        hero.dataset.filled = '1';
+        setupHeroCarousel();
+      } else if (hero.dataset.filled !== '1') {
+        hero.innerHTML = renderHomeHero(groups);
+        hero.dataset.signature = signature;
+        hero.dataset.filled = '1';
+        setupHeroCarousel();
       }
-    } else if (!hero.dataset.key && browseState.groups[0]) {
-      hero.innerHTML = renderHomeHero(browseState.groups[0]);
-      hero.dataset.key = browseState.groups[0].key;
-    } else if (!hero.dataset.key) {
-      hero.innerHTML = renderHomeHero(null);
+    } else if (!browseState.groups.length
+      && !['loading', 'idle'].includes(browseState.status)
+      && hero.dataset.filled !== '1') {
+      hero.innerHTML = renderHomeHero([]);
+      hero.dataset.filled = '1';
+      clearHeroCarousel();
     }
   }
 
@@ -1776,6 +1900,18 @@ async function onDocumentClick(event) {
     const clamped = synopsis.classList.toggle('is-clamped');
     actionElement.textContent = clamped ? '展开' : '收起';
     actionElement.setAttribute('aria-expanded', String(!clamped));
+  } else if (action === 'share') {
+    const shareData = { title: document.title, text: document.title, url: location.href };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(location.href);
+        toast('链接已复制');
+      }
+    } catch (error) {
+      if (!error || error.name !== 'AbortError') toast('分享失败，请再试一次');
+    }
   } else if (action === 'favorite') {
     const itemId = actionElement.getAttribute('data-item-id');
     if (!itemId) return;
@@ -1798,6 +1934,7 @@ async function onDocumentClick(event) {
         (hasText ? '<span>' + (nowFavorite ? '已收藏' : '收藏') + '</span>' : '');
     });
 
+    updateSidebarMeta();
     toast(nowFavorite ? '已加入收藏' : '已取消收藏');
   } else if (action === 'back') {
     if (history.length > 1) history.back();

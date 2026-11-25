@@ -90,7 +90,7 @@ export function routeKey(route) {
 }
 
 export function isTabbedRoute(name) {
-  return !['detail', 'player'].includes(name);
+  return name !== 'player';
 }
 
 export function tabForRoute(name) {

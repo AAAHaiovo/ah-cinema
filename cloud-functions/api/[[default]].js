@@ -23033,7 +23033,7 @@ var require_config = __commonJS({
       mode: MODE,
       isProduction: IS_PRODUCTION,
       isVercel: IS_VERCEL,
-      version: "0.9.1",
+      version: "1.0.0",
       apiVersion: 1,
       apiToken,
       signingSecret: signingSecret || devSigningSecret,
@@ -23045,7 +23045,7 @@ var require_config = __commonJS({
       missingEnv,
       configured: missingEnv.length === 0,
       allowedOrigins,
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AH-Cinema/0.9.1",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 AH-Cinema/1.0.0",
       maxSources: 8,
       searchMaxPages: intEnv("AH_SEARCH_MAX_PAGES", 2, 1, 5),
       searchSourceTimeoutMs: 5e3,
@@ -24138,6 +24138,10 @@ var require_cms = __commonJS({
         id: buildRemoteId(sourceId, vodId),
         title,
         year: intOr(raw.vod_year, null),
+        score: (() => {
+          const n = Number(raw.vod_score);
+          return Number.isFinite(n) && n > 0 ? Math.round(n * 10) / 10 : null;
+        })(),
         category: kind,
         kind,
         sources: [],
