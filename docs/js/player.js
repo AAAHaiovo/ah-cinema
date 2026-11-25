@@ -32,6 +32,8 @@ function formatRemaining(seconds) {
  * 只有同一次观看里选集 / 自动连播才沿用当前横屏状态。
  */
 let pendingLandscape = null;
+let pendingAppFullscreen = false;
+let pendingAppFullscreenAuto = false;
 
 let hlsPromise = null;
 
@@ -359,6 +361,33 @@ export function playerPage(item, episode) {
             '<button class="cbtn" type="button" data-paction="fullscreen" id="player-fullscreen" aria-label="全屏">' + icon('fullscreen') + '</button>' +
           '</div>' +
         '</div>' +
+
+        (item.episodes && item.episodes.length
+          ? '<div class="player-drawer" id="player-drawer" hidden>' +
+              '<button class="player-drawer-scrim" type="button" data-paction="close-episodes" aria-label="关闭选集" tabindex="-1"></button>' +
+              '<aside class="player-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="player-drawer-title">' +
+                '<div class="player-drawer-head">' +
+                  '<div class="player-drawer-heading">' +
+                    '<h2 class="player-drawer-title" id="player-drawer-title">选集</h2>' +
+                    '<p class="player-drawer-meta">共 ' + item.episodes.length + ' 集</p>' +
+                  '</div>' +
+                  '<button class="pbtn player-drawer-close" type="button" data-paction="close-episodes" aria-label="关闭">' + icon('close') + '</button>' +
+                '</div>' +
+                '<div class="player-episode-list" id="player-episode-list">' +
+                  item.episodes.map((entry, index) => {
+                    const active = Boolean(episode && entry.id === episode.id);
+                    const label = entry.title || formatEpisodeLabel(entry) || ('第 ' + (index + 1) + ' 集');
+                    return '<button class="player-episode' + (active ? ' is-current' : '') + '" type="button" data-episode-id="' + escapeHtml(entry.id) + '"' +
+                      (active ? ' aria-current="true"' : '') + '>' +
+                      '<span class="player-episode-index">' + (index + 1) + '</span>' +
+                      '<span class="player-episode-label">' + escapeHtml(label) + '</span>' +
+                      (active ? '<span class="player-episode-now">正在播放</span>' : '') +
+                    '</button>';
+                  }).join('') +
+                '</div>' +
+              '</aside>' +
+            '</div>'
+          : '') +
 
         '<div class="player-toast" id="player-toast" role="status" aria-live="polite"></div>' +
       '</div>' +
@@ -839,18 +868,9 @@ export function mountPlayer(item, episode) {
     displayButton.setAttribute('aria-label', active ? '恢复竖屏' : '横屏播放');
   }
 
-  /* 真正的手机横屏：Android / 桌面优先锁定屏幕方向；
-     iPhone 只能借系统视频全屏旋转，这是 iOS 的限制。 */
+  /* 优先让页面自己全屏并锁定屏幕方向（保留 App 的控件）；
+     浏览器不支持时才退到 CSS 横屏，绝不从横屏按钮进入系统播放器。 */
   function enterLandscapeMode() {
-    if (isIOS()) {
-      if (enterNativeFullscreen()) {
-        showToast('已进入系统横屏');
-        return;
-      }
-      setForcedLandscape(true, { autoFullscreen: false });
-      return;
-    }
-
     if (screen.orientation && typeof screen.orientation.lock === 'function'
       && page && typeof page.requestFullscreen === 'function') {
       Promise.resolve(page.requestFullscreen({ navigationUI: 'hide' }))
@@ -1153,6 +1173,10 @@ export function mountPlayer(item, episode) {
       /* 手机真的转到横屏了，撤掉 CSS 旋转，改用原生横屏；
          不退出刚进入的全屏，否则自动全屏会被立刻撤销。 */
       setForcedLandscape(false, { toast: false, keepFullscreen: true });
+      if (isHandheld() && !page.classList.contains('is-app-fullscreen')
+        && !document.fullscreenElement && !isNativeFullscreen()) {
+        setAppFullscreen(true, { auto: true, toast: false });
+      }
       showToast('已切换为横屏', 1400);
     } else if (landscape && !wasLandscapeViewport) {
       /* 手机物理转到横屏：直接铺满屏幕观看，不依赖浏览器全屏权限。 */
@@ -1208,8 +1232,8 @@ export function mountPlayer(item, episode) {
     }
 
     const value = await openSheet({
-      title: '线路',
-      className: 'sheet-side',
+      title: '切换线路',
+      className: 'sheet-lines',
       value: String(sourceIndex),
       options: sources.map((source, index) => ({
         value: String(index),
@@ -1305,7 +1329,7 @@ export function mountPlayer(item, episode) {
 
     drawerOpen = true;
     drawer.hidden = false;
-    const trigger = document.getElementById('player-episodes');
+    const trigger = document.querySelector('.player__fs-tools [data-paction="episodes"]');
     if (trigger) trigger.classList.add('is-active');
     /* 先让浏览器完成一帧布局，再打开过渡类，滑入动画才会生效。 */
     requestAnimationFrame(() => {
@@ -1323,7 +1347,7 @@ export function mountPlayer(item, episode) {
 
     drawerOpen = false;
     drawer.classList.remove('is-open');
-    const trigger = document.getElementById('player-episodes');
+    const trigger = document.querySelector('.player__fs-tools [data-paction="episodes"]');
     if (trigger) trigger.classList.remove('is-active');
     if (drawerTimer) clearTimeout(drawerTimer);
     drawerTimer = window.setTimeout(() => {
@@ -1333,12 +1357,18 @@ export function mountPlayer(item, episode) {
     showControls();
   }
 
+  function rememberPlayerChrome() {
+    pendingLandscape = forcedLandscape;
+    pendingAppFullscreen = page.classList.contains('is-app-fullscreen');
+    pendingAppFullscreenAuto = autoLandscapeFullscreen;
+  }
+
   function selectEpisode(nextId) {
     if (!nextId) return;
     closeEpisodes();
     if (episode && nextId === episode.id) return;
     /* 选集替换当前历史记录，返回键才能回到简介，而不是上一集。 */
-    pendingLandscape = forcedLandscape;
+    rememberPlayerChrome();
     navigate('/watch/' + encodeURIComponent(item.id) + '/' + encodeURIComponent(nextId), {
       replace: true
     });
@@ -1740,10 +1770,16 @@ export function mountPlayer(item, episode) {
   document.addEventListener('webkitfullscreenchange', updateOrientationState, { signal });
 
   const keepLandscape = pendingLandscape;
+  const keepAppFullscreen = pendingAppFullscreen;
+  const keepAppFullscreenAuto = pendingAppFullscreenAuto;
   pendingLandscape = null;
+  pendingAppFullscreen = false;
+  pendingAppFullscreenAuto = false;
   resetOrientation();
   if (keepLandscape) setForcedLandscape(true, { toast: false, controls: false });
-  else if (isLandscapeViewport() && isHandheld()
+  if (keepAppFullscreen) {
+    setAppFullscreen(true, { auto: keepAppFullscreenAuto, toast: false });
+  } else if (!keepLandscape && isLandscapeViewport() && isHandheld()
     && !document.fullscreenElement && !isNativeFullscreen()) {
     /* 打开播放页时手机已经是横的，直接进入横屏铺满。 */
     setAppFullscreen(true, { auto: true, toast: false });
@@ -1828,7 +1864,7 @@ export function mountPlayer(item, episode) {
     if (next && state.settings.autoplayNext) {
       showToast('即将播放下一集…', 1400);
       nextTimer = window.setTimeout(() => {
-        pendingLandscape = forcedLandscape;
+        rememberPlayerChrome();
         navigate('/watch/' + encodeURIComponent(item.id) + '/' + encodeURIComponent(next.id), {
           replace: true
         });

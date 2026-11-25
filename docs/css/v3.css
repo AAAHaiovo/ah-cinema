@@ -2877,3 +2877,125 @@ body.player-app-fullscreen {
     height: 38px;
   }
 }
+
+/* ---------- 12. 全屏选集 / 线路 / 中央播放键 ---------- */
+
+/* 中央播放键跟着上移后的画面走。 */
+@media (orientation: portrait) {
+  .player-page.watch.is-app-fullscreen:not(.is-landscape) .player__bigplay {
+    top: calc(50% - 5vh);
+  }
+}
+
+/* 播放三角形按视觉重心居中，不再额外向右偏 3px。 */
+.player__bigplay .icon {
+  margin-left: 0;
+}
+
+/* 选集抽屉：右侧滑出，深色玻璃 + 品牌蓝，与应用其余弹层一致。 */
+.player-page.watch .player-drawer {
+  z-index: 12;
+}
+
+.player-page.watch .player-drawer-panel {
+  width: min(82%, 340px);
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 14px calc(env(safe-area-inset-bottom, 0px) + 16px) 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px 0 0 24px;
+  background: rgba(12, 12, 18, 0.88);
+  box-shadow: -24px 0 64px -32px rgba(0, 0, 0, 0.92);
+}
+
+.player-page.watch .player-drawer-title {
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+.player-page.watch .player-drawer-meta {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.player-page.watch .player-episode-list {
+  gap: 4px;
+  padding: 12px 0 24px;
+}
+
+.player-page.watch .player-episode {
+  min-height: 50px;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  font-size: 14px;
+}
+
+.player-page.watch .player-episode-index {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  display: grid;
+  place-content: center;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11.5px;
+}
+
+.player-page.watch .player-episode.is-current {
+  background: var(--ah-accent-soft);
+  box-shadow: inset 3px 0 0 var(--ah-accent);
+  color: #fff;
+}
+
+.player-page.watch .player-episode.is-current .player-episode-index {
+  background: var(--ah-accent);
+  color: var(--ah-on-fill);
+}
+
+.player-page.watch .player-episode-now {
+  background: var(--ah-accent);
+  color: var(--ah-on-fill);
+}
+
+/* 换线路：交回 App 统一的底部面板，不再用播放器专用小浮卡。 */
+.sheet.sheet-lines {
+  max-width: min(520px, calc(100vw - 24px));
+  padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  border-radius: 24px 24px 0 0;
+  background: var(--ah-bg-elevated);
+}
+
+.sheet.sheet-lines .sheet-title {
+  margin: 0 2px 2px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-align: left;
+}
+
+.sheet.sheet-lines .sheet-list {
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.sheet.sheet-lines .sheet-option {
+  min-height: 54px;
+  padding: 0 14px;
+  border: 1px solid var(--ah-line);
+  border-radius: 14px;
+  background: var(--ah-surface);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sheet.sheet-lines .sheet-option.is-active {
+  border-color: var(--ah-accent);
+  background: var(--ah-accent-soft);
+  color: var(--ah-accent);
+}
+
+.sheet.sheet-lines .sheet-cancel {
+  min-height: 46px;
+  margin-top: 12px;
+  border-radius: 14px;
+}

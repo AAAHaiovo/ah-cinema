@@ -532,10 +532,16 @@ async function main() {
         const rect = button.getBoundingClientRect();
         return [Math.round(rect.left), Math.round(rect.top), Math.round(rect.right)];
       });
+      const big = document.querySelector('.player__bigplay');
+      const bigRect = big.getBoundingClientRect();
+      const stage = document.getElementById('player-stage').getBoundingClientRect();
       return {
         display: root ? getComputedStyle(root).display : '',
         actions: buttons.map((button) => button.getAttribute('data-paction')),
         rects,
+        bigCenter: Math.round(bigRect.top + bigRect.height / 2),
+        stageCenter: Math.round(stage.top + stage.height / 2),
+        iconMargin: getComputedStyle(big.querySelector('.icon')).marginLeft,
         viewport: [innerWidth, innerHeight]
       };
     })())`));
@@ -547,15 +553,35 @@ async function main() {
       && fsTools.rects[1][2] <= fsTools.viewport[0]
       && fsTools.rects[0][1] < fsTools.viewport[1] * 0.3,
       JSON.stringify(fsTools));
+    record(results, '全屏中央播放键随画面上移且图标居中',
+      fsTools.bigCenter < fsTools.stageCenter - 20 && fsTools.iconMargin === '0px',
+      JSON.stringify({ bigCenter: fsTools.bigCenter, stageCenter: fsTools.stageCenter, iconMargin: fsTools.iconMargin }));
     await screenshot('15-播放器-全屏右上角-手机.png');
 
     await evaluate('document.querySelector(\'.player__fs-tools [data-paction="episodes"]\').click()');
-    record(results, '全屏右上角选集可打开', await waitFor(
-      'document.querySelectorAll(".sheet [data-value]").length === 2',
+    record(results, '全屏选集从右侧滑出', await waitFor(
+      'document.getElementById("player-drawer")?.classList.contains("is-open")',
       5000
     ));
-    await evaluate('document.querySelector(".sheet [data-cancel]").click()');
-    await wait(250);
+    await wait(380);
+    const drawer = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const panel = document.querySelector('.player-drawer-panel');
+      const rect = panel.getBoundingClientRect();
+      return {
+        episodes: document.querySelectorAll('.player-episode').length,
+        right: Math.round(rect.right),
+        width: Math.round(rect.width),
+        current: document.querySelectorAll('.player-episode.is-current').length,
+        viewport: [innerWidth, innerHeight]
+      };
+    })())`));
+    record(results, '全屏选集抽屉内容正确', drawer.episodes === 2 && drawer.current === 1
+      && drawer.width > 200 && drawer.right <= drawer.viewport[0] + 1
+      && drawer.right >= drawer.viewport[0] - 2,
+      JSON.stringify(drawer));
+    await screenshot('16-播放器-全屏选集抽屉-手机.png');
+    await evaluate('document.querySelector(".player-drawer-close").click()');
+    await wait(300);
 
     await evaluate('document.querySelector("#player-fullscreen").click()');
     await wait(300);
@@ -563,7 +589,17 @@ async function main() {
     await evaluate('document.querySelector("#player-line").click()');
     record(results, '多线路可选', await waitFor('document.querySelectorAll(".sheet [data-value]").length === 2'));
     await wait(260);
-    await screenshot('07-播放器-换线路浮卡-手机.png');
+    const lineSheet = JSON.parse(await evaluate(`JSON.stringify((() => {
+      const sheet = document.querySelector('.sheet');
+      return {
+        className: sheet ? sheet.className : '',
+        title: sheet && sheet.querySelector('.sheet-title') ? sheet.querySelector('.sheet-title').textContent.trim() : '',
+        options: document.querySelectorAll('.sheet [data-value]').length
+      };
+    })())`));
+    record(results, '线路面板使用 App 统一面板样式', /sheet-lines/.test(lineSheet.className)
+      && lineSheet.title === '切换线路' && lineSheet.options === 2, JSON.stringify(lineSheet));
+    await screenshot('07-播放器-换线路-手机.png');
     await evaluate('document.querySelector(".sheet [data-cancel]").click()');
 
     const railCount = await evaluate('document.querySelectorAll(".watch__info .watch-ep").length');
