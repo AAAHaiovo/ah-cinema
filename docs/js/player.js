@@ -1021,65 +1021,27 @@ export function mountPlayer(item, episode) {
     event.stopImmediatePropagation();
   }
 
-  function runPlayerModeTransition(kind, apply, done) {
-    if (document.documentElement.dataset.routeNav) {
-      apply();
-      if (done) done();
-      return;
-    }
+  function fadePlayerStage() {
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!document.startViewTransition || reduce) {
-      apply();
-      if (done) done();
-      return;
-    }
-
-    try {
-      page.style.viewTransitionName = 'player-mode';
-    } catch (error) {
-      /* 忽略。 */
-    }
-    document.documentElement.dataset.playerMode = kind;
-    let transition;
-    try {
-      transition = document.startViewTransition(apply);
-    } catch (error) {
-      page.style.viewTransitionName = '';
-      delete document.documentElement.dataset.playerMode;
-      apply();
-      if (done) done();
-      return;
-    }
-
-    const finish = () => {
-      delete document.documentElement.dataset.playerMode;
-      page.style.viewTransitionName = '';
-      if (done) done();
-    };
-    transition.finished.then(finish, finish);
+    const stage = document.getElementById('player-stage');
+    if (!stage || reduce) return;
+    stage.classList.remove('is-mode-fading');
+    void stage.offsetWidth;
+    stage.classList.add('is-mode-fading');
+    window.setTimeout(() => stage.classList.remove('is-mode-fading'), 230);
   }
 
   function setAppFullscreen(active, options) {
     const opts = options || {};
     const next = Boolean(active);
     const changed = page.classList.contains('is-app-fullscreen') !== next;
-    const apply = () => {
-      page.classList.toggle('is-app-fullscreen', next);
-      document.body.classList.toggle('player-app-fullscreen', next);
-      autoLandscapeFullscreen = next && Boolean(opts.auto);
-      updateOrientationState();
-    };
-    const after = () => {
-      showControls();
-      if (opts.toast !== false) showToast(next ? '已进入全屏' : '已退出全屏');
-    };
-
-    if (changed && opts.animate !== false) {
-      runPlayerModeTransition(next ? 'fs-in' : 'fs-out', apply, after);
-    } else {
-      apply();
-      after();
-    }
+    page.classList.toggle('is-app-fullscreen', next);
+    document.body.classList.toggle('player-app-fullscreen', next);
+    autoLandscapeFullscreen = next && Boolean(opts.auto);
+    updateOrientationState();
+    if (changed && opts.animate !== false) fadePlayerStage();
+    showControls();
+    if (opts.toast !== false) showToast(next ? '已进入全屏' : '已退出全屏');
   }
 
   function toggleFullscreen() {
@@ -1095,10 +1057,10 @@ export function mountPlayer(item, episode) {
         updateOrientationState();
         exitAutoFullscreen();
       };
-      runPlayerModeTransition('ls-out', apply, () => {
-        showControls();
-        showToast('已退出横屏');
-      });
+      apply();
+      fadePlayerStage();
+      showControls();
+      showToast('已退出横屏');
       return;
     }
 
@@ -1199,12 +1161,9 @@ export function mountPlayer(item, episode) {
       if (opts.controls !== false) showControls();
     };
 
-    if (changed && opts.animate !== false) {
-      runPlayerModeTransition(enabled ? 'ls-in' : 'ls-out', apply, after);
-    } else {
-      apply();
-      after();
-    }
+    apply();
+    if (changed && opts.animate !== false) fadePlayerStage();
+    after();
   }
 
   function toggleForcedLandscape() {
@@ -1830,6 +1789,9 @@ export function mountPlayer(item, episode) {
     controller.abort();
   }
 
+  page.addEventListener('ah-save-progress', () => {
+    if (!cleaned) saveNow(video.ended);
+  }, { signal });
   page.addEventListener('click', onPageClick, { signal });
   page.addEventListener('pointerdown', onPagePointerDown, { signal, passive: true });
   if (fullscreenButton) {

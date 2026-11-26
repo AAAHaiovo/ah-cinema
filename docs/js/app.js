@@ -394,7 +394,7 @@ function updateActiveTab(tabName) {
 const ROUTE_DEPTH = { home: 0, search: 0, history: 0, favorites: 0, local: 0, me: 0, sources: 0, settings: 0, about: 0, detail: 1, player: 2, notfound: 0 };
 
 function routeNavKind(prev, next, prevKey, nextKey) {
-  if (!prev || !document.startViewTransition) return 'none';
+  if (!prev) return 'none';
   if (prevKey === nextKey) return 'none';
   if (prev.name === 'player' && next.name === 'player') return 'fade';
   const a = ROUTE_DEPTH[prev.name] || 0;
@@ -404,38 +404,119 @@ function routeNavKind(prev, next, prevKey, nextKey) {
   return 'fade';
 }
 
+/*
+ * 路由过渡不再截图整页（iOS 上会明显卡顿）。
+ * 直接把旧页面移到固定层里参与动画，全程只动 transform / opacity。
+ */
+function createRouteGhost(kind) {
+  const view = els.view;
+  const root = view ? view.firstElementChild : null;
+  if (!view || !root) return null;
+
+  const viewRect = view.getBoundingClientRect();
+  const rootRect = root.getBoundingClientRect();
+  const wrapper = document.createElement('div');
+  wrapper.className = 'nav-ghost nav-ghost--' + kind;
+  wrapper.style.cssText = 'position:fixed;overflow:hidden;pointer-events:none;'
+    + 'background:var(--ah-bg);contain:paint;transform:translateZ(0);'
+    + 'left:' + viewRect.left + 'px;top:' + viewRect.top + 'px;'
+    + 'width:' + viewRect.width + 'px;height:' + viewRect.height + 'px;'
+    + 'z-index:' + (kind === 'pop' ? 40 : 20) + ';';
+  wrapper.setAttribute('aria-hidden', 'true');
+  wrapper.inert = true;
+
+  root.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
+  root.removeAttribute('id');
+  try {
+    root.dispatchEvent(new Event('ah-save-progress'));
+  } catch (error) {
+    /* 忽略。 */
+  }
+  root.querySelectorAll('video').forEach((video) => {
+    try {
+      video.pause();
+    } catch (error) {
+      /* 忽略。 */
+    }
+  });
+  root.style.position = 'absolute';
+  root.style.left = (rootRect.left - viewRect.left) + 'px';
+  root.style.top = (rootRect.top - viewRect.top) + 'px';
+  root.style.width = rootRect.width + 'px';
+  root.style.margin = '0';
+
+  wrapper.appendChild(root);
+  document.body.appendChild(wrapper);
+  return wrapper;
+}
+
+function finishRouteTransition(kind, ghost, deferredCleanup) {
+  const root = els.view ? els.view.firstElementChild : null;
+  const duration = kind === 'fade' ? 180 : 250;
+
+  if (root && kind === 'push' && ghost) {
+    root.classList.add('nav-incoming', 'nav-slide-in');
+  } else if (kind === 'pop' && ghost) {
+    ghost.classList.add('nav-slide-out');
+  } else if (root && kind === 'pop') {
+    root.classList.add('nav-slide-in-left');
+  } else if (root && kind === 'fade') {
+    root.classList.add('nav-fade-in');
+  }
+
+  window.setTimeout(() => {
+    if (ghost) ghost.remove();
+    if (root) {
+      root.classList.remove('nav-incoming', 'nav-slide-in', 'nav-slide-out', 'nav-slide-in-left', 'nav-fade-in');
+    }
+    document.body.classList.remove('is-route-animating');
+    if (deferredCleanup) {
+      try {
+        deferredCleanup();
+      } catch (error) {
+        console.error('[AH 影视] 播放器清理失败', error);
+      }
+    }
+  }, duration);
+}
+
 function renderRoute() {
   const route = parseRoute();
   const resolved = resolveRoute(route);
   const nextKey = routeKey(route);
-  const kind = routeNavKind(currentRoute, resolved, currentRouteKey, nextKey);
   const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let kind = routeNavKind(currentRoute, resolved, currentRouteKey, nextKey);
+  if (reduce) kind = 'none';
 
-  if (kind === 'none' || reduce || !document.startViewTransition) {
-    renderRouteContent();
-    return;
+  /* 旧页的滚动位置必须在把它移出滚动容器之前记录。 */
+  if (currentRoute && isTabbedRoute(currentRoute.name) && !document.body.classList.contains('no-tabbar')) {
+    scrollMemory.set(currentRouteKey, els.view ? (els.view.scrollTop || 0) : 0);
   }
 
-  document.documentElement.dataset.routeNav = kind;
-  let transition;
+  const deferCleanup = kind === 'pop' && currentRoute && currentRoute.name === 'player' && currentCleanup
+    ? currentCleanup
+    : null;
+  if (deferCleanup) currentCleanup = null;
+
+  let ghost = null;
+  if (kind === 'push' || kind === 'pop') {
+    ghost = createRouteGhost(kind);
+  }
+  if (kind !== 'none') document.body.classList.add('is-route-animating');
+
   try {
-    transition = document.startViewTransition(() => {
-      try {
-        renderRouteContent();
-      } catch (error) {
-        console.error('[AH 影视] 页面渲染失败', error);
-        toast('页面加载失败，请刷新后重试');
-      }
-    });
-  } catch (error) {
-    delete document.documentElement.dataset.routeNav;
     renderRouteContent();
+  } catch (error) {
+    console.error('[AH 影视] 页面渲染失败', error);
+    toast('页面加载失败，请刷新后重试');
+  }
+
+  if (kind === 'none') {
+    document.body.classList.remove('is-route-animating');
+    if (deferCleanup) deferCleanup();
     return;
   }
-  const finish = () => {
-    delete document.documentElement.dataset.routeNav;
-  };
-  transition.finished.then(finish, finish);
+  finishRouteTransition(kind, ghost, deferCleanup);
 }
 
 function renderRouteContent() {
@@ -449,10 +530,6 @@ function renderRouteContent() {
   const route = parseRoute();
   const resolved = resolveRoute(route);
   const nextKey = routeKey(route);
-
-  if (currentRoute && isTabbedRoute(currentRoute.name) && !document.body.classList.contains('no-tabbar')) {
-    scrollMemory.set(currentRouteKey, els.view ? (els.view.scrollTop || 0) : 0);
-  }
 
   if (currentCleanup) {
     try {

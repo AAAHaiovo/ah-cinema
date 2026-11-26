@@ -489,29 +489,29 @@ async function main() {
     if (await waitFor('Boolean(document.querySelector(".sheet [data-value]"))', 3000)) {
       await evaluate('document.querySelector(".sheet [data-value]").click()');
     }
-    record(results, '首页卡片进入详情', await waitFor('Boolean(document.querySelector(".detail"))', 20000));
+    record(results, '首页卡片进入详情', await waitFor('Boolean(document.querySelector("#view .detail"))', 20000));
 
     await send('Page.navigate', { url: BASE + '#/search?q=Big' });
-    record(results, '看到网络结果卡片', await waitFor('Boolean(document.querySelector(".remote-card"))', 20000));
+    record(results, '看到网络结果卡片', await waitFor('Boolean(document.querySelector("#view .remote-card"))', 20000));
 
-    const groups = await evaluate('document.querySelectorAll(".remote-card").length');
+    const groups = await evaluate('document.querySelectorAll("#view .remote-card").length');
     const chips = await evaluate('document.querySelectorAll(".remote-chip").length');
     const sourceNote = await evaluate('document.querySelector(".remote-card .remote-card-note")?.textContent || ""');
     record(results, '多个源按标题合并为一组', groups === 1 && chips === 4, `卡片 ${groups} / 状态 ${chips}`);
     record(results, '显示多来源数量', /源A/.test(sourceNote) && /源B/.test(sourceNote), sourceNote);
 
-    await evaluate('document.querySelector(".remote-card").click()');
+    await evaluate('document.querySelector("#view .remote-card").click()');
     record(results, '多来源弹出选源', await waitFor('Boolean(document.querySelector(".sheet [data-value]"))'));
     await evaluate('document.querySelector(".sheet [data-value]").click()');
-    record(results, '进入远程详情', await waitFor('Boolean(document.querySelector(".detail"))', 20000));
+    record(results, '进入远程详情', await waitFor('Boolean(document.querySelector("#view .detail"))', 20000));
 
-    const title = await evaluate('document.querySelector(".detail__title")?.textContent || ""');
+    const title = await evaluate('document.querySelector("#view .detail__title")?.textContent || ""');
     record(results, '详情标题正确', title.includes('Big Buck Bunny'), title);
 
-    const refresh = await evaluate('Boolean(document.querySelector("[data-action=refresh-remote]"))');
+    const refresh = await evaluate('Boolean(document.querySelector("#view [data-action=refresh-remote]"))');
     record(results, '详情显示刷新片源', refresh);
 
-    await evaluate('document.querySelector(".detail-play").click()');
+    await evaluate('document.querySelector("#view .detail-play").click()');
     record(results, '进入播放页', await waitFor('Boolean(document.querySelector("#player-video"))'));
     record(results, '视频拿到代理地址', await waitFor('(document.querySelector("#player-video")?.currentSrc || "").includes("/api/proxy")', 20000));
 
@@ -527,13 +527,12 @@ async function main() {
     record(results, '视频未报错', !/"error":[1-9]/.test(playState), playState);
 
     await send('Page.navigate', { url: BASE + '#/search?q=示例' });
-    record(results, '剧集搜索结果出现', await waitFor('Boolean(document.querySelector(".remote-card"))', 20000));
-    await evaluate('document.querySelector(".remote-card").click()');
-    record(results, '进入剧集详情', await waitFor('Boolean(document.querySelector(".detail"))', 20000));
-    const episodeCount = await evaluate('document.querySelectorAll(".ep").length');
-    record(results, '解析出两集', episodeCount === 2, String(episodeCount));
+    record(results, '剧集搜索结果出现', await waitFor('Boolean(document.querySelector("#view .remote-card"))', 20000));
+    await evaluate('document.querySelector("#view .remote-card").click()');
+    record(results, '进入剧集详情', await waitFor('Boolean(document.querySelector("#view .detail"))', 20000));
+    record(results, '解析出两集', await waitFor('document.querySelectorAll("#view .ep").length === 2', 10000));
 
-    await evaluate('document.querySelectorAll(".ep")[1].click()');
+    await evaluate('document.querySelectorAll("#view .ep")[1].click()');
     record(results, '进入第二集播放页', await waitFor('Boolean(document.querySelector("#player-video"))'));
     record(results, '第二集拿到片源', await waitFor('(document.querySelector("#player-video")?.currentSrc || "").includes("/api/proxy")', 20000));
     const playerLayout = JSON.parse(await evaluate(`JSON.stringify((() => {
@@ -776,27 +775,27 @@ async function main() {
     record(results, '选集后停留在播放页',
       await waitFor('Boolean(document.querySelector("#player-video")) && Boolean(document.querySelector(".watch__info .watch-ep.is-on"))', 8000));
     await evaluate('document.querySelector("[data-paction=back]").click()');
-    record(results, '返回简介而不是上一集', await waitFor('location.hash.startsWith("#/title/") && Boolean(document.querySelector(".detail"))'));
+    record(results, '返回简介而不是上一集', await waitFor('location.hash.startsWith("#/title/") && Boolean(document.querySelector("#view .detail"))'));
 
     await send('Page.navigate', { url: BASE + '#/search?q=XML' });
-    record(results, 'XML 搜索出结果', await waitFor('Boolean(document.querySelector(".remote-card"))', 20000));
+    record(results, 'XML 搜索出结果', await waitFor('Boolean(document.querySelector("#view .remote-card"))', 20000));
     const xmlCards = await evaluate(
-      `JSON.stringify(Array.from(document.querySelectorAll('.remote-card')).map((card) => card.textContent))`
+      `JSON.stringify(Array.from(document.querySelectorAll('#view .remote-card')).map((card) => card.textContent))`
     );
     record(results, 'XML 搜索返回两部', JSON.parse(xmlCards).length === 2, xmlCards.slice(0, 160));
 
-    await evaluate('document.querySelector(".remote-card").click()');
-    record(results, 'XML 详情页打开', await waitFor('Boolean(document.querySelector(".detail"))', 20000));
-    const xmlTitle = await evaluate('document.querySelector(".detail__title")?.textContent || ""');
+    await evaluate('document.querySelector("#view .remote-card").click()');
+    record(results, 'XML 详情页打开', await waitFor('Boolean(document.querySelector("#view .detail"))', 20000));
+    const xmlTitle = await evaluate('document.querySelector("#view .detail__title")?.textContent || ""');
     record(results, 'XML 详情标题正确', xmlTitle.includes('XML'), xmlTitle);
     record(results, 'XML 详情解析简介', await evaluate(
-      `Boolean(document.querySelector(".detail .detail__desc"))`
+      `Boolean(document.querySelector("#view .detail .detail__desc"))`
     ));
 
     await send('Page.navigate', { url: BASE + '#/search?q=不应出现' });
-    await wait(3000);
-    const filtered = await evaluate('document.querySelectorAll(".remote-card").length');
-    const filteredHint = await evaluate('Boolean(document.querySelector(".remote-empty"))');
+    await waitFor('Boolean(document.querySelector("#view .remote-empty"))', 10000);
+    const filtered = await evaluate('document.querySelectorAll("#view .remote-card").length');
+    const filteredHint = await evaluate('Boolean(document.querySelector("#view .remote-empty"))');
     record(results, '服务端过滤明显成人分类', filtered === 0 && filteredHint, `卡片 ${filtered}`);
 
     record(results, '没有未捕获异常', errors.length === 0, errors.slice(0, 3).join(' | '));

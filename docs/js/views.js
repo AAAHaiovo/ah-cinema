@@ -54,7 +54,7 @@ import {
 import { localItems, localCount } from './local-library.js';
 import { cachedSources } from './sources.js';
 
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.0.1';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
