@@ -54,7 +54,7 @@ import {
 import { localItems, localCount } from './local-library.js';
 import { cachedSources } from './sources.js';
 
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '2.0.0';
 
 function pageHeading(title, subtitle, action = '') {
   return '<div class="page-title-row">' +
@@ -159,12 +159,9 @@ function browseFilterBar(view) {
   const groups = tree.groups;
   const selectedGroup = String(view.topGroup || '');
   const selectedSub = String(view.subCategory || '');
-  const meta = browseFilterMeta(view);
   const collapsed = Boolean(view.collapsed);
 
-  if (!groups.length) {
-    return meta ? '<div class="browse-filterbar is-meta-only">' + meta + '</div>' : '';
-  }
+  if (!groups.length) return '';
 
   const group = groups.find((entry) => entry.key === selectedGroup) || null;
   const topChips = [
@@ -219,7 +216,7 @@ function browseFilterBar(view) {
       browseScrollButton(1, 'top') +
       '<button class="browse-collapse' + (collapsed ? '' : ' is-open') + '" type="button" data-action="browse-collapse" aria-expanded="' + (!collapsed) + '" aria-label="' + (collapsed ? '展开分类' : '收起分类') + '">' + icon('chevronDown') + '</button>' +
     '</div>' +
-    (collapsed ? '' : subRow + categoryPanel + meta) +
+    (collapsed ? '' : subRow + categoryPanel) +
     '</div>';
 }
 

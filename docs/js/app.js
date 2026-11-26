@@ -391,7 +391,54 @@ function updateActiveTab(tabName) {
   });
 }
 
+const ROUTE_DEPTH = { home: 0, search: 0, history: 0, favorites: 0, local: 0, me: 0, sources: 0, settings: 0, about: 0, detail: 1, player: 2, notfound: 0 };
+
+function routeNavKind(prev, next, prevKey, nextKey) {
+  if (!prev || !document.startViewTransition) return 'none';
+  if (prevKey === nextKey) return 'none';
+  if (prev.name === 'player' && next.name === 'player') return 'fade';
+  const a = ROUTE_DEPTH[prev.name] || 0;
+  const b = ROUTE_DEPTH[next.name] || 0;
+  if (b > a) return 'push';
+  if (b < a) return 'pop';
+  return 'fade';
+}
+
 function renderRoute() {
+  const route = parseRoute();
+  const resolved = resolveRoute(route);
+  const nextKey = routeKey(route);
+  const kind = routeNavKind(currentRoute, resolved, currentRouteKey, nextKey);
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (kind === 'none' || reduce || !document.startViewTransition) {
+    renderRouteContent();
+    return;
+  }
+
+  document.documentElement.dataset.routeNav = kind;
+  let transition;
+  try {
+    transition = document.startViewTransition(() => {
+      try {
+        renderRouteContent();
+      } catch (error) {
+        console.error('[AH 影视] 页面渲染失败', error);
+        toast('页面加载失败，请刷新后重试');
+      }
+    });
+  } catch (error) {
+    delete document.documentElement.dataset.routeNav;
+    renderRouteContent();
+    return;
+  }
+  const finish = () => {
+    delete document.documentElement.dataset.routeNav;
+  };
+  transition.finished.then(finish, finish);
+}
+
+function renderRouteContent() {
   if (!els.view) return;
   clearHeroCarousel();
   setHeaderHidden(false);
@@ -433,6 +480,7 @@ function renderRoute() {
   if (els.header) {
     els.header.hidden = !tabbed;
     els.header.classList.toggle('is-home', resolved.name === 'home');
+    if (resolved.name !== 'home') els.header.classList.remove('is-merged');
   }
   if (els.tabbar) els.tabbar.hidden = !tabbed;
   updateActiveTab(tabForRoute(resolved.name));
@@ -909,6 +957,8 @@ function renderBrowse() {
 
   section.innerHTML = renderHomeBrowse(browseState);
   browseLastTopGroup = browseState.topGroup;
+  const grid = section.querySelector('.remote-grid');
+  if (grid) grid.classList.add('browse-fade-in');
   if (browseBarScrolledHidden) {
     const bar = section.querySelector('.browse-filterbar');
     if (bar) bar.classList.add('is-scroll-hidden');
@@ -943,6 +993,7 @@ function renderBrowse() {
   }
 
   window.requestAnimationFrame(() => {
+    syncHeaderMerge();
     const top = document.getElementById('browse-top-categories');
     const sub = document.getElementById('browse-sub-categories');
     if (top) {
@@ -1094,6 +1145,22 @@ function setBrowseBarScrolledHidden(hidden) {
   });
 }
 
+/* 分类栏吸在顶栏下面时，去掉顶栏底边线，让两栏连成一块玻璃。 */
+function syncHeaderMerge() {
+  const header = document.querySelector('.app-header');
+  const bar = document.querySelector('.home-page .browse-filterbar');
+  if (!header) return;
+  if (!bar) {
+    header.classList.remove('is-merged');
+    return;
+  }
+  const headerBottom = header.getBoundingClientRect().bottom;
+  const barTop = bar.getBoundingClientRect().top;
+  const merged = !bar.classList.contains('is-scroll-hidden') && Math.abs(barTop - headerBottom) <= 2;
+  header.classList.toggle('is-merged', merged);
+  bar.classList.toggle('is-merged', merged);
+}
+
 function updateBrowseBarOnScroll() {
   scrollFrame = 0;
   if (!els.view) return;
@@ -1116,6 +1183,7 @@ function updateBrowseBarOnScroll() {
     }
   }
 
+  window.requestAnimationFrame(syncHeaderMerge);
   lastScrollY = y;
 }
 

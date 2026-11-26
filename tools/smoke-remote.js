@@ -159,13 +159,16 @@ async function main() {
       topCategories);
     record(results, '分类不含成人分类', !topNames.includes('伦理片') && !topCategories.includes('伦理片'), topCategories);
 
-    record(results, '首页显示约数与页码', await waitFor(
-      `Boolean(document.querySelector('#home-browse .browse-count')) &&
-       Boolean(document.querySelector('#home-browse .browse-filter-meta'))`,
+    record(results, '首页不再显示统计行', await waitFor(
+      `Boolean(document.querySelector('#home-browse .browse-page-status'))`,
       10000
     ));
-    const countText = await evaluate('document.querySelector("#home-browse .browse-count")?.textContent || ""');
-    record(results, '显示约 N 部', /约\s*[\d,]+\s*部/.test(countText), countText);
+    const countText = await evaluate(`(() => {
+      const bar = document.querySelector('#home-browse .browse-filterbar');
+      return bar ? bar.textContent : '';
+    })()`);
+    record(results, '分类栏无约数 / 源数 / 页码', !/约\s*[\d,]+\s*部/.test(countText)
+      && !/个源/.test(countText) && !/第\s*\d+\s*\/\s*\d+\s*页/.test(countText), countText.slice(0, 80));
 
     record(results, '首页显示分页器', await waitFor(
       'Boolean(document.querySelector("#home-browse .browse-pager"))',
@@ -177,17 +180,20 @@ async function main() {
 
     await evaluate('document.querySelector("#home-browse [data-action=browse-next]").click()');
     record(results, '翻到第 2 页', await waitFor(
-      `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 2 /')`,
+      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 2 /')`,
       10000
     ));
     const secondPageCards = await evaluate('document.querySelectorAll("#home-browse .remote-card").length');
     record(results, '第 2 页有影片', secondPageCards > 0, String(secondPageCards));
 
+    await waitFor('!document.querySelector("#home-browse [data-action=browse-prev]")?.disabled', 10000);
     await evaluate('document.querySelector("#home-browse [data-action=browse-prev]").click()');
-    record(results, '回到第 1 页', await waitFor(
-      `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 1 /')`,
+    const prevOk = await waitFor(
+      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 1 /')`,
       10000
-    ));
+    );
+    const prevStatus = await evaluate('document.querySelector("#home-browse .browse-page-status")?.textContent || ""');
+    record(results, '回到第 1 页', prevOk, prevStatus);
 
     await evaluate(
       `Array.from(document.querySelectorAll('#browse-top-categories .category-chip')).find((chip) => chip.textContent.trim() === '电影').click()`
@@ -359,7 +365,7 @@ async function main() {
 
     await evaluate('document.querySelector("#home-browse [data-action=browse-next]").click()');
     record(results, '动作分类翻到第 2 页', await waitFor(
-      `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 2 / 2 页')`,
+      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 2 / 2 页')`,
       10000
     ));
     const actionSecond = await evaluate(
@@ -412,7 +418,7 @@ async function main() {
       `Array.from(document.querySelectorAll('#browse-category-panel .category-cell')).find((option) => option.textContent.trim().startsWith('长尾测试')).click()`
     );
     record(results, '长尾分类共 25 页', await waitFor(
-      `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 1 / 25 页')`,
+      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 1 / 25 页')`,
       10000
     ));
 
@@ -422,7 +428,7 @@ async function main() {
       `document.querySelector('.dialog input').value = '21'; document.querySelector('.dialog').requestSubmit();`
     );
     record(results, '跳转到第 21 页', await waitFor(
-      `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 21 / 25 页') && document.querySelector('#home-browse .remote-grid')?.textContent.includes('长尾影片 81')`,
+      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 21 / 25 页') && document.querySelector('#home-browse .remote-grid')?.textContent.includes('长尾影片 81')`,
       10000
     ));
     const longTail = await evaluate(
@@ -444,7 +450,7 @@ async function main() {
       `Array.from(document.querySelectorAll('#browse-top-categories .category-chip')).find((chip) => chip.textContent.trim() === '全部').click()`
     );
     record(results, '切回全部恢复第 1 页', await waitFor(
-      `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 1 /')`,
+      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 1 /')`,
       10000
     ));
 
@@ -452,26 +458,30 @@ async function main() {
     await evaluate(
       `Array.from(document.querySelectorAll('#browse-top-categories .category-chip')).find((chip) => chip.textContent.trim() === '动漫').click()`
     );
-    record(results, '动漫分类不含电影/电视剧', await waitFor(`(() => {
-      const meta = document.querySelector('#home-browse .browse-filter-meta')?.textContent || '';
+    const animeOk = await waitFor(`(() => {
       const text = document.querySelector('#home-browse .remote-grid')?.textContent || '';
-      return meta.includes('第 1 /') && text.includes('D动漫') && !text.includes('D电影') && !text.includes('D剧集');
-    })()`, 10000));
+      return text.includes('D动漫') && !text.includes('D电影') && !text.includes('D剧集');
+    })()`, 10000);
+    const animeDetail = await evaluate(`(() => {
+      const meta = document.querySelector('#home-browse .browse-page-status')?.textContent || '';
+      const text = document.querySelector('#home-browse .remote-grid')?.textContent || '';
+      return JSON.stringify({ meta, text: text.slice(0, 120) });
+    })()`);
+    record(results, '动漫分类不含电影/电视剧', animeOk, animeDetail);
 
     await evaluate(
       `Array.from(document.querySelectorAll('#browse-top-categories .category-chip')).find((chip) => chip.textContent.trim() === '电影').click()`
     );
     record(results, '电影分类不含动漫/电视剧', await waitFor(`(() => {
-      const meta = document.querySelector('#home-browse .browse-filter-meta')?.textContent || '';
       const text = document.querySelector('#home-browse .remote-grid')?.textContent || '';
-      return meta.includes('第 1 /') && text.includes('D电影') && !text.includes('D动漫') && !text.includes('D剧集');
+      return text.includes('D电影') && !text.includes('D动漫') && !text.includes('D剧集');
     })()`, 10000));
 
     await evaluate(
       `Array.from(document.querySelectorAll('#browse-top-categories .category-chip')).find((chip) => chip.textContent.trim() === '全部').click()`
     );
     await waitFor(
-      `document.querySelector('#home-browse .browse-filter-meta')?.textContent.includes('第 1 /') && Boolean(document.querySelector('#home-browse .remote-card'))`,
+      `document.querySelector('#home-browse .browse-page-status')?.textContent.includes('第 1 /') && Boolean(document.querySelector('#home-browse .remote-card'))`,
       10000
     );
 
@@ -531,12 +541,14 @@ async function main() {
       const mute = document.querySelector('#player-mute');
       const fullscreen = document.querySelector('#player-fullscreen');
       const ctrl = document.querySelector('.player__ctrl');
-      const desc = document.querySelector('.watch__info .watch__desc');
+      const titleEl = document.querySelector('.watch__info .watch__info-title');
+      const tagsEl = document.querySelector('.watch__info .watch__tags');
       const r = rail ? rail.getBoundingClientRect() : null;
       const m = mute ? mute.getBoundingClientRect() : null;
       const f = fullscreen ? fullscreen.getBoundingClientRect() : null;
       const c = ctrl ? ctrl.getBoundingClientRect() : null;
-      const d = desc ? desc.getBoundingClientRect() : null;
+      const t = titleEl ? titleEl.getBoundingClientRect() : null;
+      const g = tagsEl ? tagsEl.getBoundingClientRect() : null;
       const cbtn = document.querySelector('.player__ctrl .cbtn');
       const cbtnIcon = cbtn ? cbtn.querySelector('.icon') : null;
       return {
@@ -544,7 +556,8 @@ async function main() {
         mute: m ? [Math.round(m.width), Math.round(m.top), Math.round(m.bottom)] : null,
         fullscreen: f ? [Math.round(f.width), Math.round(f.left)] : null,
         ctrl: c ? [Math.round(c.top), Math.round(c.bottom)] : null,
-        descBottom: d ? Math.round(d.bottom) : null,
+        titleBottom: t ? Math.round(t.bottom) : null,
+        tagsTop: g ? Math.round(g.top) : null,
         button: cbtn ? Math.round(cbtn.getBoundingClientRect().width) : null,
         icon: cbtnIcon ? Math.round(parseFloat(getComputedStyle(cbtnIcon).width)) : null,
         topEpisodes: Boolean(document.querySelector('#player-episodes')),
@@ -552,10 +565,12 @@ async function main() {
         viewport: [innerWidth, innerHeight]
       };
     })())`));
-    record(results, '选集在简介下，声音在右上角，全屏在控制条',
-      Boolean(playerLayout.rail && playerLayout.mute && playerLayout.fullscreen && playerLayout.ctrl && playerLayout.descBottom !== null)
+    record(results, '标题下方是选集，标签在选集下方，声音在右上角',
+      Boolean(playerLayout.rail && playerLayout.mute && playerLayout.fullscreen && playerLayout.ctrl
+        && playerLayout.titleBottom !== null && playerLayout.tagsTop !== null)
       && !playerLayout.topEpisodes && playerLayout.topFullscreen === 0
-      && playerLayout.rail[0] > 0 && playerLayout.rail[1] > playerLayout.descBottom
+      && playerLayout.rail[0] > 0 && playerLayout.rail[1] > playerLayout.titleBottom
+      && playerLayout.rail[1] < playerLayout.tagsTop
       && playerLayout.mute[1] < playerLayout.ctrl[0]
       && playerLayout.fullscreen[1] > playerLayout.viewport[0] * 0.5,
       JSON.stringify(playerLayout));
@@ -641,8 +656,23 @@ async function main() {
     await evaluate('document.querySelector(".player-drawer-close").click()');
     await wait(300);
 
+    await evaluate('document.getElementById("player-stage").click()');
+    await wait(500);
+    const fsHidden = JSON.parse(await evaluate(`JSON.stringify({
+      overlay: document.getElementById('player-overlay').classList.contains('is-hidden'),
+      tools: document.getElementById('player-fs-tools').classList.contains('is-hidden')
+    })`));
+    record(results, '全屏快捷键随控制条隐藏', fsHidden.overlay && fsHidden.tools, JSON.stringify(fsHidden));
+    await evaluate('document.getElementById("player-stage").click()');
+    await wait(500);
+    const fsShown = JSON.parse(await evaluate(`JSON.stringify({
+      overlay: document.getElementById('player-overlay').classList.contains('is-hidden'),
+      tools: document.getElementById('player-fs-tools').classList.contains('is-hidden')
+    })`));
+    record(results, '触摸画面后快捷键一起出现', !fsShown.overlay && !fsShown.tools, JSON.stringify(fsShown));
+
     await evaluate('document.querySelector("#player-fullscreen").click()');
-    await wait(300);
+    await wait(400);
 
     await evaluate('document.querySelector("#player-line").click()');
     record(results, '多线路可选', await waitFor('document.querySelectorAll(".sheet [data-value]").length === 2'));
@@ -683,7 +713,7 @@ async function main() {
     record(results, '横屏控制条下移且图标加大',
       forcedLandscape.button[0] >= 40 && forcedLandscape.icon[0] >= 21,
       JSON.stringify(forcedLandscape));
-    record(results, '横屏画面保持居中', forcedLandscape.videoTransform === 'none',
+    record(results, '横屏画面向状态栏方向微调', /matrix\(1,\s*0,\s*0,\s*1,\s*-18,\s*0\)/.test(forcedLandscape.videoTransform),
       forcedLandscape.videoTransform);
     const fsLandscape = JSON.parse(await evaluate(`JSON.stringify((() => {
       const root = document.querySelector('.player__fs-tools');

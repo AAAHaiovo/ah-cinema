@@ -3316,3 +3316,177 @@ body.player-app-fullscreen {
     padding: 4px 18px 14px;
   }
 }
+
+/* 播放器模式切换（全屏 / 横屏）的过渡。 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+html[data-player-mode="fs-in"]::view-transition-old(player-mode),
+html[data-player-mode="ls-in"]::view-transition-old(player-mode) {
+  animation: player-mode-out 180ms var(--ah-ease) both;
+}
+
+html[data-player-mode="fs-in"]::view-transition-new(player-mode),
+html[data-player-mode="ls-in"]::view-transition-new(player-mode) {
+  animation: player-mode-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+html[data-player-mode="fs-out"]::view-transition-old(player-mode),
+html[data-player-mode="ls-out"]::view-transition-old(player-mode) {
+  animation: player-mode-out 220ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+html[data-player-mode="fs-out"]::view-transition-new(player-mode),
+html[data-player-mode="ls-out"]::view-transition-new(player-mode) {
+  animation: player-mode-in 240ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@keyframes player-mode-in {
+  from { opacity: 0.35; transform: scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes player-mode-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: scale(0.97); }
+}
+
+/* 全屏右上角按钮跟随底部控制条显隐。 */
+.player__fs-tools {
+  transition: opacity 200ms var(--ah-ease), transform 200ms var(--ah-ease);
+}
+
+.player__fs-tools.is-hidden {
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+}
+
+/* 强制横屏：画面向手机状态栏方向微调。 */
+.player-page.watch.is-landscape {
+  --ah-ls-x: -18px;
+}
+
+.player-page.watch.is-landscape .player__video {
+  transform: translateX(var(--ah-ls-x));
+}
+
+.player-page.watch.is-landscape .player__bigplay {
+  left: calc(50% + var(--ah-ls-x));
+}
+
+.player-page.watch.is-landscape .player-buffering {
+  padding-right: 36px;
+}
+
+/* 真横屏：修正整体向上偏移。 */
+.player-page.watch.is-app-fullscreen.is-landscape-viewport .player__video {
+  transform: translateY(18px);
+}
+
+.player-page.watch.is-app-fullscreen.is-landscape-viewport .player__bigplay {
+  top: calc(50% + 18px);
+}
+
+.player-page.watch.is-app-fullscreen.is-landscape-viewport .player-buffering {
+  padding-top: 36px;
+}
+
+/* 顶栏与吸顶分类栏合并成一块玻璃。 */
+.app-header.is-merged {
+  border-bottom-color: transparent;
+  box-shadow: none;
+}
+
+.home-page .browse-filterbar.is-merged {
+  border-top: 0;
+  box-shadow: none;
+}
+
+/* 路由切换：详情 / 播放从右滑入，返回向右滑出，标签切换淡入淡出。 */
+#view > .page,
+#view > .detail,
+#view > .player-page {
+  view-transition-name: route;
+}
+
+html[data-route-nav] #view > .page,
+html[data-route-nav] #view > .detail,
+html[data-route-nav] #view > .player-page {
+  animation: none !important;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+html[data-route-nav="push"]::view-transition-old(route) {
+  z-index: 1;
+  animation: route-old-push 300ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+html[data-route-nav="push"]::view-transition-new(route) {
+  z-index: 2;
+  animation: route-new-push 300ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+html[data-route-nav="pop"]::view-transition-old(route) {
+  z-index: 2;
+  animation: route-old-pop 300ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+html[data-route-nav="pop"]::view-transition-new(route) {
+  z-index: 1;
+  animation: route-new-pop 300ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+html[data-route-nav="fade"]::view-transition-old(route) {
+  animation: route-fade-out 160ms ease both;
+}
+
+html[data-route-nav="fade"]::view-transition-new(route) {
+  animation: route-fade-in 180ms ease both;
+}
+
+@keyframes route-old-push {
+  from { transform: none; opacity: 1; }
+  to { transform: translateX(-28%); opacity: 0.72; }
+}
+
+@keyframes route-new-push {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
+
+@keyframes route-old-pop {
+  from { transform: none; }
+  to { transform: translateX(100%); }
+}
+
+@keyframes route-new-pop {
+  from { transform: translateX(-10%); opacity: 0.85; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes route-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes route-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 首页分类 / 翻页切换时内容轻微淡入。 */
+.browse-fade-in {
+  animation: browse-fade-in 200ms var(--ah-ease);
+}
+
+@keyframes browse-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
